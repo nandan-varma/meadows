@@ -25,6 +25,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=SF+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -61,17 +64,7 @@
                     </div>
                 </div>
                 <div class="editor-container">
-                    <textarea id="codeEditor" class="code-editor" placeholder="Write your Meadows code here...
-
-Example:
-def factorial(n):
-    if n <= 1:
-        return 1
-    else:
-        return n * factorial(n - 1)
-
-print(factorial(5))"></textarea>
-                    <div class="editor-gutter" id="editorGutter"></div>
+                    <div id="codeEditor" class="monaco-editor-container"></div>
                 </div>
             </div>
 
@@ -95,22 +88,26 @@ print(factorial(5))"></textarea>
                     </div>
                     <div class="output-content">
                         <div id="executionOutput" class="output-section active">
-                            <div class="output-placeholder">
+                            <div id="executionMonaco" class="monaco-output-container"></div>
+                            <div class="output-placeholder" id="executionPlaceholder">
                                 Run your code to see the output here...
                             </div>
                         </div>
                         <div id="astOutput" class="output-section">
-                            <div class="output-placeholder">
+                            <div id="astMonaco" class="monaco-output-container"></div>
+                            <div class="output-placeholder" id="astPlaceholder">
                                 Abstract Syntax Tree will appear here...
                             </div>
                         </div>
                         <div id="tokensOutput" class="output-section">
-                            <div class="output-placeholder">
+                            <div id="tokensMonaco" class="monaco-output-container"></div>
+                            <div class="output-placeholder" id="tokensPlaceholder">
                                 Token analysis will appear here...
                             </div>
                         </div>
                         <div id="irOutput" class="output-section">
-                            <div class="output-placeholder">
+                            <div id="irMonaco" class="monaco-output-container"></div>
+                            <div class="output-placeholder" id="irPlaceholder">
                                 LLVM IR code will appear here...
                             </div>
                         </div>

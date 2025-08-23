@@ -254,7 +254,7 @@ void CodeGenerator::visit(ListLiteral& node) {
     // This is a simplified implementation
     if (node.elements.empty()) {
         // Empty list - create a null pointer or zero-sized array
-        lastValue = llvm::ConstantPointerNull::get(getInt32Type()->getPointerTo());
+        lastValue = llvm::ConstantPointerNull::get(llvm::PointerType::get(getInt32Type(), 0));
     } else {
         // For simplicity, treat as array of integers for now
         // In a full implementation, you'd need type inference

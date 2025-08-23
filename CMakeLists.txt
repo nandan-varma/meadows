@@ -14,6 +14,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ==============================================================================
+# Compiler Configuration
+# ==============================================================================
+
+# Force system clang++ on macOS to avoid header conflicts with Homebrew LLVM
+if(APPLE AND NOT DEFINED CMAKE_CXX_COMPILER)
+    set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+    set(CMAKE_C_COMPILER "/usr/bin/clang")
+    message(STATUS "Forcing system compiler on macOS: ${CMAKE_CXX_COMPILER}")
+endif()
+
+# ==============================================================================
 # LLVM Configuration
 # ==============================================================================
 
