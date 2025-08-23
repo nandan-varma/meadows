@@ -66,10 +66,26 @@ print(power(x, 3))`
             this.initializeElements();
             this.setupEventListeners();
             this.initializeMonaco();
-            this.loadCompiler();
+            
+            // Delay compiler loading to ensure DOM is ready
+            setTimeout(() => {
+                this.loadCompiler();
+            }, 100);
+            
         } catch (error) {
             console.error('Failed to initialize MeadowsIDE:', error);
             this.updateStatus('error', 'Initialization Failed');
+            
+            // Try to at least show a basic error state
+            try {
+                const runBtn = document.getElementById('runBtn');
+                if (runBtn) {
+                    runBtn.disabled = true;
+                    runBtn.textContent = 'IDE Error';
+                }
+            } catch (btnError) {
+                console.error('Could not update run button:', btnError);
+            }
         }
     }
 
@@ -331,152 +347,124 @@ print(factorial(5))`,
         this.showModal('loading');
         this.updateStatus('loading', 'Loading Compiler...');
         
-        const maxRetries = 3;
-        let retryCount = 0;
-        
-        while (retryCount < maxRetries) {
+        try {
+            // Check if MeadowsModule is available
+            if (typeof MeadowsModule === 'undefined') {
+                throw new Error('MeadowsModule not available. Please ensure meadows.js loaded correctly.');
+            }
+            
+            console.log('MeadowsModule found, initializing...');
+            this.updateStatus('loading', 'Loading WASM binary...');
+            
+            // Pre-load the WASM binary to avoid path issues
+            let wasmBinary;
             try {
-                // Wait for MeadowsModule to be available
-                if (typeof MeadowsModule === 'undefined') {
-                    if (retryCount === 0) {
-                        console.log('MeadowsModule not found, waiting...');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        retryCount++;
-                        continue;
-                    } else {
-                        throw new Error('MeadowsModule not available after waiting');
-                    }
+                const wasmResponse = await fetch('meadows.wasm');
+                if (!wasmResponse.ok) {
+                    throw new Error(`Failed to fetch WASM file: ${wasmResponse.status} ${wasmResponse.statusText}`);
                 }
-                
-                console.log('MeadowsModule found, initializing...');
-                this.updateStatus('loading', 'Loading WASM binary...');
-                
-                // Pre-load the WASM binary to avoid path issues
-                let wasmBinary;
-                try {
-                    const wasmResponse = await fetch('meadows.wasm');
-                    if (!wasmResponse.ok) {
-                        throw new Error(`Failed to fetch WASM file: ${wasmResponse.status} ${wasmResponse.statusText}`);
+                wasmBinary = await wasmResponse.arrayBuffer();
+                console.log('WASM binary loaded, size:', wasmBinary.byteLength);
+            } catch (fetchError) {
+                console.error('Failed to fetch WASM binary:', fetchError);
+                throw new Error(`Could not load meadows.wasm: ${fetchError.message}`);
+            }
+            
+            this.updateStatus('loading', 'Initializing WebAssembly...');
+            
+            // Configure the module with the pre-loaded WASM binary
+            const moduleConfig = {
+                wasmBinary: wasmBinary,  // Provide the WASM binary directly
+                locateFile: (path, prefix) => {
+                    console.log('Locating file:', path, 'with prefix:', prefix);
+                    if (path.endsWith('.wasm')) {
+                        return 'meadows.wasm';
                     }
-                    wasmBinary = await wasmResponse.arrayBuffer();
-                    console.log('WASM binary loaded, size:', wasmBinary.byteLength);
-                } catch (fetchError) {
-                    console.error('Failed to fetch WASM binary:', fetchError);
-                    throw new Error(`Could not load meadows.wasm: ${fetchError.message}`);
+                    return prefix + path;
+                },
+                onAbort: (what) => {
+                    console.error('WebAssembly module aborted:', what);
+                },
+                onRuntimeInitialized: () => {
+                    console.log('WebAssembly runtime initialized successfully');
+                },
+                print: (text) => {
+                    console.log('WASM stdout:', text);
+                },
+                printErr: (text) => {
+                    console.error('WASM stderr:', text);
                 }
+            };
+            
+            // Initialize the WebAssembly module with configuration
+            const module = await MeadowsModule(moduleConfig);
+            console.log('WebAssembly module loaded:', module);
+            console.log('Available exports:', Object.keys(module));
+            
+            // Check if the module has the WebCompiler class
+            if (module && module.WebCompiler) {
+                console.log('WebCompiler class found, creating instance...');
+                this.updateStatus('loading', 'Creating compiler instance...');
                 
-                this.updateStatus('loading', 'Initializing WebAssembly...');
+                const webCompiler = new module.WebCompiler();
                 
-                // Configure the module with the pre-loaded WASM binary
-                const moduleConfig = {
-                    wasmBinary: wasmBinary,  // Provide the WASM binary directly
-                    locateFile: (path, prefix) => {
-                        console.log('Locating file:', path, 'with prefix:', prefix);
-                        if (path.endsWith('.wasm')) {
-                            return 'meadows.wasm';
+                // Test the compiler with a simple example
+                this.updateStatus('loading', 'Testing compiler...');
+                const testResult = webCompiler.compile('# Test');
+                console.log('Test compilation result:', testResult);
+                
+                this.compiler = {
+                    compile: (source) => {
+                        try {
+                            console.log('Compiling source:', source);
+                            const resultJson = webCompiler.compile(source);
+                            console.log('Raw result from WASM:', resultJson);
+                            const result = JSON.parse(resultJson);
+                            console.log('Parsed result:', result);
+                            return result;
+                        } catch (error) {
+                            console.error('WASM compilation error:', error);
+                            return {
+                                success: false,
+                                message: 'WebAssembly compilation failed: ' + error.message,
+                                errors: [error.message]
+                            };
                         }
-                        return prefix + path;
-                    },
-                    onAbort: (what) => {
-                        console.error('WebAssembly module aborted:', what);
-                        this.updateStatus('error', 'WebAssembly module failed to load');
-                    },
-                    onRuntimeInitialized: () => {
-                        console.log('WebAssembly runtime initialized successfully');
-                    },
-                    print: (text) => {
-                        console.log('WASM stdout:', text);
-                    },
-                    printErr: (text) => {
-                        console.error('WASM stderr:', text);
                     }
                 };
                 
-                // Initialize the WebAssembly module with configuration
-                const module = await MeadowsModule(moduleConfig);
-                console.log('WebAssembly module loaded:', module);
-                console.log('Available exports:', Object.keys(module));
+                this.hideModal('loading');
+                this.updateStatus('success', 'Ready (WebAssembly)');
+                console.log('WebAssembly compiler initialized successfully');
                 
-                // Check if the module has the WebCompiler class
-                if (module && module.WebCompiler) {
-                    console.log('WebCompiler class found, creating instance...');
-                    this.updateStatus('loading', 'Creating compiler instance...');
-                    
-                    const webCompiler = new module.WebCompiler();
-                    
-                    // Test the compiler with a simple example
-                    this.updateStatus('loading', 'Testing compiler...');
-                    const testResult = webCompiler.compile('# Test');
-                    console.log('Test compilation result:', testResult);
-                    
-                    this.compiler = {
-                        compile: (source) => {
-                            try {
-                                console.log('Compiling source:', source);
-                                const resultJson = webCompiler.compile(source);
-                                console.log('Raw result from WASM:', resultJson);
-                                const result = JSON.parse(resultJson);
-                                console.log('Parsed result:', result);
-                                return result;
-                            } catch (error) {
-                                console.error('WASM compilation error:', error);
-                                return {
-                                    success: false,
-                                    message: 'WebAssembly compilation failed: ' + error.message,
-                                    errors: [error.message]
-                                };
-                            }
-                        }
-                    };
-                    
-                    this.hideModal('loading');
-                    this.updateStatus('success', 'Ready (WebAssembly)');
-                    console.log('WebAssembly compiler initialized successfully');
-                    return;
-                } else {
-                    throw new Error('WebCompiler class not found in WASM module. Available exports: ' + Object.keys(module || {}));
-                }
-                
-            } catch (error) {
-                retryCount++;
-                console.error(`Attempt ${retryCount} failed:`, error);
-                
-                if (retryCount < maxRetries) {
-                    console.log(`Retrying in 2 seconds... (${retryCount}/${maxRetries})`);
-                    this.updateStatus('loading', `Retrying... (${retryCount}/${maxRetries})`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                } else {
-                    console.error('All attempts failed:', error);
-                    this.hideModal('loading');
-                    this.showModal('error');
-                    this.updateStatus('error', 'Compiler Not Available');
-                    this.elements.runBtn.disabled = true;
-                    
-                    // Display detailed error information
-                    const errorDetails = document.querySelector('#errorModal .modal-body');
-                    if (errorDetails) {
-                        errorDetails.innerHTML = `
-                            <p><strong>Failed to load the Meadows compiler after ${maxRetries} attempts.</strong></p>
-                            <p><strong>Error:</strong> ${error.message}</p>
-                            <p>Please ensure that:</p>
-                            <ol>
-                                <li>The <code>meadows.js</code> and <code>meadows.wasm</code> files are present</li>
-                                <li>The WebAssembly module compiled correctly</li>
-                                <li>Your browser supports WebAssembly</li>
-                                <li>The server is running and serving the files properly</li>
-                            </ol>
-                            <p><strong>Debug info:</strong></p>
-                            <ul>
-                                <li>MeadowsModule available: ${typeof MeadowsModule !== 'undefined'}</li>
-                                <li>WebAssembly supported: ${'WebAssembly' in window}</li>
-                                <li>Retry count: ${retryCount}</li>
-                            </ul>
-                            <p>Check the browser console for more details.</p>
-                        `;
-                    }
-                    break;
-                }
+            } else {
+                throw new Error('WebCompiler class not found in WASM module. Available exports: ' + Object.keys(module || {}));
             }
+            
+        } catch (error) {
+            console.error('Failed to load compiler:', error);
+            this.hideModal('loading');
+            
+            // Show a more user-friendly error message
+            this.updateStatus('error', 'Compiler unavailable - check console');
+            
+            if (this.elements.runBtn) {
+                this.elements.runBtn.disabled = true;
+                this.elements.runBtn.textContent = 'Compiler Unavailable';
+                this.elements.runBtn.title = 'WebAssembly compiler failed to load. Check browser console for details.';
+            }
+            
+            // Display detailed error information in console only
+            console.error('Detailed error information:', {
+                message: error.message,
+                stack: error.stack,
+                moduleAvailable: typeof MeadowsModule !== 'undefined',
+                wasmSupported: 'WebAssembly' in window,
+                currentURL: window.location.href
+            });
+            
+            // Show a toast-like notification instead of a modal
+            this.showToastError('Compiler could not be loaded. See console for details.');
         }
     }
 
@@ -493,7 +481,7 @@ print(factorial(5))`,
         }
 
         if (!this.compiler) {
-            this.showError('Compiler not available. Please ensure WebAssembly module is loaded.');
+            this.showError('Compiler not available. The WebAssembly module failed to load. Please refresh the page or check the browser console for details.');
             return;
         }
 
@@ -657,18 +645,26 @@ print(factorial(5))`,
     }
 
     showModal(modalName) {
-        const modal = this.elements[modalName + 'Modal'];
-        if (modal) {
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
+        try {
+            const modal = this.elements[modalName + 'Modal'];
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        } catch (error) {
+            console.log(`Could not show modal: ${modalName}`);
         }
     }
 
     hideModal(modalName) {
-        const modal = this.elements[modalName + 'Modal'];
-        if (modal) {
-            modal.classList.remove('active');
-            document.body.style.overflow = '';
+        try {
+            const modal = this.elements[modalName + 'Modal'];
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        } catch (error) {
+            console.log(`Could not hide modal: ${modalName}`);
         }
     }
 
@@ -686,6 +682,54 @@ print(factorial(5))`,
         } catch (error) {
             console.log(`Status update: ${type} - ${message}`);
         }
+    }
+
+    showToastError(message) {
+        // Create a simple toast notification instead of a modal
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 10000;
+            max-width: 300px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // Fade in
+        setTimeout(() => {
+            toast.style.opacity = '1';
+        }, 10);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 5000);
+        
+        // Click to dismiss
+        toast.addEventListener('click', () => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        });
     }
 
     showError(message, details = []) {
@@ -722,17 +766,40 @@ print(factorial(5))`,
 
 // Initialize the IDE when the page loads
 document.addEventListener('DOMContentLoaded', async () => {
-    // Wait a bit for all scripts to load
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait a bit for all scripts to load, especially the WebAssembly module
+    await new Promise(resolve => setTimeout(resolve, 500));
     
-    console.log('DOM loaded, checking for MeadowsModule...');
+    console.log('DOM loaded, initializing IDE...');
     console.log('MeadowsModule available:', typeof MeadowsModule !== 'undefined');
     
     if (typeof MeadowsModule === 'undefined') {
         console.error('MeadowsModule not found! Make sure meadows.js loaded correctly.');
-        // Try to provide helpful debugging information
-        console.log('Available global variables:', Object.keys(window).filter(key => key.includes('Meadows') || key.includes('Module')));
+        console.log('Available global variables:', Object.keys(window).filter(key => 
+            key.toLowerCase().includes('meadows') || key.toLowerCase().includes('module')
+        ));
     }
     
-    window.meadowsIDE = new MeadowsIDE();
+    try {
+        window.meadowsIDE = new MeadowsIDE();
+    } catch (error) {
+        console.error('Failed to initialize IDE:', error);
+        
+        // Show a fallback error message
+        const statusIndicator = document.getElementById('statusIndicator');
+        if (statusIndicator) {
+            const statusText = statusIndicator.querySelector('.status-text');
+            const statusDot = statusIndicator.querySelector('.status-dot');
+            if (statusText && statusDot) {
+                statusDot.className = 'status-dot error';
+                statusText.textContent = 'Initialization Failed';
+            }
+        }
+        
+        const runBtn = document.getElementById('runBtn');
+        if (runBtn) {
+            runBtn.disabled = true;
+            runBtn.textContent = 'IDE Unavailable';
+            runBtn.title = 'IDE failed to initialize. Check console for details.';
+        }
+    }
 });
