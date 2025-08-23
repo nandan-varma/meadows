@@ -20,13 +20,13 @@ private:
 public:
     WebCompiler() {
         errorReporter = std::make_unique<ErrorReporter>();
-        compiler = std::make_unique<Compiler>(*errorReporter);
+        compiler = std::make_unique<Compiler>();
     }
 
     std::string compile(const std::string& source) {
         try {
             // Clear previous errors
-            errorReporter->clearErrors();
+            errorReporter->clear();
             
             // For WebAssembly builds, use simplified compilation
 #ifdef BUILD_WASM
@@ -34,8 +34,8 @@ public:
             auto tokens = compiler->tokenize(source);
             std::string tokensJson = tokensToJson(tokens);
 
-            // Try to parse (may fail gracefully)
-            auto program = compiler->parse(source);
+            // Try to parse (need to pass tokens, not source)
+            auto program = compiler->parse(tokens);
             std::string astJson = program ? astToJson(*program) : "\"AST parsing not available\"";
 
             // Skip IR generation for WebAssembly
@@ -48,14 +48,15 @@ public:
             return createSuccessResponse(tokensJson, astJson, irCode, executionOutput);
 #else
             // Full compilation for native builds
-            auto program = compiler->parse(source);
+            // Generate tokens first
+            auto tokens = compiler->tokenize(source);
+            std::string tokensJson = tokensToJson(tokens);
+
+            // Parse using tokens
+            auto program = compiler->parse(tokens);
             if (!program) {
                 return createErrorResponse("Parse failed", errorReporter->getErrors());
             }
-
-            // Generate tokens
-            auto tokens = compiler->tokenize(source);
-            std::string tokensJson = tokensToJson(tokens);
 
             // Generate AST
             std::string astJson = astToJson(*program);
@@ -99,17 +100,19 @@ private:
         return "\"Program with " + std::to_string(program.statements.size()) + " statements\"";
     }
 
-    std::string irToString(llvm::Module& module) {
 #ifndef BUILD_WASM
+    std::string irToString(llvm::Module& module) {
         std::string irStr;
         llvm::raw_string_ostream stream(irStr);
         module.print(stream, nullptr);
         return stream.str();
+    }
 #else
+    std::string irToString(void* unused = nullptr) {
         // Simplified IR representation for WebAssembly
         return "LLVM IR generation not available in WebAssembly build";
-#endif
     }
+#endif
 
     std::string simulateExecution(const std::string& source) {
         // Simple pattern matching for demonstration
