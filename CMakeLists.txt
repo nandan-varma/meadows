@@ -127,10 +127,12 @@ endif()
 # ==============================================================================
 
 if(APPLE)
-    target_compile_options(meadows PRIVATE -stdlib=libc++)
-    target_link_options(meadows PRIVATE -stdlib=libc++)
-    target_compile_options(meadows_test PRIVATE -stdlib=libc++)
-    target_link_options(meadows_test PRIVATE -stdlib=libc++)
+    if(NOT BUILD_WASM)
+        target_compile_options(meadows PRIVATE -stdlib=libc++)
+        target_link_options(meadows PRIVATE -stdlib=libc++)
+        target_compile_options(meadows_test PRIVATE -stdlib=libc++)
+        target_link_options(meadows_test PRIVATE -stdlib=libc++)
+    endif()
     target_compile_options(meadows_lib PRIVATE -stdlib=libc++)
 endif()
 
@@ -139,18 +141,20 @@ endif()
 # ==============================================================================
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(meadows PRIVATE 
-        -Wall 
-        -Wextra 
-        -Wno-unused-parameter
-        -Wno-unused-variable
-    )
-    target_compile_options(meadows_test PRIVATE 
-        -Wall 
-        -Wextra 
-        -Wno-unused-parameter
-        -Wno-unused-variable
-    )
+    if(NOT BUILD_WASM)
+        target_compile_options(meadows PRIVATE 
+            -Wall 
+            -Wextra 
+            -Wno-unused-parameter
+            -Wno-unused-variable
+        )
+        target_compile_options(meadows_test PRIVATE 
+            -Wall 
+            -Wextra 
+            -Wno-unused-parameter
+            -Wno-unused-variable
+        )
+    endif()
     target_compile_options(meadows_lib PRIVATE 
         -Wall 
         -Wextra 
