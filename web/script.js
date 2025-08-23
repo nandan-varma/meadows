@@ -38,7 +38,10 @@ async function initializeApp() {
         
     } catch (error) {
         console.error('Initialization failed:', error);
-        updateStatus('❌ Failed to initialize: ' + error.message);
+        updateStatus('❌ Compiler not available');
+        showErrorModal();
+        // Still setup basic event listeners so the UI works
+        setupBasicEventListeners();
     }
 }
 
@@ -150,7 +153,7 @@ async function initializeWASM() {
     try {
         // Check if MeadowsModule is available
         if (typeof MeadowsModule === 'undefined') {
-            throw new Error('MeadowsModule not found. Make sure meadows.js is loaded.');
+            throw new Error('MeadowsModule not found. WASM files are not available.');
         }
 
         // Pre-load the WASM binary
@@ -171,6 +174,7 @@ async function initializeWASM() {
             },
             onAbort: (what) => {
                 console.error('WASM Module aborted:', what);
+                throw new Error('WASM module aborted: ' + what);
             },
             onRuntimeInitialized: () => {
                 console.log('WASM Runtime initialized successfully');
@@ -239,9 +243,9 @@ function setupEventListeners() {
 }
 
 // Compile code
-async function compileCode(showOutput = true) {
+async function compileCode(showOutputResult = true) {
     if (!compiler) {
-        showError('Compiler not initialized');
+        showErrorModal();
         return;
     }
 
@@ -249,7 +253,7 @@ async function compileCode(showOutput = true) {
     const startTime = performance.now();
 
     try {
-        if (showOutput) {
+        if (showOutputResult) {
             updateOutputStatus('Compiling...');
         }
 
@@ -265,8 +269,8 @@ async function compileCode(showOutput = true) {
         document.getElementById('compile-status').textContent = result.success ? 'Success' : 'Error';
 
         if (result.success) {
-            if (showOutput) {
-                showOutput(result.output || 'Program executed successfully');
+            if (showOutputResult) {
+                displayOutput(result.output || 'Program executed successfully');
                 updateOutputStatus('Success');
             }
             
@@ -281,7 +285,7 @@ async function compileCode(showOutput = true) {
             }
 
         } else {
-            if (showOutput) {
+            if (showOutputResult) {
                 showError(result.error || 'Compilation failed');
                 updateOutputStatus('Error');
             }
@@ -289,7 +293,7 @@ async function compileCode(showOutput = true) {
 
     } catch (error) {
         console.error('Compilation error:', error);
-        if (showOutput) {
+        if (showOutputResult) {
             showError('Compilation failed: ' + error.message);
             updateOutputStatus('Error');
         }
@@ -297,7 +301,7 @@ async function compileCode(showOutput = true) {
 }
 
 // Show output
-function showOutput(output) {
+function displayOutput(output) {
     const content = document.getElementById('output-content');
     content.innerHTML = '';
     
@@ -468,3 +472,51 @@ document.addEventListener('keydown', (e) => {
         clearAST();
     }
 });
+
+// Modal functions
+function showErrorModal() {
+    const modal = document.getElementById('errorModal');
+    modal.classList.add('show');
+}
+
+function closeErrorModal() {
+    const modal = document.getElementById('errorModal');
+    modal.classList.remove('show');
+}
+
+// Basic event listeners (when compiler is not available)
+function setupBasicEventListeners() {
+    // Run button - show modal
+    document.getElementById('runBtn').addEventListener('click', () => {
+        showErrorModal();
+    });
+
+    // Clear button - still works
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        clearOutput();
+        clearTokens();
+        clearAST();
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            switchTab(e.target.dataset.tab);
+        });
+    });
+
+    // Traffic light buttons (just for show)
+    document.querySelector('.traffic-light.close').addEventListener('click', () => {
+        if (confirm('Close Meadows Playground?')) {
+            window.close();
+        }
+    });
+
+    document.querySelector('.traffic-light.minimize').addEventListener('click', () => {
+        alert('Minimize not implemented in web version');
+    });
+
+    document.querySelector('.traffic-light.maximize').addEventListener('click', () => {
+        document.documentElement.requestFullscreen?.();
+    });
+}

@@ -57,44 +57,20 @@ jobs:
       run: |
         mkdir -p dist
         
-        # Copy all web files (static deployment)
+        # Copy all web files
         if [ -d "web" ]; then
-          cp -r web/* dist/ 2>/dev/null || true
+          cp -r web/* dist/
           echo "Copied web files to dist/"
         fi
         
-        # Copy any generated WASM files if they exist
+        # Copy WASM files if they exist (required for functionality)
         if [ -f "build-wasm/meadows.js" ]; then
-          cp build-wasm/meadows.js dist/ || true
+          cp build-wasm/meadows.js dist/
           echo "Copied generated WASM JS file"
         fi
         if [ -f "build-wasm/meadows.wasm" ]; then
-          cp build-wasm/meadows.wasm dist/ || true
+          cp build-wasm/meadows.wasm dist/
           echo "Copied generated WASM file"
-        fi
-        
-        # Ensure index.html exists
-        if [ ! -f dist/index.html ]; then
-          echo "index.html not found, creating fallback..."
-          echo '<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Meadows Compiler</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 2rem; text-align: center; }
-                .container { max-width: 600px; margin: 0 auto; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🌾 Meadows Compiler</h1>
-                <p>The web interface is being built. Please check back soon!</p>
-                <p><a href="https://github.com/nandan-varma/meadows">View on GitHub</a></p>
-            </div>
-        </body>
-        </html>' > dist/index.html
         fi
         
         # Create build info
