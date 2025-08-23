@@ -3,200 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meadows Compiler</title>
-    <meta name="description" content="Online IDE for the Meadows programming language. Write, compile, and execute Python-like code in your browser.">
-    <meta name="keywords" content="compiler, programming language, Python, LLVM, WebAssembly, online IDE, code editor">
-    <meta name="author" content="Meadows Compiler Project">
-    
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>M</text></svg>">
-    
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://meadows-compiler.dev/">
-    <meta property="og:title" content="Meadows Compiler">
-    <meta property="og:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
-    
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://meadows-compiler.dev/">
-    <meta property="twitter:title" content="Meadows Compiler">
-    <meta property="twitter:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
-    
+    <title>Meadows Language Playground</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     
     <!-- Monaco Editor -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
-    
-    <!-- Debug script (remove in production) -->
-    <script src="debug.js"></script>
+    <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-content">
-                <h1 class="title">
-                    Meadows Compiler
-                </h1>
-                <div class="header-actions">
-                    <button id="runBtn" class="btn btn-primary">
-                        Run Code
-                    </button>
-                    <button id="clearBtn" class="btn btn-secondary">
-                        Clear
-                    </button>
-                    <select id="exampleSelect" class="example-select">
-                        <option value="">Load Example...</option>
-                        <option value="hello">Hello World</option>
-                        <option value="fibonacci">Fibonacci</option>
-                        <option value="factorial">Factorial</option>
-                        <option value="calculator">Simple Calculator</option>
-                    </select>
-                </div>
+    <div class="app-container">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div class="traffic-lights">
+                <div class="traffic-light close"></div>
+                <div class="traffic-light minimize"></div>
+                <div class="traffic-light maximize"></div>
             </div>
-        </header>
+            <div class="title">Meadows Language Playground</div>
+            <div class="toolbar">
+                <button class="toolbar-btn" id="runBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    Run
+                </button>
+                <button class="toolbar-btn" id="clearBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                    Clear
+                </button>
+            </div>
+        </div>
 
-        <main class="main">
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Editor Panel -->
             <div class="editor-panel">
                 <div class="panel-header">
-                    <h2 class="panel-title">Source Code</h2>
-                    <div class="panel-info">
-                        <span class="language-tag">Meadows</span>
-                        <span class="line-count" id="lineCount">1 line</span>
+                    <span class="panel-title">Editor</span>
+                    <div class="panel-controls">
+                        <span class="file-name">main.mds</span>
                     </div>
                 </div>
-                <div class="editor-container">
-                    <div id="codeEditor" class="monaco-editor-container"></div>
-                </div>
+                <div id="editor" class="editor-container"></div>
             </div>
 
+            <!-- Divider -->
+            <div class="divider"></div>
+
+            <!-- Output Panel -->
             <div class="output-panel">
-                <div class="panel-header">
-                    <h2 class="panel-title">Output</h2>
-                    <div class="output-controls">
-                        <button id="clearOutputBtn" class="btn btn-small">Clear Output</button>
-                        <div class="status-indicator" id="statusIndicator">
-                            <span class="status-dot"></span>
-                            <span class="status-text">Ready</span>
-                        </div>
-                    </div>
+                <div class="panel-tabs">
+                    <button class="tab-btn active" data-tab="output">Output</button>
+                    <button class="tab-btn" data-tab="tokens">Tokens</button>
+                    <button class="tab-btn" data-tab="ast">AST</button>
+                    <button class="tab-btn" data-tab="info">Info</button>
                 </div>
-                <div class="output-container">
-                    <div class="output-tabs">
-                        <button class="tab-btn active" data-tab="execution">Execution</button>
-                        <button class="tab-btn" data-tab="ast">AST</button>
-                        <button class="tab-btn" data-tab="tokens">Tokens</button>
-                        <button class="tab-btn" data-tab="ir">LLVM IR</button>
+
+                <div class="tab-content">
+                    <div id="output-tab" class="tab-panel active">
+                        <div class="tab-header">
+                            <span class="tab-title">Program Output</span>
+                            <span id="output-status" class="status-indicator">Ready</span>
+                        </div>
+                        <div id="output-content" class="content-area">
+                            <div class="placeholder">Run your code to see output here...</div>
+                        </div>
                     </div>
-                    <div class="output-content">
-                        <div id="executionOutput" class="output-section active">
-                            <div id="executionMonaco" class="monaco-output-container"></div>
-                            <div class="output-placeholder" id="executionPlaceholder">
-                                Run your code to see the output here...
-                            </div>
+
+                    <div id="tokens-tab" class="tab-panel">
+                        <div class="tab-header">
+                            <span class="tab-title">Lexer Tokens</span>
+                            <span id="tokens-count" class="status-indicator">0 tokens</span>
                         </div>
-                        <div id="astOutput" class="output-section">
-                            <div id="astMonaco" class="monaco-output-container"></div>
-                            <div class="output-placeholder" id="astPlaceholder">
-                                Abstract Syntax Tree will appear here...
-                            </div>
+                        <div id="tokens-content" class="content-area">
+                            <div class="placeholder">Tokens will appear here after compilation...</div>
                         </div>
-                        <div id="tokensOutput" class="output-section">
-                            <div id="tokensMonaco" class="monaco-output-container"></div>
-                            <div class="output-placeholder" id="tokensPlaceholder">
-                                Token analysis will appear here...
-                            </div>
+                    </div>
+
+                    <div id="ast-tab" class="tab-panel">
+                        <div class="tab-header">
+                            <span class="tab-title">Abstract Syntax Tree</span>
+                            <span id="ast-status" class="status-indicator">Parsed</span>
                         </div>
-                        <div id="irOutput" class="output-section">
-                            <div id="irMonaco" class="monaco-output-container"></div>
-                            <div class="output-placeholder" id="irPlaceholder">
-                                LLVM IR code will appear here...
+                        <div id="ast-content" class="content-area">
+                            <div class="placeholder">AST will appear here after parsing...</div>
+                        </div>
+                    </div>
+
+                    <div id="info-tab" class="tab-panel">
+                        <div class="tab-header">
+                            <span class="tab-title">Compilation Info</span>
+                        </div>
+                        <div id="info-content" class="content-area">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Status:</span>
+                                    <span id="compile-status" class="info-value">Ready</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Lines:</span>
+                                    <span id="line-count" class="info-value">0</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Characters:</span>
+                                    <span id="char-count" class="info-value">0</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Compile Time:</span>
+                                    <span id="compile-time" class="info-value">-</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </main>
-
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="footer-info">
-                    <p>Meadows Compiler - A Python-like language built with C++ and LLVM</p>
-                    <p class="build-info">WebAssembly Build - <span id="buildDate"></span></p>
-                </div>
-                <div class="footer-links">
-                    <a href="https://github.com/meadows-lang/meadows" target="_blank" class="footer-link">
-                        GitHub
-                    </a>
-                    <a href="#" id="aboutBtn" class="footer-link">
-                        About
-                    </a>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Loading Modal -->
-    <div id="loadingModal" class="modal">
-        <div class="modal-content">
-            <div class="loader"></div>
-            <p>Loading Meadows Compiler...</p>
         </div>
-    </div>
 
-    <!-- Error Modal -->
-    <div id="errorModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Compiler Not Available</h3>
-                <button class="modal-close" id="closeErrorModal">×</button>
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="wasm-status">🔄 Loading WebAssembly...</span>
             </div>
-            <div class="modal-body">
-                <p><strong>The Meadows compiler could not be loaded.</strong></p>
-                <p>This web IDE requires the WebAssembly-compiled version of the Meadows compiler to run.</p>
-                <p>To fix this issue:</p>
-                <ol>
-                    <li>Ensure the <code>meadows.js</code> and <code>meadows.wasm</code> files are present in the web directory</li>
-                    <li>Make sure your browser supports WebAssembly</li>
-                    <li>Check that the files are being served correctly (no 404 errors in the browser console)</li>
-                    <li>Try refreshing the page</li>
-                </ol>
-                <p><strong>For developers:</strong> Build the WebAssembly version using <code>./build_wasm.sh</code></p>
+            <div class="status-right">
+                <span id="cursor-position">Ln 1, Col 1</span>
             </div>
         </div>
     </div>
 
-    <!-- About Modal -->
-    <div id="aboutModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>About Meadows Compiler</h3>
-                <button class="modal-close" id="closeAboutModal">×</button>
-            </div>
-            <div class="modal-body">
-                <p>Meadows is a Python-like programming language with strong static typing, compiled to native code using LLVM.</p>
-                <h4>Features:</h4>
-                <ul>
-                    <li>Python-like syntax</li>
-                    <li>Static type checking</li>
-                    <li>LLVM backend for optimization</li>
-                    <li>WebAssembly compilation</li>
-                    <li>Real-time AST visualization</li>
-                </ul>
-                <h4>Language Constructs:</h4>
-                <ul>
-                    <li>Functions and recursion</li>
-                    <li>Control flow (if/else, while loops)</li>
-                    <li>Arithmetic and logical operators</li>
-                    <li>Variable assignments</li>
-                    <li>Print statements</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
+    <!-- Load WASM and Editor -->
     <script src="meadows.js"></script>
-    <script src="app.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
