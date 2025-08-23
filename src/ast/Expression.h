@@ -82,6 +82,16 @@ public:
     void accept(ASTVisitor& visitor) override;
 };
 
+class ListLiteral : public Expression {
+public:
+    std::vector<std::unique_ptr<Expression>> elements;
+    
+    ListLiteral(std::vector<std::unique_ptr<Expression>> elements, const SourceLocation& location)
+        : Expression(location), elements(std::move(elements)) {}
+    
+    void accept(ASTVisitor& visitor) override;
+};
+
 // Identifier
 class Identifier : public Expression {
 public:

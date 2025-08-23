@@ -8,6 +8,7 @@ class FloatLiteral;
 class StringLiteral;
 class BooleanLiteral;
 class NoneLiteral;
+class ListLiteral;
 class Identifier;
 class BinaryExpression;
 class UnaryExpression;
@@ -39,6 +40,7 @@ public:
     virtual void visit(StringLiteral& node) = 0;
     virtual void visit(BooleanLiteral& node) = 0;
     virtual void visit(NoneLiteral& node) = 0;
+    virtual void visit(ListLiteral& node) = 0;
     virtual void visit(Identifier& node) = 0;
     virtual void visit(BinaryExpression& node) = 0;
     virtual void visit(UnaryExpression& node) = 0;

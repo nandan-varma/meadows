@@ -51,9 +51,9 @@ edge_case_tests = true
 
 # File patterns for test discovery
 [discovery]
-test_file_patterns = ["test_*.py", "*_test.py"]
+test_file_patterns = ["test_*.mds", "*_test.mds"]
 test_directories = ["tests/", "examples/"]
-exclude_patterns = ["*_broken.py", "experimental_*.py"]
+exclude_patterns = ["*_broken.mds", "experimental_*.mds"]
 
 # Reporting settings
 [reporting]

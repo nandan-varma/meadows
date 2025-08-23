@@ -249,6 +249,34 @@ void CodeGenerator::visit(NoneLiteral& node) {
     lastValue = llvm::ConstantInt::get(getInt32Type(), 0);
 }
 
+void CodeGenerator::visit(ListLiteral& node) {
+    // For now, create a simple integer array or handle empty lists
+    // This is a simplified implementation
+    if (node.elements.empty()) {
+        // Empty list - create a null pointer or zero-sized array
+        lastValue = llvm::ConstantPointerNull::get(getInt32Type()->getPointerTo());
+    } else {
+        // For simplicity, treat as array of integers for now
+        // In a full implementation, you'd need type inference
+        std::vector<llvm::Constant*> elements;
+        for (auto& element : node.elements) {
+            element->accept(*this);
+            if (lastValue && llvm::isa<llvm::Constant>(lastValue)) {
+                elements.push_back(llvm::cast<llvm::Constant>(lastValue));
+            } else {
+                // Handle non-constant elements (requires more complex array allocation)
+                errorReporter.error("Non-constant elements in list literals not yet supported", node.location);
+                lastValue = nullptr;
+                return;
+            }
+        }
+        
+        // Create array constant
+        llvm::ArrayType* arrayType = llvm::ArrayType::get(getInt32Type(), elements.size());
+        lastValue = llvm::ConstantArray::get(arrayType, elements);
+    }
+}
+
 void CodeGenerator::visit(Identifier& node) {
     llvm::Value* value = namedValues[node.name];
     if (!value) {

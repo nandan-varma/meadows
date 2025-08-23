@@ -38,7 +38,7 @@ std::vector<Token> Compiler::tokenize(const std::string& source, const std::stri
 
 std::unique_ptr<Program> Compiler::parse(const std::vector<Token>& tokens) {
     try {
-        Parser parser(tokens);
+        Parser parser(tokens, errorReporter);
         return parser.parse();
     } catch (const ParseError& e) {
         errorReporter.error("Parse error: " + std::string(e.what()), e.location);
@@ -174,7 +174,7 @@ else:
         std::cout << testCases[i] << std::endl;
         
         clearErrors();
-        auto program = compile(testCases[i], "test" + std::to_string(i + 1) + ".py");
+        auto program = compile(testCases[i], "test" + std::to_string(i + 1) + ".mds");
         
         if (hasErrors()) {
             std::cout << "Compilation failed:" << std::endl;

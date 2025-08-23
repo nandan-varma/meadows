@@ -3,7 +3,8 @@
 
 namespace meadows {
 
-Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)), current(0) {}
+Parser::Parser(std::vector<Token> tokens, ErrorReporter& errorReporter) 
+    : tokens(std::move(tokens)), current(0), errorReporter(errorReporter) {}
 
 Token Parser::peek(int offset) const {
     size_t pos = current + offset;
@@ -51,8 +52,13 @@ Token Parser::consume(TokenType type, const std::string& message) {
     if (check(type)) {
         return advance();
     }
-    error(message);
-    return peek(); // This won't be reached due to exception
+    reportError(message);
+    
+    // Escape the current scope on error
+    escapeScope();
+    
+    // Return current token as fallback
+    return peek();
 }
 
 void Parser::skipNewlines() {
@@ -61,8 +67,70 @@ void Parser::skipNewlines() {
     }
 }
 
-void Parser::error(const std::string& message) {
-    throw ParseError(message, peek().location);
+void Parser::reportError(const std::string& message) {
+    errorReporter.error(message, peek().location);
+}
+
+void Parser::reportError(const std::string& message, const SourceLocation& location) {
+    errorReporter.error(message, location);
+}
+
+void Parser::escapeScope() {
+    // Escape to the end of current scope based on context
+    int parenDepth = 0;
+    int bracketDepth = 0;
+    int braceDepth = 0;
+    
+    while (!isAtEnd()) {
+        Token token = peek();
+        
+        switch (token.type) {
+            case TokenType::LEFT_PAREN:
+                parenDepth++;
+                break;
+            case TokenType::RIGHT_PAREN:
+                parenDepth--;
+                if (parenDepth < 0) return; // Escaped paren scope
+                break;
+            case TokenType::LEFT_BRACKET:
+                bracketDepth++;
+                break;
+            case TokenType::RIGHT_BRACKET:
+                bracketDepth--;
+                if (bracketDepth < 0) return; // Escaped bracket scope
+                break;
+            case TokenType::LEFT_BRACE:
+                braceDepth++;
+                break;
+            case TokenType::RIGHT_BRACE:
+                braceDepth--;
+                if (braceDepth < 0) return; // Escaped brace scope
+                break;
+            case TokenType::NEWLINE:
+                // If we're at top level (no nesting), newline ends scope
+                if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0) {
+                    advance(); // consume the newline
+                    return;
+                }
+                break;
+            case TokenType::DEDENT:
+                // Dedent always ends current scope
+                return;
+            case TokenType::DEF:
+            case TokenType::CLASS:
+            case TokenType::IF:
+            case TokenType::WHILE:
+            case TokenType::FOR:
+                // If we're at top level, these start new scopes
+                if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0) {
+                    return;
+                }
+                break;
+            default:
+                break;
+        }
+        advance();
+    }
 }
 
 void Parser::synchronize() {
@@ -94,10 +162,16 @@ std::unique_ptr<Expression> Parser::expression() {
 
 std::unique_ptr<Expression> Parser::assignment() {
     auto expr = logicalOr();
+    if (!expr) {
+        return nullptr;
+    }
     
     if (match(TokenType::ASSIGN)) {
         Token equals = tokens[current - 1];
         auto value = assignment();
+        if (!value) {
+            return nullptr;
+        }
         return std::make_unique<Assignment>(std::move(expr), std::move(value), equals.location);
     }
     
@@ -276,38 +350,59 @@ std::unique_ptr<Expression> Parser::primary() {
     
     if (match(TokenType::LEFT_PAREN)) {
         auto expr = expression();
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after expression");
+        if (!match(TokenType::RIGHT_PAREN)) {
+            reportError("Expected ')' after expression");
+            // Try to recover and continue with the expression we have
+        }
         return expr;
     }
     
-    error("Expected expression");
-    return nullptr; // This won't be reached due to exception
+    if (match(TokenType::LEFT_BRACKET)) {
+        // List literal
+        SourceLocation location = tokens[current - 1].location;
+        std::vector<std::unique_ptr<Expression>> elements;
+        
+        if (!check(TokenType::RIGHT_BRACKET)) {
+            do {
+                auto element = expression();
+                if (element) {
+                    elements.push_back(std::move(element));
+                }
+            } while (match(TokenType::COMMA));
+        }
+        
+        if (!match(TokenType::RIGHT_BRACKET)) {
+            reportError("Expected ']' after list elements");
+        }
+        return std::make_unique<ListLiteral>(std::move(elements), location);
+    }
+    
+    reportError("Expected expression");
+    return nullptr;
 }
 
 std::unique_ptr<Statement> Parser::statement() {
-    try {
-        skipNewlines();
-        
-        if (match(TokenType::IF)) return ifStatement();
-        if (match(TokenType::WHILE)) return whileStatement();
-        if (match(TokenType::FOR)) return forStatement();
-        if (match(TokenType::RETURN)) return returnStatement();
-        if (match(TokenType::BREAK)) return breakStatement();
-        if (match(TokenType::CONTINUE)) return continueStatement();
-        if (match(TokenType::PASS)) return passStatement();
-        if (match(TokenType::DEF)) return functionDefinition();
-        if (match(TokenType::CLASS)) return classDefinition();
-        if (match(TokenType::IMPORT)) return importStatement();
-        
-        return expressionStatement();
-    } catch (ParseError& e) {
-        synchronize();
-        throw;
-    }
+    skipNewlines();
+    
+    if (match(TokenType::IF)) return ifStatement();
+    if (match(TokenType::WHILE)) return whileStatement();
+    if (match(TokenType::FOR)) return forStatement();
+    if (match(TokenType::RETURN)) return returnStatement();
+    if (match(TokenType::BREAK)) return breakStatement();
+    if (match(TokenType::CONTINUE)) return continueStatement();
+    if (match(TokenType::PASS)) return passStatement();
+    if (match(TokenType::DEF)) return functionDefinition();
+    if (match(TokenType::CLASS)) return classDefinition();
+    if (match(TokenType::IMPORT)) return importStatement();
+    
+    return expressionStatement();
 }
 
 std::unique_ptr<Statement> Parser::expressionStatement() {
     auto expr = expression();
+    if (!expr) {
+        return nullptr;
+    }
     skipNewlines();
     return std::make_unique<ExpressionStatement>(std::move(expr), expr->location);
 }
@@ -321,9 +416,50 @@ std::unique_ptr<Statement> Parser::ifStatement() {
     std::unique_ptr<Statement> elseBranch = nullptr;
     
     skipNewlines();
+    
+    // Handle elif chains iteratively
+    while (match(TokenType::ELIF)) {
+        Token elifToken = tokens[current - 1];
+        auto elifCondition = expression();
+        consume(TokenType::COLON, "Expected ':' after elif condition");
+        
+        auto elifBranch = block();
+        
+        // Create the elif as a nested IfStatement
+        auto elifStatement = std::make_unique<IfStatement>(std::move(elifCondition), std::move(elifBranch), 
+                                                           nullptr, elifToken.location);
+        
+        if (elseBranch == nullptr) {
+            elseBranch = std::move(elifStatement);
+        } else {
+            // Find the deepest else branch and attach this elif there
+            IfStatement* current_if = static_cast<IfStatement*>(elseBranch.get());
+            while (current_if->elseBranch != nullptr && 
+                   dynamic_cast<IfStatement*>(current_if->elseBranch.get()) != nullptr) {
+                current_if = static_cast<IfStatement*>(current_if->elseBranch.get());
+            }
+            current_if->elseBranch = std::move(elifStatement);
+        }
+        
+        skipNewlines();
+    }
+    
+    // Handle final else
     if (match(TokenType::ELSE)) {
         consume(TokenType::COLON, "Expected ':' after else");
-        elseBranch = block();
+        auto finalElse = block();
+        
+        if (elseBranch == nullptr) {
+            elseBranch = std::move(finalElse);
+        } else {
+            // Find the deepest else branch and attach the final else there
+            IfStatement* current_if = static_cast<IfStatement*>(elseBranch.get());
+            while (current_if->elseBranch != nullptr && 
+                   dynamic_cast<IfStatement*>(current_if->elseBranch.get()) != nullptr) {
+                current_if = static_cast<IfStatement*>(current_if->elseBranch.get());
+            }
+            current_if->elseBranch = std::move(finalElse);
+        }
     }
     
     return std::make_unique<IfStatement>(std::move(condition), std::move(thenBranch), 
@@ -384,14 +520,52 @@ std::unique_ptr<Statement> Parser::passStatement() {
 
 std::unique_ptr<Statement> Parser::functionDefinition() {
     Token defToken = tokens[current - 1];
-    Token name = consume(TokenType::IDENTIFIER, "Expected function name");
     
-    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
-    auto parameters = parseParameters();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters");
-    consume(TokenType::COLON, "Expected ':' after function signature");
+    // Try to parse function name
+    if (!check(TokenType::IDENTIFIER)) {
+        reportError("Expected function name after 'def'");
+        escapeScope();
+        return nullptr;
+    }
+    Token name = advance();
     
+    // Try to parse opening parenthesis
+    if (!match(TokenType::LEFT_PAREN)) {
+        reportError("Expected '(' after function name");
+        escapeScope();
+        return nullptr;
+    }
+    
+    // Parse parameters with error handling
+    std::vector<Parameter> parameters;
+    try {
+        parameters = parseParameters();
+    } catch (...) {
+        reportError("Error parsing function parameters");
+        escapeScope();
+        return nullptr;
+    }
+    
+    // Try to parse closing parenthesis
+    if (!match(TokenType::RIGHT_PAREN)) {
+        reportError("Expected ')' after parameters");
+        escapeScope();
+        return nullptr;
+    }
+    
+    // Try to parse colon
+    if (!match(TokenType::COLON)) {
+        reportError("Expected ':' after function signature");
+        escapeScope();
+        return nullptr;
+    }
+    
+    // Parse function body
     auto body = block();
+    if (!body) {
+        return nullptr;
+    }
+    
     return std::make_unique<FunctionDefinition>(name.value, std::move(parameters), 
                                                std::move(body), defToken.location);
 }
@@ -444,13 +618,40 @@ std::unique_ptr<Statement> Parser::block() {
     SourceLocation blockLocation = peek().location;
     
     skipNewlines();
-    consume(TokenType::INDENT, "Expected indented block");
     
-    while (!check(TokenType::DEDENT) && !isAtEnd()) {
-        statements.push_back(statement());
+    if (!match(TokenType::INDENT)) {
+        reportError("Expected indented block");
+        // Try to continue parsing statements without proper indentation
+        // This allows us to recover from missing indent errors
+        while (!isAtEnd() && !check(TokenType::DEDENT) && 
+               peek().type != TokenType::DEF && 
+               peek().type != TokenType::CLASS &&
+               peek().type != TokenType::IF &&
+               peek().type != TokenType::WHILE &&
+               peek().type != TokenType::FOR) {
+            auto stmt = statement();
+            if (stmt) {
+                statements.push_back(std::move(stmt));
+            } else {
+                // Skip this statement and try the next one
+                advance();
+            }
+            skipNewlines();
+        }
+        return std::make_unique<Block>(std::move(statements), blockLocation);
     }
     
-    consume(TokenType::DEDENT, "Expected dedent after block");
+    while (!check(TokenType::DEDENT) && !isAtEnd()) {
+        auto stmt = statement();
+        if (stmt) {
+            statements.push_back(std::move(stmt));
+        }
+    }
+    
+    if (!match(TokenType::DEDENT)) {
+        reportError("Expected dedent after block");
+    }
+    
     return std::make_unique<Block>(std::move(statements), blockLocation);
 }
 
@@ -459,11 +660,21 @@ std::vector<Parameter> Parser::parseParameters() {
     
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
-            Token name = consume(TokenType::IDENTIFIER, "Expected parameter name");
+            if (!check(TokenType::IDENTIFIER)) {
+                reportError("Expected parameter name");
+                // Escape the parameter scope and continue
+                escapeScope();
+                break; // Give up on remaining parameters
+            }
+            
+            Token name = advance();
             std::unique_ptr<Expression> defaultValue = nullptr;
             
             if (match(TokenType::ASSIGN)) {
-                defaultValue = expression();
+                auto defaultExpr = expression();
+                if (defaultExpr) {
+                    defaultValue = std::move(defaultExpr);
+                }
             }
             
             parameters.emplace_back(name.value, std::move(defaultValue), name.location);
@@ -502,8 +713,8 @@ BinaryOp Parser::tokenToBinaryOp(TokenType type) {
         case TokenType::AND: return BinaryOp::AND;
         case TokenType::OR: return BinaryOp::OR;
         default:
-            error("Invalid binary operator");
-            return BinaryOp::ADD; // This won't be reached due to exception
+            reportError("Invalid binary operator");
+            return BinaryOp::ADD; // Fallback
     }
 }
 
@@ -512,8 +723,8 @@ UnaryOp Parser::tokenToUnaryOp(TokenType type) {
         case TokenType::MINUS: return UnaryOp::MINUS;
         case TokenType::NOT: return UnaryOp::NOT;
         default:
-            error("Invalid unary operator");
-            return UnaryOp::MINUS; // This won't be reached due to exception
+            reportError("Invalid unary operator");
+            return UnaryOp::MINUS; // Fallback
     }
 }
 
@@ -523,9 +734,34 @@ std::unique_ptr<Program> Parser::parse() {
     
     skipNewlines();
     
-    while (!isAtEnd()) {
-        statements.push_back(statement());
+    int maxStatements = 1000; // Prevent infinite loops
+    int statementCount = 0;
+    
+    while (!isAtEnd() && statementCount < maxStatements) {
+        size_t currentPos = current;
+        
+        try {
+            auto stmt = statement();
+            if (stmt) {
+                statements.push_back(std::move(stmt));
+            }
+        } catch (const std::exception& e) {
+            // Log the error and attempt to recover
+            reportError("Unexpected error: " + std::string(e.what()));
+            synchronize();
+        }
+        
+        // If we didn't advance, force advance to prevent infinite loop
+        if (current == currentPos) {
+            advance();
+        }
+        
         skipNewlines();
+        statementCount++;
+    }
+    
+    if (statementCount >= maxStatements) {
+        reportError("Maximum statement limit reached - possible infinite loop");
     }
     
     return std::make_unique<Program>(std::move(statements), programLocation);

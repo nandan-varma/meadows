@@ -69,20 +69,21 @@ clean_build() {
 
 # Configure CMake for WebAssembly
 configure_cmake() {
-    print_status "Configuring CMake for WebAssembly..."
+    local build_type="${1:-Release}"
+    print_status "Configuring CMake for WebAssembly (${build_type})..."
     
     mkdir -p build-wasm
     cd build-wasm
     
     # Use emcmake to configure with Emscripten
     emcmake cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_BUILD_TYPE="${build_type}" \
         -DBUILD_WASM=ON \
         -DCMAKE_CROSSCOMPILING_EMULATOR=node \
         -DCMAKE_VERBOSE_MAKEFILE=ON
     
     if [ $? -eq 0 ]; then
-        print_success "CMake configuration completed"
+        print_success "CMake configuration completed (${build_type})"
     else
         print_error "CMake configuration failed"
         exit 1
@@ -204,15 +205,17 @@ show_help() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  build      Build the WebAssembly module (default)"
+    echo "  build      Build the WebAssembly module (debug mode)"
+    echo "  release    Build optimized WebAssembly module (release mode)"
     echo "  clean      Clean previous builds"
     echo "  test       Test the WebAssembly module"
     echo "  serve      Start a development server"
     echo "  help       Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                # Build WebAssembly module"
-    echo "  $0 build          # Build WebAssembly module"
+    echo "  $0                # Build WebAssembly module (debug)"
+    echo "  $0 build          # Build WebAssembly module (debug)"
+    echo "  $0 release        # Build optimized module (release)"
     echo "  $0 clean          # Clean and build"
     echo "  $0 test           # Build and test"
     echo "  $0 serve          # Build and start server"
@@ -227,10 +230,20 @@ main() {
             check_emscripten
             check_llvm
             clean_build
-            configure_cmake
+            configure_cmake "Debug"
             build_wasm
             verify_build
-            print_success "WebAssembly build process completed!"
+            print_success "WebAssembly build process completed (Debug)!"
+            print_status "You can now serve the 'web' directory with any static file server"
+            ;;
+        "release")
+            check_emscripten
+            check_llvm
+            clean_build
+            configure_cmake "Release"
+            build_wasm
+            verify_build
+            print_success "WebAssembly build process completed (Release - Optimized)!"
             print_status "You can now serve the 'web' directory with any static file server"
             ;;
         "clean")
@@ -241,7 +254,7 @@ main() {
             check_emscripten
             check_llvm
             clean_build
-            configure_cmake
+            configure_cmake "Release"
             build_wasm
             verify_build
             test_wasm
@@ -250,7 +263,7 @@ main() {
             check_emscripten
             check_llvm
             clean_build
-            configure_cmake
+            configure_cmake "Release"
             build_wasm
             verify_build
             start_server

@@ -40,6 +40,15 @@ void ASTPrinter::visit(NoneLiteral& node) {
     print("NoneLiteral");
 }
 
+void ASTPrinter::visit(ListLiteral& node) {
+    print("ListLiteral([");
+    for (size_t i = 0; i < node.elements.size(); i++) {
+        if (i > 0) print(", ");
+        node.elements[i]->accept(*this);
+    }
+    print("])");
+}
+
 void ASTPrinter::visit(Identifier& node) {
     print("Identifier(" + node.name + ")");
 }

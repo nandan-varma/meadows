@@ -3,6 +3,7 @@
 #include "../lexer/Lexer.h"
 #include "../ast/Expression.h"
 #include "../ast/Statement.h"
+#include "../common/ErrorReporter.h"
 #include <memory>
 #include <vector>
 #include <stdexcept>
@@ -21,6 +22,7 @@ class Parser {
 private:
     std::vector<Token> tokens;
     size_t current;
+    ErrorReporter& errorReporter;
     
     // Token management
     Token peek(int offset = 0) const;
@@ -33,7 +35,9 @@ private:
     void skipNewlines();
     
     // Error handling
-    void error(const std::string& message);
+    void reportError(const std::string& message);
+    void reportError(const std::string& message, const SourceLocation& location);
+    void escapeScope();
     void synchronize();
     
     // Expression parsing (precedence climbing)
@@ -72,7 +76,7 @@ private:
     UnaryOp tokenToUnaryOp(TokenType type);
     
 public:
-    Parser(std::vector<Token> tokens);
+    Parser(std::vector<Token> tokens, ErrorReporter& errorReporter);
     
     std::unique_ptr<Program> parse();
     

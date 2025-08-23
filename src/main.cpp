@@ -29,72 +29,9 @@ void printUsage(const char* programName) {
     std::cout << "  -t, --tokens          Show tokenization output\n";
     std::cout << "  -h, --help           Show this help message\n";
     std::cout << "\nExamples:\n";
-    std::cout << "  " << programName << " -i example.py -o example    # Compile to executable\n";
-    std::cout << "  " << programName << " example.py                  # Parse and show AST\n";
+    std::cout << "  " << programName << " -i example.mds -o example    # Compile to executable\n";
+    std::cout << "  " << programName << " example.mds                  # Parse and show AST\n";
     std::cout << "  " << programName << "                             # Run demo\n";
-}
-
-void demonstrateCompiler() {
-    std::cout << "=== Meadows Compiler Demo ===" << std::endl;
-    std::cout << "A Python-like language compiler frontend" << std::endl << std::endl;
-    
-    Compiler compiler;
-    
-    // Simple interactive example
-    std::string source = R"(# Simple function definition and call
-def fibonacci(n):
-    if n <= 1:
-        return n
-    else:
-        return fibonacci(n - 1) + fibonacci(n - 2)
-
-# Class definition
-class Calculator:
-    def __init__(self, initial_value=0):
-        self.value = initial_value
-    
-    def add(self, x):
-        self.value = self.value + x
-        return self.value
-    
-    def multiply(self, x):
-        self.value = self.value * x
-        return self.value
-
-# Usage
-calc = Calculator(10)
-result = calc.add(5).multiply(2)
-print("Result:", result)
-
-# Loop example
-for i in range(10):
-    if i % 2 == 0:
-        print("Even:", i)
-    else:
-        print("Odd:", i)
-)";
-    
-    std::cout << "Compiling source code:" << std::endl;
-    std::cout << "----------------------------------------" << std::endl;
-    std::cout << source << std::endl;
-    std::cout << "----------------------------------------" << std::endl << std::endl;
-    
-    // Compile the source
-    auto program = compiler.compile(source, "demo.py");
-    
-    if (compiler.hasErrors()) {
-        std::cout << "Compilation failed with errors:" << std::endl;
-        compiler.getErrorReporter().printErrors();
-    } else if (program) {
-        std::cout << "Compilation successful!" << std::endl << std::endl;
-        
-        // Print the AST
-        compiler.printAST(*program);
-        
-        std::cout << "Tokenization output:" << std::endl;
-        auto tokens = compiler.tokenize(source, "demo.py");
-        compiler.printTokens(tokens);
-    }
 }
 
 int main(int argc, char* argv[]) {
@@ -155,17 +92,17 @@ int main(int argc, char* argv[]) {
     
     // If no input file specified, run demo
     if (inputFile.empty()) {
-        demonstrateCompiler();
         
-        std::cout << std::endl << "=== Running Test Cases ===" << std::endl;
-        Compiler testCompiler;
-        testCompiler.runTests();
+        // display help
+        printUsage(argv[0]);
+        
         return 0;
     }
     
     // Read input file
     std::string source = readFile(inputFile);
     if (source.empty()) {
+        std::cerr << "Error: Could not read source file " << inputFile << std::endl;
         return 1;
     }
     

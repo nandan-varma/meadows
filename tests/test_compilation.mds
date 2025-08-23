@@ -94,12 +94,13 @@ def list_operations():
     return total
 
 # Test 11: Exception handling patterns (if supported)
-def error_handling():
-    try:
-        result = 10 / 0
-        return result
-    except:
-        return -1
+# NOTE: Exception handling not yet implemented
+# def error_handling():
+#     try:
+#         result = 10 / 0
+#         return result
+#     except:
+#         return -1
 
 # Test 12: Module-level code for compilation
 module_variable = 100

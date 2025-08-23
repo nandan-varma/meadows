@@ -15,10 +15,16 @@ void TestFramework::addTest(const TestCase& test) {
 }
 
 std::string TestFramework::readTestFile(const std::string& filename) {
-    std::string fullPath = testBasePath + "/" + filename;
+    std::string fullPath = testBasePath;
+    if (!fullPath.empty() && fullPath.back() != '/') {
+        fullPath += "/";
+    }
+    fullPath += filename;
     std::ifstream file(fullPath);
     if (!file.is_open()) {
-        std::cerr << "Warning: Could not open test file " << fullPath << std::endl;
+        if (!minimalMode && !quietMode) {
+            std::cerr << "Warning: Could not open test file " << fullPath << std::endl;
+        }
         return "";
     }
     
@@ -314,7 +320,7 @@ print("bad indentation"))",
 
 void TestFramework::addIntegrationTests() {
     // Load comprehensive test
-    std::string comprehensive = readTestFile("tests/comprehensive_test.py");
+    std::string comprehensive = readTestFile("tests/comprehensive_test.mds");
     if (!comprehensive.empty()) {
         addTest(TestCase(
             "integration_comprehensive",
@@ -325,7 +331,7 @@ void TestFramework::addIntegrationTests() {
     }
     
     // Load existing examples
-    std::string simple = readTestFile("simple_example.py");
+    std::string simple = readTestFile("simple_example.mds");
     if (!simple.empty()) {
         addTest(TestCase(
             "integration_simple_example",
@@ -335,7 +341,7 @@ void TestFramework::addIntegrationTests() {
         ));
     }
     
-    std::string example = readTestFile("example.py");
+    std::string example = readTestFile("example.mds");
     if (!example.empty()) {
         addTest(TestCase(
             "integration_calculator_example",
@@ -347,18 +353,23 @@ void TestFramework::addIntegrationTests() {
 }
 
 TestResult TestFramework::runSingleTest(const TestCase& test) {
-    if (!quietMode) {
+    if (minimalMode) {
+        // Minimal output: just test name with result
+        std::cout << test.name;
+    } else if (!quietMode) {
         std::cout << "Running test: " << test.name << " - " << test.description << std::endl;
     }
     
     compiler.clearErrors();
-    auto program = compiler.compile(test.source, test.name + ".py");
+    auto program = compiler.compile(test.source, test.name + ".mds");
     
     bool hasCompileErrors = compiler.hasErrors();
     
     if (test.expectSuccess) {
         if (hasCompileErrors) {
-            if (!quietMode) {
+            if (minimalMode) {
+                std::cout << " ✗" << std::endl;
+            } else if (!quietMode) {
                 std::cout << "  FAIL: Expected success but got compilation errors:" << std::endl;
                 compiler.getErrorReporter().printErrors();
             }
@@ -366,7 +377,9 @@ TestResult TestFramework::runSingleTest(const TestCase& test) {
         }
         
         if (!program) {
-            if (!quietMode) {
+            if (minimalMode) {
+                std::cout << " ✗" << std::endl;
+            } else if (!quietMode) {
                 std::cout << "  FAIL: Expected success but got null program" << std::endl;
             }
             return TestResult::FAIL;
@@ -374,26 +387,34 @@ TestResult TestFramework::runSingleTest(const TestCase& test) {
         
         // Run custom validator if provided
         if (test.validator && !test.validator(*program)) {
-            if (!quietMode) {
+            if (minimalMode) {
+                std::cout << " ✗" << std::endl;
+            } else if (!quietMode) {
                 std::cout << "  FAIL: Custom validation failed" << std::endl;
             }
             return TestResult::FAIL;
         }
         
-        if (!quietMode) {
+        if (minimalMode) {
+            std::cout << " ✓" << std::endl;
+        } else if (!quietMode) {
             std::cout << "  PASS" << std::endl;
         }
         return TestResult::PASS;
     } else {
         // Expecting failure
         if (!hasCompileErrors && program) {
-            if (!quietMode) {
+            if (minimalMode) {
+                std::cout << " ✗" << std::endl;
+            } else if (!quietMode) {
                 std::cout << "  FAIL: Expected compilation to fail but it succeeded" << std::endl;
             }
             return TestResult::FAIL;
         }
         
-        if (!quietMode) {
+        if (minimalMode) {
+            std::cout << " ✓" << std::endl;
+        } else if (!quietMode) {
             std::cout << "  PASS (correctly failed)" << std::endl;
         }
         return TestResult::PASS;
@@ -401,7 +422,7 @@ TestResult TestFramework::runSingleTest(const TestCase& test) {
 }
 
 void TestFramework::runAllTests() {
-    if (!quietMode) {
+    if (!quietMode && !minimalMode) {
         std::cout << "=== Meadows Language Test Suite ===" << std::endl;
         std::cout << "Running " << testCases.size() << " tests..." << std::endl << std::endl;
     }
@@ -433,9 +454,15 @@ void TestFramework::runAllTests() {
         }
     }
     
-    if (!quietMode) {
+    if (!quietMode && !minimalMode) {
         printResults();
         printDetailedResults();
+    } else if (minimalMode) {
+        auto stats = getTestStats();
+        std::cout << "\nTotal tests: " << stats.totalTests << std::endl;
+        std::cout << "Passed: " << stats.passedTests << " (" << std::fixed << std::setprecision(1) << stats.successRate << "%)" << std::endl;
+        std::cout << "Failed: " << stats.failedTests << " (" << std::fixed << std::setprecision(1) << (100.0 - stats.successRate) << "%)" << std::endl;
+        std::cout << "Success Rate: " << std::fixed << std::setprecision(1) << stats.successRate << "%" << std::endl;
     }
 }
 
@@ -576,10 +603,10 @@ void TestFramework::addCompilationTests() {
     addTest(TestCase(
         "compile_simple",
         "Compile simple function to executable",
-        readTestFile("test_compilation.py"),
+        readTestFile("test_compilation.mds"),
         true,
         [this](const Program& program) {
-            return testFileCompilation("test_compilation.py");
+            return testFileCompilation("test_compilation.mds");
         },
         "Compilation"
     ));
@@ -636,11 +663,11 @@ void TestFramework::addPerformanceTests() {
     addTest(TestCase(
         "perf_arithmetic",
         "Performance test: arithmetic operations",
-        readTestFile("test_performance.py"),
+        readTestFile("test_performance.mds"),
         true,
         [this](const Program& program) {
             auto start = std::chrono::steady_clock::now();
-            bool result = testFileCompilation("test_performance.py");
+            bool result = testFileCompilation("test_performance.mds");
             auto end = std::chrono::steady_clock::now();
             
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -670,10 +697,10 @@ void TestFramework::addApplicationTests() {
     addTest(TestCase(
         "app_calculator",
         "Real-world calculator application",
-        readTestFile(testDir + "test_applications.py"),
+        readTestFile(testDir + "test_applications.mds"),
         true,
         [this](const Program& program) {
-            return testFileCompilation("test_applications.py");
+            return testFileCompilation("test_applications.mds");
         },
         "Applications"
     ));
@@ -761,7 +788,7 @@ std::vector<std::string> TestFramework::loadAllTestFiles(const std::string& dire
     
     try {
         for (const auto& entry : std::filesystem::directory_iterator(directory)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".py") {
+            if (entry.is_regular_file() && entry.path().extension() == ".mds") {
                 testFiles.push_back(entry.path().string());
             }
         }

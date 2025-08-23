@@ -10,6 +10,7 @@ void FloatLiteral::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void StringLiteral::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void BooleanLiteral::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void NoneLiteral::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void ListLiteral::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void Identifier::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void BinaryExpression::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void UnaryExpression::accept(ASTVisitor& visitor) { visitor.visit(*this); }

@@ -85,6 +85,7 @@ public:
     void visit(StringLiteral& node) override;
     void visit(BooleanLiteral& node) override;
     void visit(NoneLiteral& node) override;
+    void visit(ListLiteral& node) override;
     void visit(Identifier& node) override;
     void visit(BinaryExpression& node) override;
     void visit(UnaryExpression& node) override;

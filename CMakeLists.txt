@@ -40,6 +40,55 @@ else()
 endif()
 
 # ==============================================================================
+# Build Type Configuration
+# ==============================================================================
+
+# Set default build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING 
+        "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel" FORCE)
+endif()
+
+# Release build optimizations
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Configuring Release build with optimizations")
+    
+    # Optimization flags for all targets
+    set(RELEASE_COMPILE_OPTIONS
+        -O3                    # Maximum optimization
+        -DNDEBUG              # Disable debug assertions
+        -march=native         # Optimize for current CPU architecture
+        -flto                 # Link-time optimization
+        -ffunction-sections   # Separate functions for better optimization
+        -fdata-sections       # Separate data sections
+    )
+    
+    set(RELEASE_LINK_OPTIONS
+        -O3                   # Optimization at link time
+        -flto                 # Link-time optimization
+    )
+    
+    # Platform-specific link options
+    if(APPLE)
+        list(APPEND RELEASE_LINK_OPTIONS
+            -Wl,-dead_strip   # Remove unused code (macOS equivalent of --gc-sections)
+        )
+    else()
+        list(APPEND RELEASE_LINK_OPTIONS
+            -Wl,--gc-sections # Remove unused sections (Linux/Unix)
+            -s                # Strip symbols for smaller binary
+        )
+    endif()
+    
+    # Apply to non-WebAssembly targets
+    if(NOT BUILD_WASM)
+        # Apply optimization flags to all targets
+        add_compile_options(${RELEASE_COMPILE_OPTIONS})
+        add_link_options(${RELEASE_LINK_OPTIONS})
+    endif()
+endif()
+
+# ==============================================================================
 # Source Files
 # ==============================================================================
 
@@ -205,9 +254,18 @@ if(BUILD_WASM)
     
     # Emscripten-specific flags (only if using Emscripten)
     if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        set(WASM_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1")
+        set(WASM_LINK_FLAGS "${WASM_FLAGS} -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind")
+        
+        # Add release-specific optimizations for WebAssembly
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            set(WASM_FLAGS "${WASM_FLAGS} -O3 -DNDEBUG --closure 1")
+            set(WASM_LINK_FLAGS "${WASM_LINK_FLAGS} -O3 --closure 1")
+        endif()
+        
         set_target_properties(meadows_wasm PROPERTIES
-            COMPILE_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1"
-            LINK_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind"
+            COMPILE_FLAGS "${WASM_FLAGS}"
+            LINK_FLAGS "${WASM_LINK_FLAGS}"
         )
         
         # Set output directory for web files
@@ -232,9 +290,49 @@ endif()
 # Build Information
 # ==============================================================================
 
+message(STATUS "==========================================")
+message(STATUS "Meadows Compiler Build Configuration")
+message(STATUS "==========================================")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Source files found: ${SOURCES}")
+message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Optimizations: Enabled (O3, LTO, native arch)")
+endif()
 if(BUILD_WASM)
-    message(STATUS "WebAssembly build enabled")
+    message(STATUS "WebAssembly build: Enabled")
+endif()
+if(LLVM_PACKAGE_VERSION)
+    message(STATUS "LLVM Version: ${LLVM_PACKAGE_VERSION}")
+endif()
+message(STATUS "==========================================")
+
+# ==============================================================================
+# Custom Targets
+# ==============================================================================
+
+# Release build target
+add_custom_target(release
+    COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release -B build-release -S .
+    COMMAND ${CMAKE_COMMAND} --build build-release --parallel
+    COMMENT "Building optimized release version"
+    VERBATIM
+)
+
+# Clean release build
+add_custom_target(clean-release
+    COMMAND ${CMAKE_COMMAND} -E remove_directory build-release
+    COMMENT "Cleaning release build directory"
+)
+
+# Install target (optional)
+if(NOT BUILD_WASM)
+    install(TARGETS meadows 
+        RUNTIME DESTINATION bin
+        COMPONENT runtime
+    )
+    install(TARGETS meadows_test
+        RUNTIME DESTINATION bin
+        COMPONENT testing
+    )
 endif()

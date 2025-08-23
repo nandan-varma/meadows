@@ -51,6 +51,7 @@ private:
     std::chrono::steady_clock::time_point startTime;
     std::string testBasePath = ".";
     bool quietMode = false;
+    bool minimalMode = false;
     
 public:
     TestFramework() = default;
@@ -61,6 +62,9 @@ public:
     
     // Set quiet mode (suppress detailed output for shell script integration)
     void setQuietMode(bool quiet) { quietMode = quiet; }
+    
+    // Set minimal mode (only show test names with ✓/✗)
+    void setMinimalMode(bool minimal) { minimalMode = minimal; }
     
     // Enhanced test case addition
     void addTest(const TestCase& test);

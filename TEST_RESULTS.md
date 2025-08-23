@@ -55,11 +55,11 @@ I have successfully created a comprehensive test suite for the Meadows Python-li
 - ✅ Unclosed parenthesis detection: `result = func(a, b` → correctly fails
 
 ### Integration Tests
-- ✅ `simple_example.py`: Complete program with functions, classes, and control flow
-- ✅ `test_program.py`: Simple test program with functions and loops
-- ✅ `test_lexer.py`: Basic token recognition test
-- ✅ `test_precedence.py`: Operator precedence validation
-- ✅ `test_edge_cases.py`: Edge case scenarios
+- ✅ `simple_example.mds`: Complete program with functions, classes, and control flow
+- ✅ `test_program.mds`: Simple test program with functions and loops
+- ✅ `test_lexer.mds`: Basic token recognition test
+- ✅ `test_precedence.mds`: Operator precedence validation
+- ✅ `test_edge_cases.mds`: Edge case scenarios
 
 ## What Needs Work (❌ Failing Tests)
 
@@ -73,8 +73,8 @@ I have successfully created a comprehensive test suite for the Meadows Python-li
 - ❌ Default parameter values with literals: `def greet(name, greeting="Hello")`
 
 ### Test Files with Advanced Syntax
-- ❌ `comprehensive_test.py`: Contains `range()` function calls
-- ❌ `example.py`: Uses list operations and string conversion
+- ❌ `comprehensive_test.mds`: Contains `range()` function calls
+- ❌ `example.mds`: Uses list operations and string conversion
 - ❌ Some test files use advanced features not yet in the parser
 
 ## Test Framework Features

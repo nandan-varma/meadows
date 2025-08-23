@@ -24,16 +24,56 @@ def deep_recursion(n):
 # Test 3: Large number of variables and assignments
 def many_assignments():
     """Test performance with many variable assignments"""
-    a1 = 1; a2 = 2; a3 = 3; a4 = 4; a5 = 5
-    a6 = 6; a7 = 7; a8 = 8; a9 = 9; a10 = 10
-    a11 = 11; a12 = 12; a13 = 13; a14 = 14; a15 = 15
-    a16 = 16; a17 = 17; a18 = 18; a19 = 19; a20 = 20
-    a21 = 21; a22 = 22; a23 = 23; a24 = 24; a25 = 25
-    a26 = 26; a27 = 27; a28 = 28; a29 = 29; a30 = 30
-    a31 = 31; a32 = 32; a33 = 33; a34 = 34; a35 = 35
-    a36 = 36; a37 = 37; a38 = 38; a39 = 39; a40 = 40
-    a41 = 41; a42 = 42; a43 = 43; a44 = 44; a45 = 45
-    a46 = 46; a47 = 47; a48 = 48; a49 = 49; a50 = 50
+    a1 = 1
+    a2 = 2
+    a3 = 3
+    a4 = 4
+    a5 = 5
+    a6 = 6
+    a7 = 7
+    a8 = 8
+    a9 = 9
+    a10 = 10
+    a11 = 11
+    a12 = 12
+    a13 = 13
+    a14 = 14
+    a15 = 15
+    a16 = 16
+    a17 = 17
+    a18 = 18
+    a19 = 19
+    a20 = 20
+    a21 = 21
+    a22 = 22
+    a23 = 23
+    a24 = 24
+    a25 = 25
+    a26 = 26
+    a27 = 27
+    a28 = 28
+    a29 = 29
+    a30 = 30
+    a31 = 31
+    a32 = 32
+    a33 = 33
+    a34 = 34
+    a35 = 35
+    a36 = 36
+    a37 = 37
+    a38 = 38
+    a39 = 39
+    a40 = 40
+    a41 = 41
+    a42 = 42
+    a43 = 43
+    a44 = 44
+    a45 = 45
+    a46 = 46
+    a47 = 47
+    a48 = 48
+    a49 = 49
+    a50 = 50
     
     total = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10
     total = total + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18 + a19 + a20
@@ -105,22 +145,52 @@ class LargeClass:
     def __init__(self):
         self.value = 0
     
-    def method1(self): self.value = self.value + 1; return self.value
-    def method2(self): self.value = self.value + 2; return self.value
-    def method3(self): self.value = self.value + 3; return self.value
-    def method4(self): self.value = self.value + 4; return self.value
-    def method5(self): self.value = self.value + 5; return self.value
-    def method6(self): self.value = self.value + 6; return self.value
-    def method7(self): self.value = self.value + 7; return self.value
-    def method8(self): self.value = self.value + 8; return self.value
-    def method9(self): self.value = self.value + 9; return self.value
-    def method10(self): self.value = self.value + 10; return self.value
+    def method1(self): 
+        self.value = self.value + 1
+        return self.value
+    def method2(self): 
+        self.value = self.value + 2
+        return self.value
+    def method3(self): 
+        self.value = self.value + 3
+        return self.value
+    def method4(self): 
+        self.value = self.value + 4
+        return self.value
+    def method5(self): 
+        self.value = self.value + 5
+        return self.value
+    def method6(self): 
+        self.value = self.value + 6
+        return self.value
+    def method7(self): 
+        self.value = self.value + 7
+        return self.value
+    def method8(self): 
+        self.value = self.value + 8
+        return self.value
+    def method9(self): 
+        self.value = self.value + 9
+        return self.value
+    def method10(self): 
+        self.value = self.value + 10
+        return self.value
     
-    def method11(self): self.value = self.value * 2; return self.value
-    def method12(self): self.value = self.value - 1; return self.value
-    def method13(self): self.value = self.value / 2; return self.value
-    def method14(self): self.value = self.value % 10; return self.value
-    def method15(self): self.value = self.value ** 2; return self.value
+    def method11(self): 
+        self.value = self.value * 2
+        return self.value
+    def method12(self): 
+        self.value = self.value - 1
+        return self.value
+    def method13(self): 
+        self.value = self.value / 2
+        return self.value
+    def method14(self): 
+        self.value = self.value % 10
+        return self.value
+    def method15(self): 
+        self.value = self.value ** 2
+        return self.value
     
     def compute_all(self):
         self.method1()
@@ -165,9 +235,21 @@ def compilation_stress():
     """Large function that stresses the compilation pipeline"""
     
     # Variable declarations
-    x1 = 1; x2 = 2; x3 = 3; x4 = 4; x5 = 5
-    y1 = 10; y2 = 20; y3 = 30; y4 = 40; y5 = 50
-    z1 = 100; z2 = 200; z3 = 300; z4 = 400; z5 = 500
+    x1 = 1
+    x2 = 2
+    x3 = 3
+    x4 = 4
+    x5 = 5
+    y1 = 10
+    y2 = 20
+    y3 = 30
+    y4 = 40
+    y5 = 50
+    z1 = 100
+    z2 = 200
+    z3 = 300
+    z4 = 400
+    z5 = 500
     
     # Complex computations
     result1 = x1 * y1 + z1 - x2 * y2 + z2
