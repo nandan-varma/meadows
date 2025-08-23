@@ -1,23 +1,35 @@
 #include "CodeGenerator.h"
 #include "../ast/Expression.h"
 #include "../ast/Statement.h"
+
+#ifndef BUILD_WASM
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Program.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#endif
+
 #include <iostream>
 #include <cstdlib>
 
 namespace meadows {
 
+#ifndef BUILD_WASM
 CodeGenerator::CodeGenerator(ErrorReporter& errorReporter, const std::string& moduleName)
     : errorReporter(errorReporter), currentFunction(nullptr), lastValue(nullptr) {
     context = std::make_unique<llvm::LLVMContext>();
     module = std::make_unique<llvm::Module>(moduleName, *context);
     builder = std::make_unique<llvm::IRBuilder<>>(*context);
 }
+#else
+CodeGenerator::CodeGenerator(ErrorReporter& errorReporter, const std::string& moduleName)
+    : errorReporter(errorReporter) {
+    // WebAssembly build - no LLVM initialization
+}
+#endif
 
+#ifndef BUILD_WASM
 llvm::Type* CodeGenerator::getInt32Type() {
     return llvm::Type::getInt32Ty(*context);
 }
@@ -724,5 +736,7 @@ void CodeGenerator::visit(Program& node) {
     // Return 0 from main
     builder->CreateRet(llvm::ConstantInt::get(getInt32Type(), 0));
 }
+
+#endif // BUILD_WASM
 
 } // namespace meadows

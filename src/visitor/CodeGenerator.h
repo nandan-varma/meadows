@@ -2,6 +2,8 @@
 
 #include "ASTVisitor.h"
 #include "../common/ErrorReporter.h"
+
+#ifndef BUILD_WASM
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
@@ -16,6 +18,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
+#endif
+
 #include <memory>
 #include <unordered_map>
 #include <string>
@@ -24,12 +28,15 @@ namespace meadows {
 
 class CodeGenerator : public ASTVisitor {
 private:
+#ifndef BUILD_WASM
     std::unique_ptr<llvm::LLVMContext> context;
     std::unique_ptr<llvm::Module> module;
     std::unique_ptr<llvm::IRBuilder<>> builder;
+#endif
     ErrorReporter& errorReporter;
     
     // Symbol tables
+#ifndef BUILD_WASM
     std::unordered_map<std::string, llvm::Value*> namedValues;
     std::unordered_map<std::string, llvm::Function*> functions;
     
@@ -52,11 +59,13 @@ private:
     // Type conversion helpers
     llvm::Value* convertToDouble(llvm::Value* value);
     llvm::Value* convertToInt(llvm::Value* value);
+#endif
     
 public:
     CodeGenerator(ErrorReporter& errorReporter, const std::string& moduleName = "meadows_program");
     ~CodeGenerator() = default;
     
+#ifndef BUILD_WASM
     // Generate LLVM IR
     std::unique_ptr<llvm::Module> generateIR(Program& program);
     
@@ -68,6 +77,7 @@ public:
     
     // Print LLVM IR
     void printIR();
+#endif
     
     // Expression visitors
     void visit(IntegerLiteral& node) override;

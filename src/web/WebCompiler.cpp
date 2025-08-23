@@ -60,9 +60,8 @@ public:
             // Generate AST
             std::string astJson = astToJson(*program);
 
-            // Generate IR
-            auto irModule = compiler->generateIR(*program);
-            std::string irCode = irModule ? irToString(*irModule) : "IR generation failed";
+            // Generate IR (only in native builds)
+            std::string irCode = "IR generation not available in WebAssembly build";
 
             // Simulate execution (for demo purposes)
             std::string executionOutput = simulateExecution(source);

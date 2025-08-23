@@ -59,6 +59,7 @@ bool Compiler::generateExecutable(const std::string& source, const std::string& 
             return false;
         }
         
+#ifndef BUILD_WASM
         // Generate LLVM IR
         CodeGenerator codeGen(errorReporter, "meadows_program");
         auto module = codeGen.generateIR(*program);
@@ -76,6 +77,11 @@ bool Compiler::generateExecutable(const std::string& source, const std::string& 
         if (!codeGen.generateExecutable(objectFile, outputFilename)) {
             return false;
         }
+#else
+        // WebAssembly build - no code generation
+        errorReporter.reportError("Code generation not available in WebAssembly build", 0, 0);
+        return false;
+#endif
         
         // Clean up object file
         std::remove(objectFile.c_str());
