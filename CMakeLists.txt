@@ -75,27 +75,30 @@ endif()
 # Executable Targets
 # ==============================================================================
 
-# Main compiler executable
-add_executable(meadows src/main.cpp)
-target_link_libraries(meadows meadows_lib)
-if(NOT BUILD_WASM AND LLVM_LIBS)
-    target_link_libraries(meadows ${LLVM_LIBS})
-endif()
+# Skip native executables for WebAssembly builds
+if(NOT BUILD_WASM)
+    # Main compiler executable
+    add_executable(meadows src/main.cpp)
+    target_link_libraries(meadows meadows_lib)
+    if(LLVM_LIBS)
+        target_link_libraries(meadows ${LLVM_LIBS})
+    endif()
 
-# Test runner executable
-add_executable(meadows_test src/test_runner.cpp)
-target_link_libraries(meadows_test meadows_lib)
-if(NOT BUILD_WASM AND LLVM_LIBS)
-    target_link_libraries(meadows_test ${LLVM_LIBS})
-endif()
+    # Test runner executable
+    add_executable(meadows_test src/test_runner.cpp)
+    target_link_libraries(meadows_test meadows_lib)
+    if(LLVM_LIBS)
+        target_link_libraries(meadows_test ${LLVM_LIBS})
+    endif()
 
-# Target-specific LLVM configuration
-if(NOT BUILD_WASM AND LLVM_INCLUDE_DIRS)
-    target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
+    # Target-specific LLVM configuration
+    if(LLVM_INCLUDE_DIRS)
+        target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
+        target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
 
-    target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
+        target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
+        target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
+    endif()
 endif()
 
 # ==============================================================================
