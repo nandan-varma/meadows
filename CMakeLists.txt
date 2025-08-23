@@ -17,13 +17,27 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # LLVM Configuration
 # ==============================================================================
 
-find_package(LLVM REQUIRED CONFIG)
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+# Skip LLVM for WebAssembly builds since Emscripten provides its own
+if(NOT SKIP_LLVM_FIND AND NOT BUILD_WASM)
+    find_package(LLVM REQUIRED CONFIG)
+    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-# LLVM definitions and includes
-add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
+    # LLVM definitions and includes
+    add_definitions(${LLVM_DEFINITIONS})
+    include_directories(${LLVM_INCLUDE_DIRS})
+elseif(BUILD_WASM)
+    message(STATUS "WebAssembly build: Skipping system LLVM, using Emscripten's LLVM")
+    # For WebAssembly, we'll use minimal LLVM functionality
+    set(LLVM_DEFINITIONS "")
+    set(LLVM_INCLUDE_DIRS "")
+    set(LLVM_LIBS "")
+else()
+    message(STATUS "Skipping LLVM find_package as requested")
+    set(LLVM_DEFINITIONS "")
+    set(LLVM_INCLUDE_DIRS "")
+    set(LLVM_LIBS "")
+endif()
 
 # ==============================================================================
 # Source Files
@@ -49,8 +63,10 @@ file(GLOB_RECURSE HEADERS "src/*.h")
 # ==============================================================================
 
 add_library(meadows_lib ${LIB_SOURCES} ${HEADERS})
-target_include_directories(meadows_lib PRIVATE ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(meadows_lib PRIVATE ${LLVM_DEFINITIONS})
+if(NOT BUILD_WASM AND LLVM_INCLUDE_DIRS)
+    target_include_directories(meadows_lib PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows_lib PRIVATE ${LLVM_DEFINITIONS})
+endif()
 
 # ==============================================================================
 # Executable Targets
@@ -58,35 +74,47 @@ target_compile_definitions(meadows_lib PRIVATE ${LLVM_DEFINITIONS})
 
 # Main compiler executable
 add_executable(meadows src/main.cpp)
-target_link_libraries(meadows meadows_lib ${LLVM_LIBS})
+target_link_libraries(meadows meadows_lib)
+if(NOT BUILD_WASM AND LLVM_LIBS)
+    target_link_libraries(meadows ${LLVM_LIBS})
+endif()
 
 # Test runner executable
 add_executable(meadows_test src/test_runner.cpp)
-target_link_libraries(meadows_test meadows_lib ${LLVM_LIBS})
+target_link_libraries(meadows_test meadows_lib)
+if(NOT BUILD_WASM AND LLVM_LIBS)
+    target_link_libraries(meadows_test ${LLVM_LIBS})
+endif()
 
 # Target-specific LLVM configuration
-target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
+if(NOT BUILD_WASM AND LLVM_INCLUDE_DIRS)
+    target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
 
-target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
+    target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
+endif()
 
 # ==============================================================================
 # LLVM Libraries
 # ==============================================================================
 
-llvm_map_components_to_libnames(LLVM_LIBS 
-    Core
-    ExecutionEngine
-    MC
-    Support
-    Target
-    Analysis
-    Object
-    native
-)
+if(NOT BUILD_WASM AND NOT SKIP_LLVM_FIND)
+    llvm_map_components_to_libnames(LLVM_LIBS 
+        Core
+        ExecutionEngine
+        MC
+        Support
+        Target
+        Analysis
+        Object
+        native
+    )
 
-target_link_libraries(meadows_lib ${LLVM_LIBS})
+    target_link_libraries(meadows_lib ${LLVM_LIBS})
+else()
+    message(STATUS "Skipping LLVM library linking for WebAssembly build")
+endif()
 
 # ==============================================================================
 # Platform-Specific Configuration

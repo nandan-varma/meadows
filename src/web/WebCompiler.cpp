@@ -5,6 +5,11 @@
 #include <string>
 #include <memory>
 
+// For WebAssembly builds, we might not have full LLVM support
+#ifndef BUILD_WASM
+#include "llvm/Support/raw_ostream.h"
+#endif
+
 namespace meadows {
 
 class WebCompiler {
@@ -76,10 +81,15 @@ private:
     }
 
     std::string irToString(llvm::Module& module) {
+#ifndef BUILD_WASM
         std::string irStr;
         llvm::raw_string_ostream stream(irStr);
         module.print(stream, nullptr);
         return stream.str();
+#else
+        // Simplified IR representation for WebAssembly
+        return "LLVM IR generation not available in WebAssembly build";
+#endif
     }
 
     std::string simulateExecution(const std::string& source) {

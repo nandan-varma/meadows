@@ -23,31 +23,80 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Setup Emscripten
+    - name: Setup Emscripten (optional)
       continue-on-error: true
       uses: mymindstorm/setup-emsdk@v14
       with:
         version: latest
         
-    - name: Try WebAssembly build
+    - name: Try WebAssembly build (optional)
       continue-on-error: true
       run: |
+        echo "Attempting WebAssembly build..."
         if command -v emcc &> /dev/null; then
-          emcmake cmake -B build-wasm -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_WASM=ON || echo "WASM config failed"
-          emmake make -C build-wasm -j$(nproc) || echo "WASM build failed"
+          echo "Emscripten found, trying WASM build..."
+          # Simple attempt - if it fails, we'll deploy static files
+          emcmake cmake -B build-wasm -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_WASM=ON \
+            -DSKIP_LLVM_FIND=ON || echo "WASM config failed, continuing with static files"
+          if [ -f build-wasm/Makefile ]; then
+            emmake make -C build-wasm -j$(nproc) || echo "WASM build failed, continuing with static files"
+          fi
+        else
+          echo "Emscripten not available, deploying static files only"
         fi
         
     - name: Prepare web files
       run: |
         mkdir -p dist
-        cp -r web/* dist/ 2>/dev/null || true
+        
+        # Copy all web files (static deployment)
+        if [ -d "web" ]; then
+          cp -r web/* dist/ 2>/dev/null || true
+          echo "Copied web files to dist/"
+        fi
+        
+        # Copy any generated WASM files if they exist
+        if [ -f "build-wasm/meadows.js" ]; then
+          cp build-wasm/meadows.js dist/ || true
+          echo "Copied generated WASM JS file"
+        fi
+        if [ -f "build-wasm/meadows.wasm" ]; then
+          cp build-wasm/meadows.wasm dist/ || true
+          echo "Copied generated WASM file"
+        fi
         
         # Ensure index.html exists
         if [ ! -f dist/index.html ]; then
-          cp web/index.html dist/
+          echo "index.html not found, creating fallback..."
+          echo '<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Meadows Compiler</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 2rem; text-align: center; }
+                .container { max-width: 600px; margin: 0 auto; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🌾 Meadows Compiler</h1>
+                <p>The web interface is being built. Please check back soon!</p>
+                <p><a href="https://github.com/nandan-varma/meadows">View on GitHub</a></p>
+            </div>
+        </body>
+        </html>' > dist/index.html
         fi
         
+        # Create build info
         echo "Build date: $(date)" > dist/build-info.txt
+        echo "Commit: ${GITHUB_SHA}" >> dist/build-info.txt
+        
+        echo "Final deployment contents:"
+        ls -la dist/
         
     - name: Setup Pages
       uses: actions/configure-pages@v4
