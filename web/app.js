@@ -88,9 +88,11 @@ print(power(x, 3))`
             // Status and modals
             statusIndicator: document.getElementById('statusIndicator'),
             loadingModal: document.getElementById('loadingModal'),
+            errorModal: document.getElementById('errorModal'),
             aboutModal: document.getElementById('aboutModal'),
             aboutBtn: document.getElementById('aboutBtn'),
             closeAboutModal: document.getElementById('closeAboutModal'),
+            closeErrorModal: document.getElementById('closeErrorModal'),
             buildDate: document.getElementById('buildDate'),
             
             // Tab buttons
@@ -116,6 +118,14 @@ print(power(x, 3))`
         // Editor events
         this.elements.codeEditor.addEventListener('input', () => this.updateEditor());
         this.elements.codeEditor.addEventListener('scroll', () => this.syncGutter());
+        this.elements.codeEditor.addEventListener('keydown', () => {
+            // Use setTimeout to ensure the change is processed first
+            setTimeout(() => this.updateEditor(), 0);
+        });
+        this.elements.codeEditor.addEventListener('paste', () => {
+            // Use setTimeout to ensure the paste is processed first
+            setTimeout(() => this.updateEditor(), 0);
+        });
         
         // Tab switching
         this.elements.tabButtons.forEach(btn => {
@@ -125,11 +135,18 @@ print(power(x, 3))`
         // Modal events
         this.elements.aboutBtn.addEventListener('click', () => this.showModal('about'));
         this.elements.closeAboutModal.addEventListener('click', () => this.hideModal('about'));
+        this.elements.closeErrorModal.addEventListener('click', () => this.hideModal('error'));
         
         // Click outside modal to close
         this.elements.aboutModal.addEventListener('click', (e) => {
             if (e.target === this.elements.aboutModal) {
                 this.hideModal('about');
+            }
+        });
+        
+        this.elements.errorModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.errorModal) {
+                this.hideModal('error');
             }
         });
         
@@ -142,12 +159,13 @@ print(power(x, 3))`
     }
 
     initializeEditor() {
+        // Set initial example first
+        this.elements.codeEditor.value = this.examples.factorial;
         this.updateEditor();
         this.elements.buildDate.textContent = new Date().toLocaleDateString();
         
-        // Set initial example
-        this.elements.codeEditor.value = this.examples.factorial;
-        this.updateEditor();
+        // Ensure initial sync
+        this.syncGutter();
     }
 
     async loadCompiler() {
@@ -156,8 +174,8 @@ print(power(x, 3))`
         
         // Add a timeout to prevent infinite loading
         const loadingTimeout = setTimeout(() => {
-            console.warn('WebAssembly loading timeout, falling back to mock mode');
-            this.fallbackToMock();
+            console.error('WebAssembly loading timeout');
+            this.showCompilerError();
         }, 5000); // 5 second timeout
         
         try {
@@ -167,16 +185,15 @@ print(power(x, 3))`
         } catch (error) {
             clearTimeout(loadingTimeout);
             console.error('Failed to load compiler:', error);
-            this.fallbackToMock();
+            this.showCompilerError();
         }
     }
     
-    fallbackToMock() {
-        console.log('Using mock compiler mode');
+    showCompilerError() {
         this.hideModal('loading');
-        this.updateStatus('ready', 'Ready (Mock Mode)');
-        this.elements.runBtn.disabled = false;
-        // Mock compiler is used by default in the compile method
+        this.showModal('error');
+        this.updateStatus('error', 'Compiler not available');
+        this.elements.runBtn.disabled = true;
     }
 
     async initializeWasmCompiler() {
@@ -201,7 +218,7 @@ print(power(x, 3))`
                             return JSON.parse(resultJson);
                         } catch (error) {
                             console.error('WASM compilation error:', error);
-                            return this.mockCompile(source, options);
+                            throw error;
                         }
                     }
                 };
@@ -219,265 +236,13 @@ print(power(x, 3))`
         }
     }
 
-    async simulateWasmLoading() {
-        // Simulate WebAssembly loading time
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Mock compiler interface
-        this.compiler = {
-            compile: (source, options = {}) => {
-                return this.mockCompile(source, options);
-            }
-        };
-    }
-
-    mockCompile(source, options) {
-        // Mock compilation results
-        const lines = source.split('\n');
-        const nonEmptyLines = lines.filter(line => line.trim());
-        
-        // Generate mock tokens
-        const tokens = this.generateMockTokens(source);
-        
-        // Generate mock AST
-        const ast = this.generateMockAST(source);
-        
-        // Generate mock IR
-        const ir = this.generateMockIR(source);
-        
-        // Generate execution result
-        const execution = this.generateMockExecution(source);
-        
-        return {
-            success: true,
-            tokens,
-            ast,
-            ir,
-            execution,
-            errors: [],
-            warnings: []
-        };
-    }
-
-    generateMockTokens(source) {
-        const tokenPatterns = [
-            { pattern: /\bdef\b/g, type: 'KEYWORD' },
-            { pattern: /\bif\b/g, type: 'KEYWORD' },
-            { pattern: /\belse\b/g, type: 'KEYWORD' },
-            { pattern: /\breturn\b/g, type: 'KEYWORD' },
-            { pattern: /\bwhile\b/g, type: 'KEYWORD' },
-            { pattern: /\bprint\b/g, type: 'BUILTIN' },
-            { pattern: /[a-zA-Z_][a-zA-Z0-9_]*/g, type: 'IDENTIFIER' },
-            { pattern: /\d+/g, type: 'NUMBER' },
-            { pattern: /"[^"]*"/g, type: 'STRING' },
-            { pattern: /[+\-*/=<>!]/g, type: 'OPERATOR' },
-            { pattern: /[(){}[\],.:]/g, type: 'PUNCTUATION' },
-            { pattern: /#.*/g, type: 'COMMENT' }
-        ];
-        
-        let tokens = [];
-        let lineNum = 1;
-        let lines = source.split('\n');
-        
-        lines.forEach((line, index) => {
-            let column = 1;
-            tokenPatterns.forEach(({ pattern, type }) => {
-                let match;
-                pattern.lastIndex = 0;
-                while ((match = pattern.exec(line)) !== null) {
-                    tokens.push({
-                        type,
-                        value: match[0],
-                        line: index + 1,
-                        column: match.index + 1
-                    });
-                }
-            });
-        });
-        
-        return tokens;
-    }
-
-    generateMockAST(source) {
-        // Generate a simplified AST representation
-        const lines = source.split('\n').filter(line => line.trim());
-        let ast = 'Program:\n';
-        let indentLevel = 1;
-        
-        lines.forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('#')) return; // Skip comments
-            
-            let indent = '  '.repeat(indentLevel);
-            
-            if (trimmed.startsWith('def ')) {
-                ast += `${indent}FunctionDefinition: ${trimmed.match(/def\s+(\w+)/)?.[1] || 'unknown'}\n`;
-                indentLevel++;
-            } else if (trimmed.startsWith('if ')) {
-                ast += `${indent}IfStatement:\n`;
-                ast += `${'  '.repeat(indentLevel + 1)}Condition: ${trimmed.slice(3, -1)}\n`;
-                indentLevel++;
-            } else if (trimmed === 'else:') {
-                indentLevel--;
-                ast += `${'  '.repeat(indentLevel)}Else:\n`;
-                indentLevel++;
-            } else if (trimmed.startsWith('while ')) {
-                ast += `${indent}WhileStatement:\n`;
-                ast += `${'  '.repeat(indentLevel + 1)}Condition: ${trimmed.slice(6, -1)}\n`;
-                indentLevel++;
-            } else if (trimmed.startsWith('return ')) {
-                ast += `${indent}ReturnStatement: ${trimmed.slice(7)}\n`;
-            } else if (trimmed.includes('=') && !trimmed.includes('==')) {
-                const [left, right] = trimmed.split('=').map(s => s.trim());
-                ast += `${indent}Assignment: ${left} = ${right}\n`;
-            } else if (trimmed.startsWith('print(')) {
-                ast += `${indent}FunctionCall: print\n`;
-                ast += `${'  '.repeat(indentLevel + 1)}Arguments: ${trimmed.slice(6, -1)}\n`;
-            } else if (trimmed && !trimmed.endsWith(':')) {
-                ast += `${indent}ExpressionStatement: ${trimmed}\n`;
-            }
-            
-            // Adjust indentation for block endings
-            if (indentLevel > 1 && !line.startsWith('  ')) {
-                indentLevel = 1;
-            }
-        });
-        
-        return ast;
-    }
-
-    generateMockIR(source) {
-        // Generate mock LLVM IR
-        let ir = `; ModuleID = 'meadows_module'
-source_filename = "meadows_input"
-target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-pc-linux-gnu"
-
-@.str = private unnamed_addr constant [4 x i8] c"%d\\0A\\00", align 1
-@.str.1 = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1
-
-declare i32 @printf(i8*, ...)
-
-`;
-        
-        // Add function definitions based on source
-        if (source.includes('def factorial')) {
-            ir += `define i32 @factorial(i32 %n) {
-entry:
-  %cmp = icmp sle i32 %n, 1
-  br i1 %cmp, label %if.then, label %if.else
-
-if.then:
-  ret i32 1
-
-if.else:
-  %sub = sub i32 %n, 1
-  %call = call i32 @factorial(i32 %sub)
-  %mul = mul i32 %n, %call
-  ret i32 %mul
-}
-
-`;
-        }
-        
-        if (source.includes('def fibonacci')) {
-            ir += `define i32 @fibonacci(i32 %n) {
-entry:
-  %cmp = icmp sle i32 %n, 1
-  br i1 %cmp, label %if.then, label %if.else
-
-if.then:
-  ret i32 %n
-
-if.else:
-  %sub1 = sub i32 %n, 1
-  %call1 = call i32 @fibonacci(i32 %sub1)
-  %sub2 = sub i32 %n, 2
-  %call2 = call i32 @fibonacci(i32 %sub2)
-  %add = add i32 %call1, %call2
-  ret i32 %add
-}
-
-`;
-        }
-        
-        ir += `define i32 @main() {
-entry:
-`;
-        
-        // Add main function body based on source
-        if (source.includes('print(')) {
-            const printCalls = source.match(/print\([^)]+\)/g) || [];
-            printCalls.forEach((call, index) => {
-                const arg = call.slice(6, -1);
-                if (arg.includes('"')) {
-                    ir += `  %call${index} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.1, i64 0, i64 0), i8* getelementptr inbounds ([${arg.length - 2} x i8], [${arg.length - 2} x i8]* @.str, i64 0, i64 0))
-`;
-                } else {
-                    ir += `  %call${index} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 ${arg})
-`;
-                }
-            });
-        }
-        
-        ir += `  ret i32 0
-}`;
-        
-        return ir;
-    }
-
-    generateMockExecution(source) {
-        // Generate mock execution output
-        let output = '';
-        
-        try {
-            // Simple pattern matching for demonstration
-            if (source.includes('factorial(5)')) {
-                output += 'Factorial of 5:\n120\n';
-            }
-            if (source.includes('factorial(10)')) {
-                output += 'Factorial of 10:\n3628800\n';
-            }
-            if (source.includes('fibonacci')) {
-                output += '0\n1\n1\n2\n3\n5\n8\n13\n21\n34\n';
-            }
-            if (source.includes('Hello, World!')) {
-                output += 'Hello, World!\n';
-            }
-            if (source.includes('Welcome to Meadows!')) {
-                output += 'Welcome to Meadows!\n';
-            }
-            if (source.includes('add(x, y)')) {
-                output += 'Addition:\n15\n';
-            }
-            if (source.includes('multiply(x, y)')) {
-                output += 'Multiplication:\n50\n';
-            }
-            if (source.includes('power(x, 3)')) {
-                output += 'Power:\n1000\n';
-            }
-            
-            if (!output) {
-                output = 'Program executed successfully.\n';
-            }
-            
-            return {
-                success: true,
-                output: output,
-                exitCode: 0
-            };
-        } catch (error) {
-            return {
-                success: false,
-                output: '',
-                error: error.message,
-                exitCode: 1
-            };
-        }
-    }
-
     async runCode() {
-        if (this.isLoading || !this.compiler) {
+        if (this.isLoading) {
+            return;
+        }
+        
+        if (!this.compiler) {
+            this.showCompilerError();
             return;
         }
         
@@ -513,7 +278,9 @@ entry:
             this.updateStatus('error', 'Compilation error');
         } finally {
             this.isLoading = false;
-            this.elements.runBtn.disabled = false;
+            if (this.compiler) {
+                this.elements.runBtn.disabled = false;
+            }
         }
     }
 
@@ -544,6 +311,7 @@ entry:
         this.elements.codeEditor.value = '';
         this.updateEditor();
         this.clearOutput();
+        this.elements.codeEditor.focus();
     }
 
     clearOutput(updateStatus = true) {
@@ -562,6 +330,9 @@ entry:
             this.elements.codeEditor.value = this.examples[exampleName];
             this.updateEditor();
             this.clearOutput();
+            // Ensure proper focus and cursor position
+            this.elements.codeEditor.focus();
+            this.elements.codeEditor.setSelectionRange(0, 0);
         }
     }
 
@@ -575,21 +346,35 @@ entry:
         // Update gutter
         this.updateGutter(lines.length);
         
+        // Sync scroll positions
+        this.syncGutter();
+        
         // Auto-resize editor
         this.elements.codeEditor.style.height = 'auto';
         this.elements.codeEditor.style.height = this.elements.codeEditor.scrollHeight + 'px';
+        
+        // Update gutter height to match editor
+        this.elements.editorGutter.style.height = this.elements.codeEditor.style.height;
     }
 
     updateGutter(lineCount) {
         let gutterContent = '';
         for (let i = 1; i <= lineCount; i++) {
-            gutterContent += i + '\n';
+            gutterContent += i;
+            if (i < lineCount) {
+                gutterContent += '\n';
+            }
         }
         this.elements.editorGutter.textContent = gutterContent;
     }
 
     syncGutter() {
+        // Sync scroll positions
         this.elements.editorGutter.scrollTop = this.elements.codeEditor.scrollTop;
+        
+        // Ensure heights match
+        const editorHeight = this.elements.codeEditor.scrollHeight;
+        this.elements.editorGutter.style.minHeight = editorHeight + 'px';
     }
 
     switchTab(tabName) {
@@ -666,6 +451,7 @@ entry:
         if (event.key === 'Escape') {
             this.hideModal('about');
             this.hideModal('loading');
+            this.hideModal('error');
         }
     }
 

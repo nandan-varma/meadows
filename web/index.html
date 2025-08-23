@@ -3,47 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meadows Compiler - Online IDE</title>
-    <meta name="description" content="Online IDE for the Meadows programming language. Write, compile, and execute Python-like code in your browser using WebAssembly.">
+    <title>Meadows Compiler</title>
+    <meta name="description" content="Online IDE for the Meadows programming language. Write, compile, and execute Python-like code in your browser.">
     <meta name="keywords" content="compiler, programming language, Python, LLVM, WebAssembly, online IDE, code editor">
     <meta name="author" content="Meadows Compiler Project">
     
-    <!-- Favicon -->
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌾</text></svg>">
+    <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>M</text></svg>">
     
-    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://yourusername.github.io/meadows/">
-    <meta property="og:title" content="Meadows Compiler - Online IDE">
+    <meta property="og:url" content="https://meadows-compiler.dev/">
+    <meta property="og:title" content="Meadows Compiler">
     <meta property="og:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
     
-    <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://yourusername.github.io/meadows/">
-    <meta property="twitter:title" content="Meadows Compiler - Online IDE">
+    <meta property="twitter:url" content="https://meadows-compiler.dev/">
+    <meta property="twitter:title" content="Meadows Compiler">
     <meta property="twitter:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
     
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=SF+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header class="header">
             <div class="header-content">
                 <h1 class="title">
-                    <span class="logo">🌾</span>
                     Meadows Compiler
                 </h1>
                 <div class="header-actions">
                     <button id="runBtn" class="btn btn-primary">
-                        <span class="btn-icon">▶</span>
                         Run Code
                     </button>
                     <button id="clearBtn" class="btn btn-secondary">
-                        <span class="btn-icon">🗑️</span>
                         Clear
                     </button>
                     <select id="exampleSelect" class="example-select">
@@ -67,8 +61,9 @@
                     </div>
                 </div>
                 <div class="editor-container">
-                    <textarea id="codeEditor" class="code-editor" placeholder="# Write your Meadows code here...
-# Example:
+                    <textarea id="codeEditor" class="code-editor" placeholder="Write your Meadows code here...
+
+Example:
 def factorial(n):
     if n <= 1:
         return 1
@@ -131,7 +126,7 @@ print(factorial(5))"></textarea>
                     <p class="build-info">WebAssembly Build - <span id="buildDate"></span></p>
                 </div>
                 <div class="footer-links">
-                    <a href="https://github.com/yourusername/meadows" target="_blank" class="footer-link">
+                    <a href="https://github.com/meadows-lang/meadows" target="_blank" class="footer-link">
                         GitHub
                     </a>
                     <a href="#" id="aboutBtn" class="footer-link">
@@ -150,12 +145,32 @@ print(factorial(5))"></textarea>
         </div>
     </div>
 
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Compiler Not Available</h3>
+                <button class="modal-close" id="closeErrorModal">×</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>The Meadows compiler binary was not found.</strong></p>
+                <p>To use this web IDE, you need to:</p>
+                <ol>
+                    <li>Build the WebAssembly version of the compiler using the build script</li>
+                    <li>Ensure the <code>meadows.js</code> file is present in the web directory</li>
+                    <li>Make sure the WebAssembly module is properly loaded</li>
+                </ol>
+                <p>Please refer to the project documentation for build instructions.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- About Modal -->
     <div id="aboutModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>About Meadows Compiler</h3>
-                <button class="modal-close" id="closeAboutModal">&times;</button>
+                <button class="modal-close" id="closeAboutModal">×</button>
             </div>
             <div class="modal-body">
                 <p>Meadows is a Python-like programming language with strong static typing, compiled to native code using LLVM.</p>
