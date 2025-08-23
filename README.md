@@ -167,6 +167,45 @@ Program:
                 BinaryExpression(Identifier(n) * FunctionCall(Identifier(factorial), [BinaryExpression(Identifier(n) - IntegerLiteral(1))]))
 ```
 
+## Testing
+
+The Meadows compiler includes a comprehensive test suite covering all aspects of compilation:
+
+### Running Tests
+
+```bash
+# Run all tests
+./run_tests.sh
+
+# Run specific test categories
+./run_tests.sh build         # Build project only
+./run_tests.sh test          # Run comprehensive test suite  
+./run_tests.sh individual    # Test individual files
+./run_tests.sh compile       # Test compilation to executable
+./run_tests.sh comprehensive # Run all comprehensive categories
+./run_tests.sh errors        # Test error handling
+./run_tests.sh performance   # Performance benchmarks
+./run_tests.sh applications  # Real-world application tests
+```
+
+All tests generate an HTML report in `build/test_report.html` showing detailed results.
+
+### Test Coverage
+
+- **Language Features**: Lexer, parser, expressions, statements, functions, classes
+- **Compilation**: End-to-end compilation to executable files
+- **Error Handling**: Syntax errors, runtime errors, edge cases, graceful recovery
+- **Performance**: Compilation speed, memory usage, stress testing with large programs
+- **IR Generation**: LLVM code quality, optimization detection
+- **Integration**: Full pipeline testing from source to executable
+- **Applications**: Real-world examples (calculator, data structures, algorithms)
+
+### Test Files
+
+- `tests/test_*.py` - Comprehensive test programs covering all language features
+- Built-in C++ test framework validates parsing, compilation, and execution
+- Automated performance benchmarking and regression detection
+
 ## Extensibility
 
 The modular design makes it easy to extend:

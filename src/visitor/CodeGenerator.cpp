@@ -5,6 +5,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Program.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include <iostream>
 #include <cstdlib>
 
@@ -15,11 +16,6 @@ CodeGenerator::CodeGenerator(ErrorReporter& errorReporter, const std::string& mo
     context = std::make_unique<llvm::LLVMContext>();
     module = std::make_unique<llvm::Module>(moduleName, *context);
     builder = std::make_unique<llvm::IRBuilder<>>(*context);
-    
-    // Initialize LLVM targets
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
 }
 
 llvm::Type* CodeGenerator::getInt32Type() {
@@ -103,6 +99,9 @@ llvm::Value* CodeGenerator::convertToInt(llvm::Value* value) {
 }
 
 std::unique_ptr<llvm::Module> CodeGenerator::generateIR(Program& program) {
+    // Set a basic data layout for the native target (don't set target triple here to avoid override warning)
+    module->setDataLayout("e-m:o-i64:64-i128:128-n32:64-S128");  // Basic ARM64 layout
+    
     program.accept(*this);
     
     // Verify the module
@@ -114,49 +113,68 @@ std::unique_ptr<llvm::Module> CodeGenerator::generateIR(Program& program) {
         return nullptr;
     }
     
-    return std::move(module);
+    // Create a clone of the module to return, keeping the original
+    auto clonedModule = llvm::CloneModule(*module);
+    return clonedModule;
 }
 
 bool CodeGenerator::generateObjectFile(const std::string& filename) {
-    // Get the target triple
-    std::string targetTriple = llvm::sys::getDefaultTargetTriple();
-    module->setTargetTriple(targetTriple);
-    
-    std::string error;
-    const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
-    if (!target) {
-        errorReporter.error("Failed to lookup target: " + error, SourceLocation(1, 1, ""));
+    try {
+        // Generate IR file instead of object file directly
+        std::string irFilename = filename + ".ll";
+        std::error_code errorCode;
+        llvm::raw_fd_ostream dest(irFilename, errorCode, llvm::sys::fs::OF_None);
+        if (errorCode) {
+            errorReporter.error("Could not create IR file: " + errorCode.message(), 
+                               SourceLocation(1, 1, ""));
+            return false;
+        }
+        
+        // Print the module as LLVM IR
+        module->print(dest, nullptr);
+        dest.flush();
+        dest.close();
+        
+        // Use clang to compile IR to object file
+        std::vector<llvm::StringRef> args = {
+            "clang",
+            "-c",
+            "-Wno-override-module",  // Suppress the override warning
+            irFilename,
+            "-o", filename
+        };
+        
+        std::string errorMsg;
+        int result = llvm::sys::ExecuteAndWait(
+            llvm::sys::findProgramByName("clang").get(),
+            args,
+            std::nullopt,
+            {},
+            0,
+            0,
+            &errorMsg
+        );
+        
+        // Clean up IR file
+        std::remove(irFilename.c_str());
+        
+        if (result != 0) {
+            errorReporter.error("Failed to compile IR to object file: " + errorMsg, 
+                               SourceLocation(1, 1, ""));
+            return false;
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        errorReporter.error("Exception in generateObjectFile: " + std::string(e.what()), 
+                           SourceLocation(1, 1, ""));
         return false;
-    }
-    
-    llvm::TargetOptions options;
-    std::unique_ptr<llvm::TargetMachine> targetMachine(
-        target->createTargetMachine(targetTriple, "generic", "", options, 
-                                   llvm::Reloc::PIC_)
-    );
-    
-    module->setDataLayout(targetMachine->createDataLayout());
-    
-    std::error_code errorCode;
-    llvm::raw_fd_ostream dest(filename, errorCode, llvm::sys::fs::OF_None);
-    if (errorCode) {
-        errorReporter.error("Could not open file: " + errorCode.message(), 
+    } catch (...) {
+        errorReporter.error("Unknown exception in generateObjectFile", 
                            SourceLocation(1, 1, ""));
         return false;
     }
-    
-    llvm::legacy::PassManager passManager;
-    if (targetMachine->addPassesToEmitFile(passManager, dest, nullptr, 
-                                          llvm::CodeGenFileType::ObjectFile)) {
-        errorReporter.error("TargetMachine can't emit object file", 
-                           SourceLocation(1, 1, ""));
-        return false;
-    }
-    
-    passManager.run(*module);
-    dest.flush();
-    
-    return true;
 }
 
 bool CodeGenerator::generateExecutable(const std::string& objectFile, const std::string& executableFile) {
@@ -233,7 +251,9 @@ void CodeGenerator::visit(Identifier& node) {
     // If it's an alloca, load the value
     if (llvm::isa<llvm::AllocaInst>(value)) {
         // In LLVM 20+, we need to specify the load type explicitly
-        llvm::Type* loadType = getInt32Type(); // Default to int for now
+        // Get the allocated type from the alloca instruction
+        llvm::AllocaInst* allocaInst = llvm::cast<llvm::AllocaInst>(value);
+        llvm::Type* loadType = allocaInst->getAllocatedType();
         lastValue = builder->CreateLoad(loadType, value, node.name);
     } else {
         lastValue = value;
@@ -474,6 +494,10 @@ void CodeGenerator::visit(Assignment& node) {
         if (!variable) {
             // Create new alloca
             llvm::Function* function = builder->GetInsertBlock()->getParent();
+            if (!function) {
+                errorReporter.error("No current function for alloca", node.location);
+                return;
+            }
             llvm::IRBuilder<> tmpBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
             variable = tmpBuilder.CreateAlloca(value->getType(), nullptr, identifier->name);
             namedValues[identifier->name] = variable;

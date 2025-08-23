@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <getopt.h>
+#include "llvm/Support/TargetSelect.h"
 
 using namespace meadows;
 
@@ -97,6 +98,11 @@ for i in range(10):
 }
 
 int main(int argc, char* argv[]) {
+    // Initialize LLVM targets - must be done once at program startup
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
+    
     std::string inputFile;
     std::string outputFile;
     bool compileMode = false;
