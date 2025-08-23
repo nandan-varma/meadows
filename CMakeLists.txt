@@ -63,6 +63,9 @@ file(GLOB_RECURSE HEADERS "src/*.h")
 # ==============================================================================
 
 add_library(meadows_lib ${LIB_SOURCES} ${HEADERS})
+if(BUILD_WASM)
+    target_compile_definitions(meadows_lib PRIVATE BUILD_WASM=1)
+endif()
 if(NOT BUILD_WASM AND LLVM_INCLUDE_DIRS)
     target_include_directories(meadows_lib PRIVATE ${LLVM_INCLUDE_DIRS})
     target_compile_definitions(meadows_lib PRIVATE ${LLVM_DEFINITIONS})
