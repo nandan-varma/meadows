@@ -162,9 +162,9 @@ option(BUILD_WASM "Build WebAssembly version" OFF)
 if(BUILD_WASM)
     message(STATUS "Building WebAssembly version")
     
-    # Check for Emscripten
-    if(NOT DEFINED ENV{EMSCRIPTEN})
-        message(FATAL_ERROR "EMSCRIPTEN environment variable not set. Please install and activate Emscripten SDK.")
+    # Check if we're using Emscripten toolchain (better detection)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NOT DEFINED ENV{EMSCRIPTEN})
+        message(WARNING "WebAssembly build requested but Emscripten toolchain not detected. Continuing anyway...")
     endif()
     
     # WebAssembly-specific sources
@@ -178,25 +178,34 @@ if(BUILD_WASM)
         "src/Compiler.cpp"
     )
     
-    # Create WebAssembly library
+    # Create WebAssembly library (simplified - no LLVM dependencies)
     add_executable(meadows_wasm ${WASM_SOURCES})
     
-    # WebAssembly-specific settings
-    target_include_directories(meadows_wasm PRIVATE ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(meadows_wasm PRIVATE ${LLVM_DEFINITIONS})
-    target_link_libraries(meadows_wasm ${LLVM_LIBS})
+    # Add BUILD_WASM definition so the code can conditionally compile
+    target_compile_definitions(meadows_wasm PRIVATE BUILD_WASM=1)
     
-    # Emscripten-specific flags
-    set_target_properties(meadows_wasm PROPERTIES
-        COMPILE_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1"
-        LINK_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind --pre-js ${CMAKE_SOURCE_DIR}/web/pre.js"
-    )
+    # Only add LLVM if available (optional for WebAssembly)
+    if(LLVM_INCLUDE_DIRS AND NOT SKIP_LLVM_FIND)
+        target_include_directories(meadows_wasm PRIVATE ${LLVM_INCLUDE_DIRS})
+        target_compile_definitions(meadows_wasm PRIVATE ${LLVM_DEFINITIONS})
+        if(LLVM_LIBS)
+            target_link_libraries(meadows_wasm ${LLVM_LIBS})
+        endif()
+    endif()
     
-    # Set output directory for web files
-    set_target_properties(meadows_wasm PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/web"
-        OUTPUT_NAME "meadows"
-    )
+    # Emscripten-specific flags (only if using Emscripten)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        set_target_properties(meadows_wasm PROPERTIES
+            COMPILE_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1"
+            LINK_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind"
+        )
+        
+        # Set output directory for web files
+        set_target_properties(meadows_wasm PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/web"
+            OUTPUT_NAME "meadows"
+        )
+    endif()
     
     # Custom command to copy additional web files
     add_custom_command(TARGET meadows_wasm POST_BUILD

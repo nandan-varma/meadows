@@ -35,6 +35,12 @@ jobs:
         echo "Attempting WebAssembly build..."
         if command -v emcc &> /dev/null; then
           echo "Emscripten found, trying WASM build..."
+          # Source the Emscripten environment
+          if [ -f "${EMSDK}/emsdk_env.sh" ]; then
+            source "${EMSDK}/emsdk_env.sh"
+            echo "Sourced Emscripten environment"
+          fi
+          
           # Simple attempt - if it fails, we'll deploy static files
           emcmake cmake -B build-wasm -S . \
             -DCMAKE_BUILD_TYPE=Release \
