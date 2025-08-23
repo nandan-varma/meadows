@@ -1,6 +1,18 @@
 # Meadows Compiler
 
-A modular compiler frontend for a Python-like programming language, built with C++ and LLVM.
+A modular compiler frontend for a Python-like programming language, built with C++ and LLVM. Features both native compilation and WebAssembly support for browser-based development.
+
+## 🌐 Online IDE
+
+Try Meadows in your browser! Visit our online IDE at:
+**[https://nandan-varma.github.io/meadows](https://nandan-varma.github.io/meadows)**
+
+Features:
+- Real-time compilation to LLVM IR
+- Interactive code editor with syntax highlighting
+- AST and token visualization
+- Pre-loaded examples
+- No installation required
 
 ## Usage
 
@@ -63,7 +75,7 @@ Shows both tokenization and AST output without compiling.
 - C++17 compatible compiler
 - LLVM development libraries
 
-### Build Instructions
+### Native Build
 ```bash
 # Configure
 cmake -B build -S .
@@ -73,6 +85,38 @@ cmake --build build
 
 # Run
 ./build/meadows [source_file.py]
+```
+
+### WebAssembly Build
+
+For browser-based compilation, build the WebAssembly version:
+
+#### Prerequisites
+- [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html)
+
+#### Quick Start
+```bash
+# Install Emscripten (one-time setup)
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install latest
+./emsdk activate latest
+source ./emsdk_env.sh
+
+# Build WebAssembly version
+./build_wasm.sh build
+
+# Start development server
+./build_wasm.sh serve
+# Open http://localhost:8000 in your browser
+```
+
+#### Build Commands
+```bash
+./build_wasm.sh build    # Build WebAssembly module
+./build_wasm.sh clean    # Clean previous builds  
+./build_wasm.sh test     # Build and test module
+./build_wasm.sh serve    # Build and start development server
 ```
 
 ## Example Output

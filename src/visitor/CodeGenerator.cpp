@@ -99,8 +99,6 @@ llvm::Value* CodeGenerator::convertToInt(llvm::Value* value) {
 }
 
 std::unique_ptr<llvm::Module> CodeGenerator::generateIR(Program& program) {
-    // Set a basic data layout for the native target (don't set target triple here to avoid override warning)
-    module->setDataLayout("e-m:o-i64:64-i128:128-n32:64-S128");  // Basic ARM64 layout
     
     program.accept(*this);
     
@@ -139,7 +137,6 @@ bool CodeGenerator::generateObjectFile(const std::string& filename) {
         std::vector<llvm::StringRef> args = {
             "clang",
             "-c",
-            "-Wno-override-module",  // Suppress the override warning
             irFilename,
             "-o", filename
         };

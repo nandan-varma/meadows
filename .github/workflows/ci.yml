@@ -1,0 +1,131 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            llvm-version: 17
+          - os: macos-latest
+            llvm-version: 17
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh ${{ matrix.llvm-version }}
+        sudo apt-get install -y llvm-${{ matrix.llvm-version }}-dev libllvm${{ matrix.llvm-version }}
+        
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake llvm@${{ matrix.llvm-version }}
+        
+    - name: Configure CMake (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cmake -B build -S . \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DIR=/usr/lib/llvm-${{ matrix.llvm-version }}/lib/cmake/llvm
+          
+    - name: Configure CMake (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        cmake -B build -S . \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DIR=$(brew --prefix llvm@${{ matrix.llvm-version }})/lib/cmake/llvm
+          
+    - name: Build
+      run: cmake --build build --parallel
+      
+    - name: Run unit tests
+      run: |
+        cd build
+        ./meadows_test
+        
+    - name: Run integration tests
+      run: |
+        chmod +x run_tests.sh
+        ./run_tests.sh test
+        
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}
+        path: |
+          build/test_report.html
+          TEST_RESULTS.md
+
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-17
+        
+    - name: Check code formatting
+      run: |
+        find src -name "*.cpp" -o -name "*.h" | xargs clang-format-17 --dry-run --Werror
+        
+    - name: Install cppcheck
+      run: |
+        sudo apt-get install -y cppcheck
+        
+    - name: Run static analysis
+      run: |
+        cppcheck --enable=all --inconclusive --std=c++17 src/ || true
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: cpp
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 17
+        sudo apt-get install -y llvm-17-dev libllvm17
+        
+    - name: Build for analysis
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+        cmake --build build
+        
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3

@@ -1,0 +1,26 @@
+# Meadows Web - Deployment Configuration
+
+# Static files that should be included in deployment
+*.html
+*.css
+*.js
+*.wasm
+*.svg
+*.ico
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.json
+*.txt
+*.md
+
+# Exclude development files
+!config.env
+!README.md
+!*.log
+!*.tmp
+!node_modules/
+!.DS_Store
+!Thumbs.db

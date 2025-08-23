@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meadows Compiler - Online IDE</title>
+    <meta name="description" content="Online IDE for the Meadows programming language. Write, compile, and execute Python-like code in your browser using WebAssembly.">
+    <meta name="keywords" content="compiler, programming language, Python, LLVM, WebAssembly, online IDE, code editor">
+    <meta name="author" content="Meadows Compiler Project">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌾</text></svg>">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://yourusername.github.io/meadows/">
+    <meta property="og:title" content="Meadows Compiler - Online IDE">
+    <meta property="og:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://yourusername.github.io/meadows/">
+    <meta property="twitter:title" content="Meadows Compiler - Online IDE">
+    <meta property="twitter:description" content="Write, compile, and execute Meadows code directly in your browser. A Python-like language built with LLVM and WebAssembly.">
+    
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <span class="logo">🌾</span>
+                    Meadows Compiler
+                </h1>
+                <div class="header-actions">
+                    <button id="runBtn" class="btn btn-primary">
+                        <span class="btn-icon">▶</span>
+                        Run Code
+                    </button>
+                    <button id="clearBtn" class="btn btn-secondary">
+                        <span class="btn-icon">🗑️</span>
+                        Clear
+                    </button>
+                    <select id="exampleSelect" class="example-select">
+                        <option value="">Load Example...</option>
+                        <option value="hello">Hello World</option>
+                        <option value="fibonacci">Fibonacci</option>
+                        <option value="factorial">Factorial</option>
+                        <option value="calculator">Simple Calculator</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="editor-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Source Code</h2>
+                    <div class="panel-info">
+                        <span class="language-tag">Meadows</span>
+                        <span class="line-count" id="lineCount">1 line</span>
+                    </div>
+                </div>
+                <div class="editor-container">
+                    <textarea id="codeEditor" class="code-editor" placeholder="# Write your Meadows code here...
+# Example:
+def factorial(n):
+    if n <= 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
+print(factorial(5))"></textarea>
+                    <div class="editor-gutter" id="editorGutter"></div>
+                </div>
+            </div>
+
+            <div class="output-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Output</h2>
+                    <div class="output-controls">
+                        <button id="clearOutputBtn" class="btn btn-small">Clear Output</button>
+                        <div class="status-indicator" id="statusIndicator">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Ready</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="output-container">
+                    <div class="output-tabs">
+                        <button class="tab-btn active" data-tab="execution">Execution</button>
+                        <button class="tab-btn" data-tab="ast">AST</button>
+                        <button class="tab-btn" data-tab="tokens">Tokens</button>
+                        <button class="tab-btn" data-tab="ir">LLVM IR</button>
+                    </div>
+                    <div class="output-content">
+                        <div id="executionOutput" class="output-section active">
+                            <div class="output-placeholder">
+                                Run your code to see the output here...
+                            </div>
+                        </div>
+                        <div id="astOutput" class="output-section">
+                            <div class="output-placeholder">
+                                Abstract Syntax Tree will appear here...
+                            </div>
+                        </div>
+                        <div id="tokensOutput" class="output-section">
+                            <div class="output-placeholder">
+                                Token analysis will appear here...
+                            </div>
+                        </div>
+                        <div id="irOutput" class="output-section">
+                            <div class="output-placeholder">
+                                LLVM IR code will appear here...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p>Meadows Compiler - A Python-like language built with C++ and LLVM</p>
+                    <p class="build-info">WebAssembly Build - <span id="buildDate"></span></p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/yourusername/meadows" target="_blank" class="footer-link">
+                        GitHub
+                    </a>
+                    <a href="#" id="aboutBtn" class="footer-link">
+                        About
+                    </a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content">
+            <div class="loader"></div>
+            <p>Loading Meadows Compiler...</p>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>About Meadows Compiler</h3>
+                <button class="modal-close" id="closeAboutModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Meadows is a Python-like programming language with strong static typing, compiled to native code using LLVM.</p>
+                <h4>Features:</h4>
+                <ul>
+                    <li>Python-like syntax</li>
+                    <li>Static type checking</li>
+                    <li>LLVM backend for optimization</li>
+                    <li>WebAssembly compilation</li>
+                    <li>Real-time AST visualization</li>
+                </ul>
+                <h4>Language Constructs:</h4>
+                <ul>
+                    <li>Functions and recursion</li>
+                    <li>Control flow (if/else, while loops)</li>
+                    <li>Arithmetic and logical operators</li>
+                    <li>Variable assignments</li>
+                    <li>Print statements</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

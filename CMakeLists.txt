@@ -126,9 +126,68 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # ==============================================================================
+# WebAssembly Build Support
+# ==============================================================================
+
+option(BUILD_WASM "Build WebAssembly version" OFF)
+
+if(BUILD_WASM)
+    message(STATUS "Building WebAssembly version")
+    
+    # Check for Emscripten
+    if(NOT DEFINED ENV{EMSCRIPTEN})
+        message(FATAL_ERROR "EMSCRIPTEN environment variable not set. Please install and activate Emscripten SDK.")
+    endif()
+    
+    # WebAssembly-specific sources
+    file(GLOB_RECURSE WASM_SOURCES 
+        "src/lexer/*.cpp"
+        "src/parser/*.cpp" 
+        "src/ast/*.cpp"
+        "src/visitor/*.cpp"
+        "src/common/*.cpp"
+        "src/web/*.cpp"
+        "src/Compiler.cpp"
+    )
+    
+    # Create WebAssembly library
+    add_executable(meadows_wasm ${WASM_SOURCES})
+    
+    # WebAssembly-specific settings
+    target_include_directories(meadows_wasm PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows_wasm PRIVATE ${LLVM_DEFINITIONS})
+    target_link_libraries(meadows_wasm ${LLVM_LIBS})
+    
+    # Emscripten-specific flags
+    set_target_properties(meadows_wasm PROPERTIES
+        COMPILE_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1"
+        LINK_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind --pre-js ${CMAKE_SOURCE_DIR}/web/pre.js"
+    )
+    
+    # Set output directory for web files
+    set_target_properties(meadows_wasm PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/web"
+        OUTPUT_NAME "meadows"
+    )
+    
+    # Custom command to copy additional web files
+    add_custom_command(TARGET meadows_wasm POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/web/index.html"
+        "${CMAKE_SOURCE_DIR}/web/styles.css"
+        "${CMAKE_SOURCE_DIR}/web/app.js"
+        "${CMAKE_BINARY_DIR}/"
+        COMMENT "Copying web files to build directory"
+    )
+endif()
+
+# ==============================================================================
 # Build Information
 # ==============================================================================
 
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Source files found: ${SOURCES}")
+if(BUILD_WASM)
+    message(STATUS "WebAssembly build enabled")
+endif()
