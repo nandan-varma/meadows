@@ -154,49 +154,50 @@ print(power(x, 3))`
         this.showModal('loading');
         this.updateStatus('loading', 'Loading compiler...');
         
+        // Add a timeout to prevent infinite loading
+        const loadingTimeout = setTimeout(() => {
+            console.warn('WebAssembly loading timeout, falling back to mock mode');
+            this.fallbackToMock();
+        }, 5000); // 5 second timeout
+        
         try {
-            // Load the WebAssembly module
-            if (typeof MeadowsModule !== 'undefined') {
-                // Module is already loaded
-                await this.initializeWasmCompiler();
-            } else {
-                // Wait for module to load
-                this.onWasmReady = () => {
-                    this.initializeWasmCompiler();
-                };
-                
-                // Load the WASM script
-                const script = document.createElement('script');
-                script.src = 'meadows.js';
-                script.onload = () => {
-                    console.log('WebAssembly script loaded');
-                };
-                script.onerror = () => {
-                    throw new Error('Failed to load WebAssembly script');
-                };
-                document.head.appendChild(script);
-            }
+            // Try to initialize WebAssembly compiler
+            await this.initializeWasmCompiler();
+            clearTimeout(loadingTimeout);
         } catch (error) {
+            clearTimeout(loadingTimeout);
             console.error('Failed to load compiler:', error);
-            this.hideModal('loading');
-            this.updateStatus('error', 'Failed to load compiler');
-            this.showError('Failed to load WebAssembly compiler module');
-            
-            // Fallback to mock compiler
-            await this.simulateWasmLoading();
-            this.hideModal('loading');
-            this.updateStatus('ready', 'Ready (Mock Mode)');
-            this.elements.runBtn.disabled = false;
+            this.fallbackToMock();
         }
+    }
+    
+    fallbackToMock() {
+        console.log('Using mock compiler mode');
+        this.hideModal('loading');
+        this.updateStatus('ready', 'Ready (Mock Mode)');
+        this.elements.runBtn.disabled = false;
+        // Mock compiler is used by default in the compile method
     }
 
     async initializeWasmCompiler() {
         try {
-            if (window.MeadowsCompiler) {
+            // Check if WebAssembly module is available
+            if (typeof MeadowsModule === 'undefined') {
+                // Wait a bit for the script to load
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (typeof MeadowsModule === 'undefined') {
+                    throw new Error('MeadowsModule not available');
+                }
+            }
+            
+            // Wait for the WebAssembly module to load
+            const module = await MeadowsModule();
+            if (module && module.WebCompiler) {
+                const wasmCompiler = new module.WebCompiler();
                 this.compiler = {
                     compile: (source, options = {}) => {
                         try {
-                            const resultJson = window.MeadowsCompiler.compile(source);
+                            const resultJson = wasmCompiler.compile(source);
                             return JSON.parse(resultJson);
                         } catch (error) {
                             console.error('WASM compilation error:', error);
@@ -206,18 +207,15 @@ print(power(x, 3))`
                 };
                 
                 this.hideModal('loading');
-                this.updateStatus('ready', 'Ready');
+                this.updateStatus('ready', 'Ready (WebAssembly)');
                 this.elements.runBtn.disabled = false;
+                console.log('WebAssembly compiler initialized successfully');
+                return;
             } else {
-                throw new Error('WebAssembly compiler not available');
+                throw new Error('WebCompiler not found in WASM module');
             }
         } catch (error) {
-            console.error('Failed to initialize WASM compiler:', error);
-            // Fallback to mock
-            await this.simulateWasmLoading();
-            this.hideModal('loading');
-            this.updateStatus('ready', 'Ready (Mock Mode)');
-            this.elements.runBtn.disabled = false;
+            throw error; // Re-throw to be caught by the caller
         }
     }
 
