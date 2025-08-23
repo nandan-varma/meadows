@@ -28,9 +28,6 @@
     
     <!-- Monaco Editor -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
-    
-    <!-- Debug script (remove in production) -->
-    <script src="debug.js"></script>
 </head>
 <body>
     <div class="container">
@@ -153,16 +150,14 @@
                 <button class="modal-close" id="closeErrorModal">×</button>
             </div>
             <div class="modal-body">
-                <p><strong>The Meadows compiler could not be loaded.</strong></p>
-                <p>This web IDE requires the WebAssembly-compiled version of the Meadows compiler to run.</p>
-                <p>To fix this issue:</p>
+                <p><strong>The Meadows compiler binary was not found.</strong></p>
+                <p>To use this web IDE, you need to:</p>
                 <ol>
-                    <li>Ensure the <code>meadows.js</code> and <code>meadows.wasm</code> files are present in the web directory</li>
-                    <li>Make sure your browser supports WebAssembly</li>
-                    <li>Check that the files are being served correctly (no 404 errors in the browser console)</li>
-                    <li>Try refreshing the page</li>
+                    <li>Build the WebAssembly version of the compiler using the build script</li>
+                    <li>Ensure the <code>meadows.js</code> file is present in the web directory</li>
+                    <li>Make sure the WebAssembly module is properly loaded</li>
                 </ol>
-                <p><strong>For developers:</strong> Build the WebAssembly version using <code>./build_wasm.sh</code></p>
+                <p>Please refer to the project documentation for build instructions.</p>
             </div>
         </div>
     </div>

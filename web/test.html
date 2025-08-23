@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meadows WASM Test</title>
+</head>
+<body>
+    <h1>Meadows WebAssembly Test</h1>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+    
+    <script src="meadows.js"></script>
+    <script>
+        async function testWasm() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.textContent = 'Loading WASM binary...';
+                console.log('Starting WASM test...');
+                
+                // Check if MeadowsModule is available
+                if (typeof MeadowsModule === 'undefined') {
+                    throw new Error('MeadowsModule not found');
+                }
+                
+                console.log('MeadowsModule found, type:', typeof MeadowsModule);
+                
+                // Pre-load the WASM binary
+                statusDiv.textContent = 'Fetching WASM file...';
+                const wasmResponse = await fetch('meadows.wasm');
+                if (!wasmResponse.ok) {
+                    throw new Error(`Failed to fetch WASM file: ${wasmResponse.status} ${wasmResponse.statusText}`);
+                }
+                const wasmBinary = await wasmResponse.arrayBuffer();
+                console.log('WASM binary loaded, size:', wasmBinary.byteLength);
+                
+                statusDiv.textContent = 'Initializing WebAssembly module...';
+                
+                // Configure the module with the pre-loaded WASM binary
+                const moduleConfig = {
+                    wasmBinary: wasmBinary,  // Provide the WASM binary directly
+                    locateFile: (path, prefix) => {
+                        console.log('Locating file:', path, 'with prefix:', prefix);
+                        if (path.endsWith('.wasm')) {
+                            return 'meadows.wasm';
+                        }
+                        return prefix + path;
+                    },
+                    onAbort: (what) => {
+                        console.error('Module aborted:', what);
+                    },
+                    onRuntimeInitialized: () => {
+                        console.log('Runtime initialized successfully');
+                    },
+                    print: (text) => {
+                        console.log('WASM stdout:', text);
+                    },
+                    printErr: (text) => {
+                        console.error('WASM stderr:', text);
+                    }
+                };
+                
+                // Initialize the module with configuration
+                const module = await MeadowsModule(moduleConfig);
+                console.log('Module initialized:', module);
+                console.log('Module keys:', Object.keys(module));
+                
+                // Check for WebCompiler
+                if (!module.WebCompiler) {
+                    throw new Error('WebCompiler class not found in module. Available: ' + Object.keys(module));
+                }
+                
+                statusDiv.textContent = 'Creating WebCompiler instance...';
+                const compiler = new module.WebCompiler();
+                console.log('WebCompiler created:', compiler);
+                
+                // Test compilation
+                statusDiv.textContent = 'Testing compilation...';
+                const testCode = 'print("Hello, World!")';
+                console.log('Compiling:', testCode);
+                
+                const result = compiler.compile(testCode);
+                console.log('Raw result:', result);
+                
+                const parsedResult = JSON.parse(result);
+                console.log('Parsed result:', parsedResult);
+                
+                statusDiv.textContent = 'Success!';
+                resultsDiv.innerHTML = `
+                    <h3>Test Results:</h3>
+                    <pre>${JSON.stringify(parsedResult, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Test failed:', error);
+                statusDiv.textContent = 'Failed: ' + error.message;
+                resultsDiv.innerHTML = `
+                    <h3>Error:</h3>
+                    <pre>${error.stack || error.message}</pre>
+                `;
+            }
+        }
+        
+        // Run test when page loads
+        window.addEventListener('load', testWasm);
+    </script>
+</body>
+</html>

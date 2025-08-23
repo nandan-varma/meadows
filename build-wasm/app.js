@@ -62,15 +62,10 @@ print("Power:")
 print(power(x, 3))`
         };
         
-        try {
-            this.initializeElements();
-            this.setupEventListeners();
-            this.initializeMonaco();
-            this.loadCompiler();
-        } catch (error) {
-            console.error('Failed to initialize MeadowsIDE:', error);
-            this.updateStatus('error', 'Initialization Failed');
-        }
+        this.initializeElements();
+        this.setupEventListeners();
+        this.initializeMonaco();
+        this.loadCompiler();
     }
 
     initializeElements() {
@@ -331,100 +326,23 @@ print(factorial(5))`,
         this.showModal('loading');
         this.updateStatus('loading', 'Loading Compiler...');
         
-        const maxRetries = 3;
-        let retryCount = 0;
-        
-        while (retryCount < maxRetries) {
-            try {
-                // Wait for MeadowsModule to be available
-                if (typeof MeadowsModule === 'undefined') {
-                    if (retryCount === 0) {
-                        console.log('MeadowsModule not found, waiting...');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        retryCount++;
-                        continue;
-                    } else {
-                        throw new Error('MeadowsModule not available after waiting');
-                    }
-                }
-                
-                console.log('MeadowsModule found, initializing...');
-                this.updateStatus('loading', 'Loading WASM binary...');
-                
-                // Pre-load the WASM binary to avoid path issues
-                let wasmBinary;
-                try {
-                    const wasmResponse = await fetch('meadows.wasm');
-                    if (!wasmResponse.ok) {
-                        throw new Error(`Failed to fetch WASM file: ${wasmResponse.status} ${wasmResponse.statusText}`);
-                    }
-                    wasmBinary = await wasmResponse.arrayBuffer();
-                    console.log('WASM binary loaded, size:', wasmBinary.byteLength);
-                } catch (fetchError) {
-                    console.error('Failed to fetch WASM binary:', fetchError);
-                    throw new Error(`Could not load meadows.wasm: ${fetchError.message}`);
-                }
-                
-                this.updateStatus('loading', 'Initializing WebAssembly...');
-                
-                // Configure the module with the pre-loaded WASM binary
-                const moduleConfig = {
-                    wasmBinary: wasmBinary,  // Provide the WASM binary directly
-                    locateFile: (path, prefix) => {
-                        console.log('Locating file:', path, 'with prefix:', prefix);
-                        if (path.endsWith('.wasm')) {
-                            return 'meadows.wasm';
-                        }
-                        return prefix + path;
-                    },
-                    onAbort: (what) => {
-                        console.error('WebAssembly module aborted:', what);
-                        this.updateStatus('error', 'WebAssembly module failed to load');
-                    },
-                    onRuntimeInitialized: () => {
-                        console.log('WebAssembly runtime initialized successfully');
-                    },
-                    print: (text) => {
-                        console.log('WASM stdout:', text);
-                    },
-                    printErr: (text) => {
-                        console.error('WASM stderr:', text);
-                    }
-                };
-                
-                // Initialize the WebAssembly module with configuration
-                const module = await MeadowsModule(moduleConfig);
-                console.log('WebAssembly module loaded:', module);
-                console.log('Available exports:', Object.keys(module));
+        try {
+            // Check if MeadowsModule is available
+            if (typeof MeadowsModule !== 'undefined') {
+                // Initialize the WebAssembly module
+                const module = await MeadowsModule();
                 
                 // Check if the module has the WebCompiler class
                 if (module && module.WebCompiler) {
-                    console.log('WebCompiler class found, creating instance...');
-                    this.updateStatus('loading', 'Creating compiler instance...');
-                    
                     const webCompiler = new module.WebCompiler();
-                    
-                    // Test the compiler with a simple example
-                    this.updateStatus('loading', 'Testing compiler...');
-                    const testResult = webCompiler.compile('# Test');
-                    console.log('Test compilation result:', testResult);
-                    
                     this.compiler = {
                         compile: (source) => {
                             try {
-                                console.log('Compiling source:', source);
                                 const resultJson = webCompiler.compile(source);
-                                console.log('Raw result from WASM:', resultJson);
-                                const result = JSON.parse(resultJson);
-                                console.log('Parsed result:', result);
-                                return result;
+                                return JSON.parse(resultJson);
                             } catch (error) {
                                 console.error('WASM compilation error:', error);
-                                return {
-                                    success: false,
-                                    message: 'WebAssembly compilation failed: ' + error.message,
-                                    errors: [error.message]
-                                };
+                                throw error;
                             }
                         }
                     };
@@ -434,49 +352,17 @@ print(factorial(5))`,
                     console.log('WebAssembly compiler initialized successfully');
                     return;
                 } else {
-                    throw new Error('WebCompiler class not found in WASM module. Available exports: ' + Object.keys(module || {}));
+                    throw new Error('WebCompiler not found in WASM module');
                 }
-                
-            } catch (error) {
-                retryCount++;
-                console.error(`Attempt ${retryCount} failed:`, error);
-                
-                if (retryCount < maxRetries) {
-                    console.log(`Retrying in 2 seconds... (${retryCount}/${maxRetries})`);
-                    this.updateStatus('loading', `Retrying... (${retryCount}/${maxRetries})`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                } else {
-                    console.error('All attempts failed:', error);
-                    this.hideModal('loading');
-                    this.showModal('error');
-                    this.updateStatus('error', 'Compiler Not Available');
-                    this.elements.runBtn.disabled = true;
-                    
-                    // Display detailed error information
-                    const errorDetails = document.querySelector('#errorModal .modal-body');
-                    if (errorDetails) {
-                        errorDetails.innerHTML = `
-                            <p><strong>Failed to load the Meadows compiler after ${maxRetries} attempts.</strong></p>
-                            <p><strong>Error:</strong> ${error.message}</p>
-                            <p>Please ensure that:</p>
-                            <ol>
-                                <li>The <code>meadows.js</code> and <code>meadows.wasm</code> files are present</li>
-                                <li>The WebAssembly module compiled correctly</li>
-                                <li>Your browser supports WebAssembly</li>
-                                <li>The server is running and serving the files properly</li>
-                            </ol>
-                            <p><strong>Debug info:</strong></p>
-                            <ul>
-                                <li>MeadowsModule available: ${typeof MeadowsModule !== 'undefined'}</li>
-                                <li>WebAssembly supported: ${'WebAssembly' in window}</li>
-                                <li>Retry count: ${retryCount}</li>
-                            </ul>
-                            <p>Check the browser console for more details.</p>
-                        `;
-                    }
-                    break;
-                }
+            } else {
+                throw new Error('MeadowsModule not available');
             }
+        } catch (error) {
+            console.error('Failed to load compiler:', error);
+            this.hideModal('loading');
+            this.showModal('error');
+            this.updateStatus('error', 'Compiler Not Available');
+            this.elements.runBtn.disabled = true;
         }
     }
 
@@ -504,66 +390,19 @@ print(factorial(5))`,
             // Clear previous outputs
             this.clearOutput();
             
-            console.log('Running code:', code);
-            
-            // Compile using the WebAssembly compiler
+            // Compile and execute using the WebAssembly compiler only
             const result = this.compiler.compile(code);
-            console.log('Compilation result:', result);
 
-            // Display results based on the actual response structure
+            // Display results
             if (result.success) {
-                // Show execution output
-                if (result.execution && result.execution.output) {
-                    // The output comes with escape sequences, so we need to process them
-                    const processedOutput = result.execution.output
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r');
-                    this.showOutput('execution', processedOutput);
-                } else {
-                    this.showOutput('execution', 'Program executed successfully (no output)');
-                }
-                
-                // Show tokens if available
-                if (result.tokens && Array.isArray(result.tokens)) {
-                    this.showOutput('tokens', JSON.stringify(result.tokens, null, 2));
-                } else if (result.tokens) {
-                    this.showOutput('tokens', JSON.stringify(result.tokens, null, 2));
-                }
-                
-                // Show AST if available
-                if (result.ast) {
-                    if (typeof result.ast === 'string') {
-                        this.showOutput('ast', result.ast);
-                    } else {
-                        this.showOutput('ast', JSON.stringify(result.ast, null, 2));
-                    }
-                }
-                
-                // Show IR if available
-                if (result.ir) {
-                    this.showOutput('ir', result.ir);
-                }
+                this.showOutput('execution', result.output || 'Program executed successfully');
+                if (result.ast) this.showOutput('ast', JSON.stringify(result.ast, null, 2));
+                if (result.tokens) this.showOutput('tokens', JSON.stringify(result.tokens, null, 2));
+                if (result.ir) this.showOutput('ir', result.ir);
                 
                 this.updateStatus('success', 'Execution Complete');
-                
-                // Switch to execution tab to show results
-                this.switchTab('execution');
-                
             } else {
-                // Handle compilation errors
-                let errorMessage = result.message || 'Compilation failed';
-                let errorDetails = [];
-                
-                if (result.errors && Array.isArray(result.errors)) {
-                    errorDetails = result.errors;
-                }
-                
-                if (result.warnings && Array.isArray(result.warnings) && result.warnings.length > 0) {
-                    errorMessage += '\n\nWarnings:\n' + result.warnings.join('\n');
-                }
-                
-                this.showError(errorMessage, errorDetails);
+                this.showError(result.error || 'Compilation failed', result.details || []);
                 this.updateStatus('error', 'Compilation Failed');
             }
         } catch (error) {
@@ -673,19 +512,11 @@ print(factorial(5))`,
     }
 
     updateStatus(type, message) {
-        try {
-            const statusDot = this.elements?.statusIndicator?.querySelector('.status-dot');
-            const statusText = this.elements?.statusIndicator?.querySelector('.status-text');
-            
-            if (statusDot && statusText) {
-                statusDot.className = `status-dot ${type}`;
-                statusText.textContent = message;
-            } else {
-                console.log(`Status update: ${type} - ${message}`);
-            }
-        } catch (error) {
-            console.log(`Status update: ${type} - ${message}`);
-        }
+        const statusDot = this.elements.statusIndicator.querySelector('.status-dot');
+        const statusText = this.elements.statusIndicator.querySelector('.status-text');
+        
+        statusDot.className = `status-dot ${type}`;
+        statusText.textContent = message;
     }
 
     showError(message, details = []) {
@@ -721,18 +552,6 @@ print(factorial(5))`,
 }
 
 // Initialize the IDE when the page loads
-document.addEventListener('DOMContentLoaded', async () => {
-    // Wait a bit for all scripts to load
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    console.log('DOM loaded, checking for MeadowsModule...');
-    console.log('MeadowsModule available:', typeof MeadowsModule !== 'undefined');
-    
-    if (typeof MeadowsModule === 'undefined') {
-        console.error('MeadowsModule not found! Make sure meadows.js loaded correctly.');
-        // Try to provide helpful debugging information
-        console.log('Available global variables:', Object.keys(window).filter(key => key.includes('Meadows') || key.includes('Module')));
-    }
-    
+document.addEventListener('DOMContentLoaded', () => {
     window.meadowsIDE = new MeadowsIDE();
 });
