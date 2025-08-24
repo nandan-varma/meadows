@@ -280,7 +280,7 @@ std::unique_ptr<Expression> Parser::power() {
 }
 
 std::unique_ptr<Expression> Parser::unary() {
-  if (match({TokenType::NOT, TokenType::MINUS})) {
+  if (match({TokenType::NOT, TokenType::MINUS, TokenType::PLUS})) {
     Token operator_ = tokens[current - 1];
     auto right = unary();
     UnaryOp op = tokenToUnaryOp(operator_.type);
@@ -337,8 +337,16 @@ std::unique_ptr<Expression> Parser::primary() {
 
   if (match(TokenType::INTEGER)) {
     Token token = tokens[current - 1];
-    long long value = std::stoll(token.value);
-    return std::make_unique<IntegerLiteral>(value, token.location);
+    try {
+      long long value = std::stoll(token.value);
+      return std::make_unique<IntegerLiteral>(value, token.location);
+    } catch (const std::out_of_range& e) {
+      reportError("Integer literal too large: " + token.value, token.location);
+      return std::make_unique<IntegerLiteral>(0, token.location); // fallback
+    } catch (const std::invalid_argument& e) {
+      reportError("Invalid integer literal: " + token.value, token.location);
+      return std::make_unique<IntegerLiteral>(0, token.location); // fallback
+    }
   }
 
   if (match(TokenType::FLOAT)) {
@@ -762,6 +770,8 @@ UnaryOp Parser::tokenToUnaryOp(TokenType type) {
     return UnaryOp::MINUS;
   case TokenType::NOT:
     return UnaryOp::NOT;
+  case TokenType::PLUS:
+    return UnaryOp::PLUS;
   default:
     reportError("Invalid unary operator");
     return UnaryOp::MINUS; // Fallback

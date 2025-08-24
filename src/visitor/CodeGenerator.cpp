@@ -412,6 +412,10 @@ void CodeGenerator::visit(UnaryExpression &node) {
     operand = convertToInt(operand);
     lastValue = builder->CreateNot(operand, "nottmp");
     break;
+  case UnaryOp::PLUS:
+    // Unary plus is essentially a no-op, just return the operand
+    lastValue = operand;
+    break;
   default:
     errorReporter.error("Unsupported unary operator", node.location);
     lastValue = nullptr;

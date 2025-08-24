@@ -138,7 +138,7 @@ public:
 };
 
 // Unary operations
-enum class UnaryOp { MINUS, NOT };
+enum class UnaryOp { MINUS, NOT, PLUS };
 
 class UnaryExpression : public Expression {
 public:

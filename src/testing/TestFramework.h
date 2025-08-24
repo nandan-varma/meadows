@@ -42,6 +42,7 @@ class TestFramework {
 private:
   Compiler compiler;
   std::vector<TestCase> testCases;
+  std::vector<std::pair<TestCase, TestResult>> testResults; // Store results for table display
   std::map<std::string, TestMetrics> testMetrics;
   int passCount = 0;
   int failCount = 0;
@@ -82,6 +83,15 @@ public:
   void addIRGenerationTests();
   void addApplicationTests();
 
+  // Advanced test categories
+  void addErrorRecoveryTests();
+  void addSemanticTests();
+  void addAdvancedLanguageTests();
+  void addStressTests();
+  void addBoundaryTests();
+  void addRealWorldTests();
+  void addEdgeCaseTests();
+
   // Enhanced test execution
   TestResult runSingleTest(const TestCase &test);
   void runAllTests();
@@ -96,6 +106,10 @@ public:
   // Results and reporting
   void printResults() const;
   void printDetailedResults() const;
+  void printTableResults() const;
+  void printTableHeader() const;
+  void printTableRow(const TestCase &test, TestResult result) const;
+  void printTableSeparator() const;
   bool allTestsPassed() const { return failCount == 0 && errorCount == 0; }
 
   // Statistics

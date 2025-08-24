@@ -106,7 +106,18 @@ void ASTPrinter::visit(BinaryExpression &node) {
 }
 
 void ASTPrinter::visit(UnaryExpression &node) {
-  std::string opStr = (node.operator_ == UnaryOp::MINUS) ? "-" : "not";
+  std::string opStr;
+  switch (node.operator_) {
+    case UnaryOp::MINUS:
+      opStr = "-";
+      break;
+    case UnaryOp::NOT:
+      opStr = "not";
+      break;
+    case UnaryOp::PLUS:
+      opStr = "+";
+      break;
+  }
   print("UnaryExpression(" + opStr + " ");
   node.operand->accept(*this);
   print(")");
