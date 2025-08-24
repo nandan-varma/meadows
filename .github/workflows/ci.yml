@@ -16,23 +16,62 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            deps: sudo apt-get update && sudo apt-get install -y cmake build-essential llvm-17-dev
             llvm: /usr/lib/llvm-17/lib/cmake/llvm
           - os: macos-latest
-            deps: brew install cmake llvm@17
             llvm: $(brew --prefix llvm@17)/lib/cmake/llvm
           - os: windows-latest
-            deps: |
-              choco install cmake --no-progress
-              choco install llvm --force --no-progress
             llvm: C:/Program Files/LLVM/lib/cmake/llvm
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install dependencies
+    - name: Check and install dependencies
       shell: bash
-      run: ${{ matrix.deps }}
+      run: |
+        echo "Checking existing installations..."
+        
+        # Check cmake
+        if ! command -v cmake &> /dev/null; then
+          echo "Installing cmake..."
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update && sudo apt-get install -y cmake build-essential
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install cmake
+          else
+            choco install cmake --no-progress
+          fi
+        else
+          echo "cmake already installed: $(cmake --version | head -1)"
+        fi
+        
+        # Check LLVM
+        llvm_installed=false
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          if dpkg -l | grep -q "llvm-17-dev\|llvm-dev"; then
+            llvm_installed=true
+          fi
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          if brew list llvm@17 &> /dev/null || brew list llvm &> /dev/null; then
+            llvm_installed=true
+          fi
+        else
+          if [[ -d "C:/Program Files/LLVM" ]] || command -v llvm-config &> /dev/null; then
+            llvm_installed=true
+          fi
+        fi
+        
+        if [[ "$llvm_installed" == "false" ]]; then
+          echo "Installing LLVM..."
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get install -y llvm-17-dev
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install llvm@17
+          else
+            choco install llvm --force --no-progress
+          fi
+        else
+          echo "LLVM already installed"
+        fi
       
     - name: Build
       shell: bash
