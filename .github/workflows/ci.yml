@@ -29,7 +29,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: powershell
       run: |
-        choco install llvm --version=17.0.3 -y
+        choco install llvm --version=17.0.3 --force -y
         
         # Set LLVM environment variables for CMake
         echo "LLVM_ROOT=C:\Program Files\LLVM" >> $env:GITHUB_ENV
