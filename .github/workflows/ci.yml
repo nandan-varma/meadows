@@ -110,9 +110,28 @@ jobs:
           echo "Available in C:/Program Files:"
           ls -la "C:/Program Files/" | grep -i llvm || echo "No LLVM found in Program Files"
           
+          if [[ -d "C:/Program Files/LLVM" ]]; then
+            echo "Contents of C:/Program Files/LLVM:"
+            find "C:/Program Files/LLVM" -name "*LLVM*" -o -name "*llvm*" | head -20
+            echo "Looking for cmake files:"
+            find "C:/Program Files/LLVM" -name "*.cmake" | head -10
+          fi
+          
           if [[ -n "$llvm_dir" ]]; then
             echo "Building with LLVM using Visual Studio generator..."
-            cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="$llvm_dir"
+            echo "LLVM_DIR will be set to: $llvm_dir"
+            
+            # Try multiple approaches to set LLVM_DIR
+            cmake -B build -G "Visual Studio 17 2022" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DLLVM_DIR="$llvm_dir" \
+              -DCMAKE_PREFIX_PATH="C:/Program Files/LLVM" \
+              -DLLVM_ROOT="C:/Program Files/LLVM" || {
+              
+              echo "First attempt failed, trying without LLVM..."
+              rm -rf build
+              cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSKIP_LLVM_FIND=TRUE
+            }
           else
             echo "LLVM not found, building without LLVM support..."
             # Clear cache and use SKIP_LLVM_FIND
