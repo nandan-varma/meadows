@@ -29,58 +29,12 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: powershell
       run: |
-        # Download and install official LLVM release
-        $llvmVersion = "17.0.6"
-        $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-win64.exe"
-        $llvmInstaller = "LLVM-$llvmVersion-win64.exe"
-        
-        Write-Host "Downloading LLVM $llvmVersion..."
-        Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmInstaller
-        
-        Write-Host "Installing LLVM..."
-        Start-Process -FilePath $llvmInstaller -ArgumentList "/S" -Wait
-        
-        # Add LLVM to PATH
-        $llvmPath = "C:\Program Files\LLVM\bin"
-        echo "$llvmPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        
-        Write-Host "LLVM installation completed"
-        
-        # Find the actual CMake files location
-        $possiblePaths = @(
-          "C:\Program Files\LLVM\lib\cmake\llvm",
-          "C:\Program Files\LLVM\cmake",
-          "C:\Program Files\LLVM\lib\cmake"
-        )
-        
-        $llvmCMakeDir = $null
-        foreach ($path in $possiblePaths) {
-          if (Test-Path "$path\LLVMConfig.cmake") {
-            $llvmCMakeDir = $path
-            Write-Host "Found LLVM CMake files at: $path"
-            break
-          }
-        }
-        
-        if (-not $llvmCMakeDir) {
-          Write-Host "Searching for LLVMConfig.cmake..."
-          $found = Get-ChildItem "C:\Program Files\LLVM" -Recurse -Name "LLVMConfig.cmake" -ErrorAction SilentlyContinue
-          if ($found) {
-            $llvmCMakeDir = Split-Path -Parent (Join-Path "C:\Program Files\LLVM" $found[0])
-            Write-Host "Found LLVMConfig.cmake at: $llvmCMakeDir"
-          } else {
-            Write-Host "LLVMConfig.cmake not found. Listing all cmake files:"
-            Get-ChildItem "C:\Program Files\LLVM" -Recurse -Name "*.cmake" | Select-Object -First 10
-            $llvmCMakeDir = "C:\Program Files\LLVM\lib\cmake\llvm"
-          }
-        }
+        choco install llvm --version=17.0.3 -y
         
         # Set LLVM environment variables for CMake
         echo "LLVM_ROOT=C:\Program Files\LLVM" >> $env:GITHUB_ENV
-        echo "LLVM_DIR=$llvmCMakeDir" >> $env:GITHUB_ENV
+        echo "LLVM_DIR=C:\Program Files\LLVM\lib\cmake\llvm" >> $env:GITHUB_ENV
         echo "CMAKE_PREFIX_PATH=C:\Program Files\LLVM" >> $env:GITHUB_ENV
-        
-        Write-Host "Set LLVM_DIR to: $llvmCMakeDir"
     
     - name: Check and install dependencies (Linux/macOS)
       if: matrix.os != 'windows-latest'
