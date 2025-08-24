@@ -113,39 +113,6 @@ cmake --build build
 ./build/meadows [source_file.mds]
 ```
 
-### WebAssembly Build
-
-For browser-based compilation, build the WebAssembly version:
-
-#### Prerequisites
-- [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html)
-
-#### Quick Start
-```bash
-# Install Emscripten (one-time setup)
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
-./emsdk install latest
-./emsdk activate latest
-source ./emsdk_env.sh
-
-# Build WebAssembly version
-./build_wasm.sh build
-
-# Start development server
-./build_wasm.sh serve
-# Open http://localhost:8000 in your browser
-```
-
-#### Build Commands
-```bash
-./build_wasm.sh build    # Build WebAssembly module (debug)
-./build_wasm.sh release  # Build optimized WebAssembly module  
-./build_wasm.sh clean    # Clean previous builds  
-./build_wasm.sh test     # Build and test module
-./build_wasm.sh serve    # Build and start development server
-```
-
 The `release` command builds an optimized WebAssembly module with:
 - Maximum optimization (-O3)
 - Closure compiler integration

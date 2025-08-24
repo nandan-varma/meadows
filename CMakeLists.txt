@@ -28,8 +28,7 @@ endif()
 # LLVM Configuration
 # ==============================================================================
 
-# Skip LLVM for WebAssembly builds since Emscripten provides its own
-if(NOT SKIP_LLVM_FIND AND NOT BUILD_WASM)
+if(NOT SKIP_LLVM_FIND)
     find_package(LLVM REQUIRED CONFIG)
     message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
     message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -37,12 +36,6 @@ if(NOT SKIP_LLVM_FIND AND NOT BUILD_WASM)
     # LLVM definitions and includes
     add_definitions(${LLVM_DEFINITIONS})
     include_directories(${LLVM_INCLUDE_DIRS})
-elseif(BUILD_WASM)
-    message(STATUS "WebAssembly build: Skipping system LLVM, using Emscripten's LLVM")
-    # For WebAssembly, we'll use minimal LLVM functionality
-    set(LLVM_DEFINITIONS "")
-    set(LLVM_INCLUDE_DIRS "")
-    set(LLVM_LIBS "")
 else()
     message(STATUS "Skipping LLVM find_package as requested")
     set(LLVM_DEFINITIONS "")
@@ -91,12 +84,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         )
     endif()
     
-    # Apply to non-WebAssembly targets
-    if(NOT BUILD_WASM)
-        # Apply optimization flags to all targets
-        add_compile_options(${RELEASE_COMPILE_OPTIONS})
-        add_link_options(${RELEASE_LINK_OPTIONS})
-    endif()
+    # Apply optimization flags to all targets
+    add_compile_options(${RELEASE_COMPILE_OPTIONS})
+    add_link_options(${RELEASE_LINK_OPTIONS})
 endif()
 
 # ==============================================================================
@@ -123,10 +113,7 @@ file(GLOB_RECURSE HEADERS "src/*.h")
 # ==============================================================================
 
 add_library(meadows_lib ${LIB_SOURCES} ${HEADERS})
-if(BUILD_WASM)
-    target_compile_definitions(meadows_lib PRIVATE BUILD_WASM=1)
-endif()
-if(NOT BUILD_WASM AND LLVM_INCLUDE_DIRS)
+if(LLVM_INCLUDE_DIRS)
     target_include_directories(meadows_lib PRIVATE ${LLVM_INCLUDE_DIRS})
     target_compile_definitions(meadows_lib PRIVATE ${LLVM_DEFINITIONS})
 endif()
@@ -135,37 +122,34 @@ endif()
 # Executable Targets
 # ==============================================================================
 
-# Skip native executables for WebAssembly builds
-if(NOT BUILD_WASM)
-    # Main compiler executable
-    add_executable(meadows src/main.cpp)
-    target_link_libraries(meadows meadows_lib)
-    if(LLVM_LIBS)
-        target_link_libraries(meadows ${LLVM_LIBS})
-    endif()
+# Main compiler executable
+add_executable(meadows src/main.cpp)
+target_link_libraries(meadows meadows_lib)
+if(LLVM_LIBS)
+    target_link_libraries(meadows ${LLVM_LIBS})
+endif()
 
-    # Test runner executable
-    add_executable(meadows_test src/test_runner.cpp)
-    target_link_libraries(meadows_test meadows_lib)
-    if(LLVM_LIBS)
-        target_link_libraries(meadows_test ${LLVM_LIBS})
-    endif()
+# Test runner executable
+add_executable(meadows_test src/test_runner.cpp)
+target_link_libraries(meadows_test meadows_lib)
+if(LLVM_LIBS)
+    target_link_libraries(meadows_test ${LLVM_LIBS})
+endif()
 
-    # Target-specific LLVM configuration
-    if(LLVM_INCLUDE_DIRS)
-        target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
+# Target-specific LLVM configuration
+if(LLVM_INCLUDE_DIRS)
+    target_include_directories(meadows PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows PRIVATE ${LLVM_DEFINITIONS})
 
-        target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
-    endif()
+    target_include_directories(meadows_test PRIVATE ${LLVM_INCLUDE_DIRS})
+    target_compile_definitions(meadows_test PRIVATE ${LLVM_DEFINITIONS})
 endif()
 
 # ==============================================================================
 # LLVM Libraries
 # ==============================================================================
 
-if(NOT BUILD_WASM AND NOT SKIP_LLVM_FIND)
+if(NOT SKIP_LLVM_FIND)
     llvm_map_components_to_libnames(LLVM_LIBS 
         Core
         ExecutionEngine
@@ -178,8 +162,6 @@ if(NOT BUILD_WASM AND NOT SKIP_LLVM_FIND)
     )
 
     target_link_libraries(meadows_lib ${LLVM_LIBS})
-else()
-    message(STATUS "Skipping LLVM library linking for WebAssembly build")
 endif()
 
 # ==============================================================================
@@ -187,12 +169,10 @@ endif()
 # ==============================================================================
 
 if(APPLE)
-    if(NOT BUILD_WASM)
-        target_compile_options(meadows PRIVATE -stdlib=libc++)
-        target_link_options(meadows PRIVATE -stdlib=libc++)
-        target_compile_options(meadows_test PRIVATE -stdlib=libc++)
-        target_link_options(meadows_test PRIVATE -stdlib=libc++)
-    endif()
+    target_compile_options(meadows PRIVATE -stdlib=libc++)
+    target_link_options(meadows PRIVATE -stdlib=libc++)
+    target_compile_options(meadows_test PRIVATE -stdlib=libc++)
+    target_link_options(meadows_test PRIVATE -stdlib=libc++)
     target_compile_options(meadows_lib PRIVATE -stdlib=libc++)
 endif()
 
@@ -201,99 +181,23 @@ endif()
 # ==============================================================================
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    if(NOT BUILD_WASM)
-        target_compile_options(meadows PRIVATE 
-            -Wall 
-            -Wextra 
-            -Wno-unused-parameter
-            -Wno-unused-variable
-        )
-        target_compile_options(meadows_test PRIVATE 
-            -Wall 
-            -Wextra 
-            -Wno-unused-parameter
-            -Wno-unused-variable
-        )
-    endif()
-    target_compile_options(meadows_lib PRIVATE 
+    target_compile_options(meadows PRIVATE 
         -Wall 
         -Wextra 
         -Wno-unused-parameter
         -Wno-unused-variable
     )
-endif()
-
-# ==============================================================================
-# WebAssembly Build Support
-# ==============================================================================
-
-option(BUILD_WASM "Build WebAssembly version" OFF)
-
-if(BUILD_WASM)
-    message(STATUS "Building WebAssembly version")
-    
-    # Check if we're using Emscripten toolchain (better detection)
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NOT DEFINED ENV{EMSCRIPTEN})
-        message(WARNING "WebAssembly build requested but Emscripten toolchain not detected. Continuing anyway...")
-    endif()
-    
-    # WebAssembly-specific sources
-    file(GLOB_RECURSE WASM_SOURCES 
-        "src/lexer/*.cpp"
-        "src/parser/*.cpp" 
-        "src/ast/*.cpp"
-        "src/visitor/*.cpp"
-        "src/common/*.cpp"
-        "src/web/*.cpp"
-        "src/Compiler.cpp"
+    target_compile_options(meadows_test PRIVATE 
+        -Wall 
+        -Wextra 
+        -Wno-unused-parameter
+        -Wno-unused-variable
     )
-    
-    # Create WebAssembly library (simplified - no LLVM dependencies)
-    add_executable(meadows_wasm ${WASM_SOURCES})
-    
-    # Add BUILD_WASM definition so the code can conditionally compile
-    target_compile_definitions(meadows_wasm PRIVATE BUILD_WASM=1)
-    
-    # Only add LLVM if available (optional for WebAssembly)
-    if(LLVM_INCLUDE_DIRS AND NOT SKIP_LLVM_FIND)
-        target_include_directories(meadows_wasm PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_compile_definitions(meadows_wasm PRIVATE ${LLVM_DEFINITIONS})
-        if(LLVM_LIBS)
-            target_link_libraries(meadows_wasm ${LLVM_LIBS})
-        endif()
-    endif()
-    
-    # Emscripten-specific flags (only if using Emscripten)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-        set(WASM_FLAGS "-s USE_PTHREADS=0 -s DISABLE_EXCEPTION_CATCHING=0 -s ALLOW_MEMORY_GROWTH=1")
-        set(WASM_LINK_FLAGS "${WASM_FLAGS} -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s MODULARIZE=1 -s EXPORT_NAME='MeadowsModule' --bind")
-        
-        # Add release-specific optimizations for WebAssembly
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            set(WASM_FLAGS "${WASM_FLAGS} -O3 -DNDEBUG")
-            set(WASM_LINK_FLAGS "${WASM_LINK_FLAGS} -O3")
-        endif()
-        
-        set_target_properties(meadows_wasm PROPERTIES
-            COMPILE_FLAGS "${WASM_FLAGS}"
-            LINK_FLAGS "${WASM_LINK_FLAGS}"
-        )
-        
-        # Set output directory for WASM files to build directory
-        set_target_properties(meadows_wasm PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-            OUTPUT_NAME "meadows"
-        )
-    endif()
-    
-    # Custom command to copy additional web files
-    add_custom_command(TARGET meadows_wasm POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/web/index.html"
-        "${CMAKE_SOURCE_DIR}/web/styles.css"
-        "${CMAKE_SOURCE_DIR}/web/script.js"
-        "${CMAKE_BINARY_DIR}/"
-        COMMENT "Copying web files to build directory"
+    target_compile_options(meadows_lib PRIVATE 
+        -Wall 
+        -Wextra 
+        -Wno-unused-parameter
+        -Wno-unused-variable
     )
 endif()
 
@@ -309,9 +213,6 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Optimizations: Enabled (O3, LTO, native arch)")
-endif()
-if(BUILD_WASM)
-    message(STATUS "WebAssembly build: Enabled")
 endif()
 if(LLVM_PACKAGE_VERSION)
     message(STATUS "LLVM Version: ${LLVM_PACKAGE_VERSION}")
@@ -337,13 +238,11 @@ add_custom_target(clean-release
 )
 
 # Install target (optional)
-if(NOT BUILD_WASM)
-    install(TARGETS meadows 
-        RUNTIME DESTINATION bin
-        COMPONENT runtime
-    )
-    install(TARGETS meadows_test
-        RUNTIME DESTINATION bin
-        COMPONENT testing
-    )
-endif()
+install(TARGETS meadows 
+    RUNTIME DESTINATION bin
+    COMPONENT runtime
+)
+install(TARGETS meadows_test
+    RUNTIME DESTINATION bin
+    COMPONENT testing
+)

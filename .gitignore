@@ -2,7 +2,6 @@
 build/
 build_debug/
 build-release/
-build-wasm/
 bin/
 lib/
 out/

@@ -1,152 +1,156 @@
 #include "Compiler.h"
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <getopt.h>
 #include "llvm/Support/TargetSelect.h"
+#include <fstream>
+#include <getopt.h>
+#include <iostream>
+#include <sstream>
 
 using namespace meadows;
 
-std::string readFile(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return "";
-    }
-    
-    std::ostringstream content;
-    content << file.rdbuf();
-    return content.str();
+std::string readFile(const std::string &filename) {
+  std::ifstream file(filename);
+  if (!file.is_open()) {
+    std::cerr << "Error: Could not open file " << filename << std::endl;
+    return "";
+  }
+
+  std::ostringstream content;
+  content << file.rdbuf();
+  return content.str();
 }
 
-void printUsage(const char* programName) {
-    std::cout << "Usage: " << programName << " [options] [input_file]\n";
-    std::cout << "Options:\n";
-    std::cout << "  -i, --input <file>    Input source file\n";
-    std::cout << "  -o, --output <file>   Output executable file\n";
-    std::cout << "  -c, --compile         Compile to executable (default if -o specified)\n";
-    std::cout << "  -p, --parse-only      Parse and show AST only\n";
-    std::cout << "  -t, --tokens          Show tokenization output\n";
-    std::cout << "  -h, --help           Show this help message\n";
-    std::cout << "\nExamples:\n";
-    std::cout << "  " << programName << " -i example.mds -o example    # Compile to executable\n";
-    std::cout << "  " << programName << " example.mds                  # Parse and show AST\n";
-    std::cout << "  " << programName << "                             # Run demo\n";
+void printUsage(const char *programName) {
+  std::cout << "Usage: " << programName << " [options] [input_file]\n";
+  std::cout << "Options:\n";
+  std::cout << "  -i, --input <file>    Input source file\n";
+  std::cout << "  -o, --output <file>   Output executable file\n";
+  std::cout << "  -c, --compile         Compile to executable (default if -o "
+               "specified)\n";
+  std::cout << "  -p, --parse-only      Parse and show AST only\n";
+  std::cout << "  -t, --tokens          Show tokenization output\n";
+  std::cout << "  -h, --help           Show this help message\n";
+  std::cout << "\nExamples:\n";
+  std::cout << "  " << programName
+            << " -i example.mds -o example    # Compile to executable\n";
+  std::cout << "  " << programName
+            << " example.mds                  # Parse and show AST\n";
+  std::cout << "  " << programName
+            << "                             # Run demo\n";
 }
 
-int main(int argc, char* argv[]) {
-    // Initialize LLVM targets - must be done once at program startup
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
-    
-    std::string inputFile;
-    std::string outputFile;
-    bool compileMode = false;
-    bool parseOnly = false;
-    bool showTokens = false;
-    
-    // Command line options
-    static struct option long_options[] = {
-        {"input",      required_argument, 0, 'i'},
-        {"output",     required_argument, 0, 'o'},
-        {"compile",    no_argument,       0, 'c'},
-        {"parse-only", no_argument,       0, 'p'},
-        {"tokens",     no_argument,       0, 't'},
-        {"help",       no_argument,       0, 'h'},
-        {0, 0, 0, 0}
-    };
-    
-    int opt;
-    while ((opt = getopt_long(argc, argv, "i:o:cpth", long_options, nullptr)) != -1) {
-        switch (opt) {
-            case 'i':
-                inputFile = optarg;
-                break;
-            case 'o':
-                outputFile = optarg;
-                compileMode = true;
-                break;
-            case 'c':
-                compileMode = true;
-                break;
-            case 'p':
-                parseOnly = true;
-                break;
-            case 't':
-                showTokens = true;
-                break;
-            case 'h':
-                printUsage(argv[0]);
-                return 0;
-            default:
-                printUsage(argv[0]);
-                return 1;
-        }
+int main(int argc, char *argv[]) {
+  // Initialize LLVM targets - must be done once at program startup
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
+  std::string inputFile;
+  std::string outputFile;
+  bool compileMode = false;
+  bool parseOnly = false;
+  bool showTokens = false;
+
+  // Command line options
+  static struct option long_options[] = {{"input", required_argument, 0, 'i'},
+                                         {"output", required_argument, 0, 'o'},
+                                         {"compile", no_argument, 0, 'c'},
+                                         {"parse-only", no_argument, 0, 'p'},
+                                         {"tokens", no_argument, 0, 't'},
+                                         {"help", no_argument, 0, 'h'},
+                                         {0, 0, 0, 0}};
+
+  int opt;
+  while ((opt = getopt_long(argc, argv, "i:o:cpth", long_options, nullptr)) !=
+         -1) {
+    switch (opt) {
+    case 'i':
+      inputFile = optarg;
+      break;
+    case 'o':
+      outputFile = optarg;
+      compileMode = true;
+      break;
+    case 'c':
+      compileMode = true;
+      break;
+    case 'p':
+      parseOnly = true;
+      break;
+    case 't':
+      showTokens = true;
+      break;
+    case 'h':
+      printUsage(argv[0]);
+      return 0;
+    default:
+      printUsage(argv[0]);
+      return 1;
     }
-    
-    // Handle positional argument
-    if (optind < argc && inputFile.empty()) {
-        inputFile = argv[optind];
-    }
-    
-    // If no input file specified, run demo
-    if (inputFile.empty()) {
-        
-        // display help
-        printUsage(argv[0]);
-        
-        return 0;
-    }
-    
-    // Read input file
-    std::string source = readFile(inputFile);
-    if (source.empty()) {
-        std::cerr << "Error: Could not read source file " << inputFile << std::endl;
-        return 1;
-    }
-    
-    Compiler compiler;
-    
-    // Compilation mode
-    if (compileMode) {
-        if (outputFile.empty()) {
-            // Default output file name
-            size_t lastDot = inputFile.find_last_of('.');
-            outputFile = (lastDot != std::string::npos) ? 
-                        inputFile.substr(0, lastDot) : inputFile;
-        }
-        
-        std::cout << "Compiling " << inputFile << " to " << outputFile << "..." << std::endl;
-        
-        if (compiler.generateExecutable(source, inputFile, outputFile)) {
-            std::cout << "Successfully compiled to " << outputFile << std::endl;
-            return 0;
-        } else {
-            std::cout << "Compilation failed:" << std::endl;
-            compiler.getErrorReporter().printErrors();
-            return 1;
-        }
-    }
-    
-    // Parse-only mode (default)
-    auto program = compiler.compile(source, inputFile);
-    
-    if (compiler.hasErrors()) {
-        compiler.getErrorReporter().printErrors();
-        return 1;
-    } else if (program) {
-        std::cout << "Successfully parsed " << inputFile << std::endl;
-        
-        if (showTokens) {
-            auto tokens = compiler.tokenize(source, inputFile);
-            compiler.printTokens(tokens);
-        }
-        
-        if (!compileMode) {
-            compiler.printAST(*program);
-        }
-    }
-    
+  }
+
+  // Handle positional argument
+  if (optind < argc && inputFile.empty()) {
+    inputFile = argv[optind];
+  }
+
+  // If no input file specified, run demo
+  if (inputFile.empty()) {
+
+    // display help
+    printUsage(argv[0]);
+
     return 0;
+  }
+
+  // Read input file
+  std::string source = readFile(inputFile);
+  if (source.empty()) {
+    std::cerr << "Error: Could not read source file " << inputFile << std::endl;
+    return 1;
+  }
+
+  Compiler compiler;
+
+  // Compilation mode
+  if (compileMode) {
+    if (outputFile.empty()) {
+      // Default output file name
+      size_t lastDot = inputFile.find_last_of('.');
+      outputFile = (lastDot != std::string::npos) ? inputFile.substr(0, lastDot)
+                                                  : inputFile;
+    }
+
+    std::cout << "Compiling " << inputFile << " to " << outputFile << "..."
+              << std::endl;
+
+    if (compiler.generateExecutable(source, inputFile, outputFile)) {
+      std::cout << "Successfully compiled to " << outputFile << std::endl;
+      return 0;
+    } else {
+      std::cout << "Compilation failed:" << std::endl;
+      compiler.getErrorReporter().printErrors();
+      return 1;
+    }
+  }
+
+  // Parse-only mode (default)
+  auto program = compiler.compile(source, inputFile);
+
+  if (compiler.hasErrors()) {
+    compiler.getErrorReporter().printErrors();
+    return 1;
+  } else if (program) {
+    std::cout << "Successfully parsed " << inputFile << std::endl;
+
+    if (showTokens) {
+      auto tokens = compiler.tokenize(source, inputFile);
+      compiler.printTokens(tokens);
+    }
+
+    if (!compileMode) {
+      compiler.printAST(*program);
+    }
+  }
+
+  return 0;
 }
