@@ -270,8 +270,8 @@ if(BUILD_WASM)
         
         # Add release-specific optimizations for WebAssembly
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            set(WASM_FLAGS "${WASM_FLAGS} -O3 -DNDEBUG --closure 1")
-            set(WASM_LINK_FLAGS "${WASM_LINK_FLAGS} -O3 --closure 1")
+            set(WASM_FLAGS "${WASM_FLAGS} -O3 -DNDEBUG")
+            set(WASM_LINK_FLAGS "${WASM_LINK_FLAGS} -O3")
         endif()
         
         set_target_properties(meadows_wasm PROPERTIES
@@ -279,9 +279,9 @@ if(BUILD_WASM)
             LINK_FLAGS "${WASM_LINK_FLAGS}"
         )
         
-        # Set output directory for web files
+        # Set output directory for WASM files to build directory
         set_target_properties(meadows_wasm PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/web"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
             OUTPUT_NAME "meadows"
         )
     endif()
@@ -291,7 +291,7 @@ if(BUILD_WASM)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/web/index.html"
         "${CMAKE_SOURCE_DIR}/web/styles.css"
-        "${CMAKE_SOURCE_DIR}/web/app.js"
+        "${CMAKE_SOURCE_DIR}/web/script.js"
         "${CMAKE_BINARY_DIR}/"
         COMMENT "Copying web files to build directory"
     )
