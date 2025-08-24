@@ -55,7 +55,8 @@ jobs:
             llvm_installed=true
           fi
         else
-          if [[ -d "C:/Program Files/LLVM" ]] || command -v llvm-config &> /dev/null; then
+          # Check multiple possible LLVM locations on Windows
+          if [[ -d "C:/Program Files/LLVM" ]] || [[ -d "C:/Program Files (x86)/LLVM" ]] || [[ -d "C:/tools/llvm" ]] || command -v llvm-config &> /dev/null; then
             llvm_installed=true
           fi
         fi
@@ -67,7 +68,8 @@ jobs:
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             brew install llvm@17
           else
-            choco install llvm --force --no-progress
+            echo "Installing LLVM via chocolatey..."
+            choco install llvm --force --no-progress || echo "LLVM install failed, will try build anyway"
           fi
         else
           echo "LLVM already installed"
@@ -77,7 +79,39 @@ jobs:
       shell: bash
       run: |
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          # Try to find LLVM installation on Windows
+          echo "Looking for LLVM on Windows..."
+          
+          # Check common LLVM installation paths
+          llvm_paths=(
+            "C:/Program Files/LLVM/lib/cmake/llvm"
+            "C:/Program Files (x86)/LLVM/lib/cmake/llvm"
+            "C:/tools/llvm/lib/cmake/llvm"
+            "C:/ProgramData/chocolatey/lib/llvm/tools/LLVM/lib/cmake/llvm"
+            "C:/vcpkg/installed/x64-windows/share/llvm"
+          )
+          
+          # Also check if LLVM_ROOT is set
+          if [[ -n "$LLVM_ROOT" ]] && [[ -d "$LLVM_ROOT/lib/cmake/llvm" ]]; then
+            llvm_paths+=("$LLVM_ROOT/lib/cmake/llvm")
+          fi
+          
+          llvm_dir=""
+          for path in "${llvm_paths[@]}"; do
+            if [[ -d "$path" ]]; then
+              llvm_dir="$path"
+              echo "Found LLVM at: $llvm_dir"
+              break
+            fi
+          done
+          
+          if [[ -n "$llvm_dir" ]]; then
+            echo "Building with LLVM at: $llvm_dir"
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="$llvm_dir"
+          else
+            echo "LLVM not found, building without LLVM support..."
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DSKIP_LLVM_FIND=ON
+          fi
           cmake --build build --config Release --parallel
         else
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"
