@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false  # Don't stop other OS builds if one fails
       matrix:
@@ -20,12 +20,46 @@ jobs:
           - os: macos-latest
             llvm: $(brew --prefix llvm@17)/lib/cmake/llvm
           - os: windows-latest
-            llvm: C:/Program Files/LLVM/lib/cmake/llvm
+            llvm: "C:/Program Files/LLVM/lib/cmake/llvm"
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Check and install dependencies
+    - name: Install LLVM (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: powershell
+      run: |
+        # Download and install official LLVM release
+        $llvmVersion = "17.0.6"
+        $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-win64.exe"
+        $llvmInstaller = "LLVM-$llvmVersion-win64.exe"
+        
+        Write-Host "Downloading LLVM $llvmVersion..."
+        Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmInstaller
+        
+        Write-Host "Installing LLVM..."
+        Start-Process -FilePath $llvmInstaller -ArgumentList "/S" -Wait
+        
+        # Add LLVM to PATH
+        $llvmPath = "C:\Program Files\LLVM\bin"
+        echo "$llvmPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        
+        # Set LLVM environment variables for CMake
+        echo "LLVM_ROOT=C:\Program Files\LLVM" >> $env:GITHUB_ENV
+        echo "LLVM_DIR=C:\Program Files\LLVM\lib\cmake\llvm" >> $env:GITHUB_ENV
+        
+        Write-Host "LLVM installation completed"
+        
+        # Verify installation
+        if (Test-Path "C:\Program Files\LLVM\lib\cmake\llvm") {
+          Write-Host "LLVM CMake files found at expected location"
+        } else {
+          Write-Host "Warning: LLVM CMake files not found at expected location"
+          Get-ChildItem "C:\Program Files\LLVM" -Recurse -Name "*.cmake" | Select-Object -First 10
+        }
+    
+    - name: Check and install dependencies (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       shell: bash
       run: |
         echo "Checking existing installations..."
@@ -37,8 +71,6 @@ jobs:
             sudo apt-get update && sudo apt-get install -y cmake build-essential
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             brew install cmake
-          else
-            choco install cmake --no-progress
           fi
         else
           echo "cmake already installed: $(cmake --version | head -1)"
@@ -54,11 +86,6 @@ jobs:
           if brew list llvm@17 &> /dev/null || brew list llvm &> /dev/null; then
             llvm_installed=true
           fi
-        else
-          # Check multiple possible LLVM locations on Windows
-          if [[ -d "C:/Program Files/LLVM" ]] || [[ -d "C:/Program Files (x86)/LLVM" ]] || [[ -d "C:/tools/llvm" ]] || command -v llvm-config &> /dev/null; then
-            llvm_installed=true
-          fi
         fi
         
         if [[ "$llvm_installed" == "false" ]]; then
@@ -67,77 +94,46 @@ jobs:
             sudo apt-get install -y llvm-17-dev
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             brew install llvm@17
-          else
-            echo "Installing LLVM via chocolatey..."
-            choco install llvm --force --no-progress || echo "LLVM install failed, will try build anyway"
           fi
         else
           echo "LLVM already installed"
         fi
       
+    - name: Verify LLVM installation
+      shell: bash
+      run: |
+        echo "Verifying LLVM installation for ${{ matrix.os }}..."
+        
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          echo "Checking Windows LLVM installation..."
+          ls -la "C:/Program Files/LLVM/" || echo "LLVM directory not found"
+          ls -la "C:/Program Files/LLVM/lib/cmake/llvm/" || echo "LLVM CMake files not found"
+          echo "LLVM_DIR environment variable: $LLVM_DIR"
+          echo "LLVM_ROOT environment variable: $LLVM_ROOT"
+          
+          # Check if llvm-config is available
+          "C:/Program Files/LLVM/bin/llvm-config.exe" --version || echo "llvm-config not found"
+        else
+          echo "Checking LLVM installation for Unix-like system..."
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            dpkg -l | grep llvm || echo "No LLVM packages found"
+            ls -la "${{ matrix.llvm }}" || echo "LLVM CMake files not found at ${{ matrix.llvm }}"
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew list | grep llvm || echo "No LLVM packages found"
+            ls -la "${{ matrix.llvm }}" || echo "LLVM CMake files not found at ${{ matrix.llvm }}"
+          fi
+        fi
+        
     - name: Build
       shell: bash
       run: |
+        echo "Building on ${{ matrix.os }}..."
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          # Try to find LLVM installation on Windows
-          echo "Looking for LLVM on Windows..."
-          
-          # Check common LLVM installation paths
-          llvm_paths=(
-            "C:/Program Files/LLVM/lib/cmake/llvm"
-            "C:/Program Files (x86)/LLVM/lib/cmake/llvm"
-            "C:/tools/llvm/lib/cmake/llvm"
-            "C:/ProgramData/chocolatey/lib/llvm/tools/LLVM/lib/cmake/llvm"
-            "C:/vcpkg/installed/x64-windows/share/llvm"
-          )
-          
-          # Also check if LLVM_ROOT is set
-          if [[ -n "$LLVM_ROOT" ]] && [[ -d "$LLVM_ROOT/lib/cmake/llvm" ]]; then
-            llvm_paths+=("$LLVM_ROOT/lib/cmake/llvm")
-          fi
-          
-          llvm_dir=""
-          for path in "${llvm_paths[@]}"; do
-            echo "Checking: $path"
-            if [[ -d "$path" ]]; then
-              llvm_dir="$path"
-              echo "Found LLVM at: $llvm_dir"
-              break
-            fi
-          done
-          
-          # List what's available for debugging
-          echo "Available in C:/Program Files:"
-          ls -la "C:/Program Files/" | grep -i llvm || echo "No LLVM found in Program Files"
-          
-          if [[ -d "C:/Program Files/LLVM" ]]; then
-            echo "Contents of C:/Program Files/LLVM:"
-            find "C:/Program Files/LLVM" -name "*LLVM*" -o -name "*llvm*" | head -20
-            echo "Looking for cmake files:"
-            find "C:/Program Files/LLVM" -name "*.cmake" | head -10
-          fi
-          
-          if [[ -n "$llvm_dir" ]]; then
-            echo "Building with LLVM using Visual Studio generator..."
-            echo "LLVM_DIR will be set to: $llvm_dir"
-            
-            # Try multiple approaches to set LLVM_DIR
-            cmake -B build -G "Visual Studio 17 2022" \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DLLVM_DIR="$llvm_dir" \
-              -DCMAKE_PREFIX_PATH="C:/Program Files/LLVM" \
-              -DLLVM_ROOT="C:/Program Files/LLVM" || {
-              
-              echo "First attempt failed, trying without LLVM..."
-              rm -rf build
-              cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSKIP_LLVM_FIND=TRUE
-            }
-          else
-            echo "LLVM not found, building without LLVM support..."
-            # Clear cache and use SKIP_LLVM_FIND
-            rm -rf build
-            cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSKIP_LLVM_FIND=TRUE
-          fi
+          # Use environment variables set during LLVM installation
+          cmake -B build -G "Visual Studio 17 2022" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_DIR="${{ matrix.llvm }}" \
+            -DLLVM_ROOT="C:/Program Files/LLVM"
           cmake --build build --config Release --parallel
         else
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"

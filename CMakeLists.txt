@@ -28,14 +28,50 @@ endif()
 # LLVM Configuration
 # ==============================================================================
 
-if(NOT SKIP_LLVM_FIND)
-    find_package(LLVM REQUIRED CONFIG)
-    message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+# Windows-specific LLVM path hints
+if(WIN32 AND NOT LLVM_DIR)
+    # Common LLVM installation paths on Windows
+    set(LLVM_POSSIBLE_PATHS
+        "C:/Program Files/LLVM/lib/cmake/llvm"
+        "C:/Program Files (x86)/LLVM/lib/cmake/llvm"
+        "C:/LLVM/lib/cmake/llvm"
+        "C:/tools/llvm/lib/cmake/llvm"
+        "$ENV{LLVM_ROOT}/lib/cmake/llvm"
+    )
+    
+    foreach(path ${LLVM_POSSIBLE_PATHS})
+        if(EXISTS "${path}")
+            set(LLVM_DIR "${path}" CACHE PATH "LLVM CMake directory" FORCE)
+            message(STATUS "Found LLVM at: ${path}")
+            break()
+        endif()
+    endforeach()
+endif()
 
-    # LLVM definitions and includes
-    add_definitions(${LLVM_DEFINITIONS})
-    include_directories(${LLVM_INCLUDE_DIRS})
+if(NOT SKIP_LLVM_FIND)
+    # Try to find LLVM with better error reporting
+    message(STATUS "Looking for LLVM...")
+    if(LLVM_DIR)
+        message(STATUS "LLVM_DIR provided: ${LLVM_DIR}")
+    endif()
+    if(LLVM_ROOT)
+        message(STATUS "LLVM_ROOT provided: ${LLVM_ROOT}")
+    endif()
+    
+    find_package(LLVM REQUIRED CONFIG)
+    
+    if(LLVM_FOUND)
+        message(STATUS "✓ Found LLVM ${LLVM_PACKAGE_VERSION}")
+        message(STATUS "✓ Using LLVMConfig.cmake in: ${LLVM_DIR}")
+        message(STATUS "✓ LLVM include directories: ${LLVM_INCLUDE_DIRS}")
+        message(STATUS "✓ LLVM definitions: ${LLVM_DEFINITIONS}")
+        
+        # LLVM definitions and includes
+        add_definitions(${LLVM_DEFINITIONS})
+        include_directories(${LLVM_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "LLVM not found! Please install LLVM or set LLVM_DIR")
+    endif()
 else()
     message(STATUS "Skipping LLVM find_package as requested")
     set(LLVM_DEFINITIONS "")
