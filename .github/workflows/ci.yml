@@ -11,6 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
+      fail-fast: false  # Don't stop other OS builds if one fails
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
@@ -21,19 +22,28 @@ jobs:
             deps: brew install cmake llvm@17
             llvm: $(brew --prefix llvm@17)/lib/cmake/llvm
           - os: windows-latest
-            deps: choco install cmake llvm --version=17.0.6
+            deps: |
+              choco install cmake --no-progress
+              choco install llvm --force --no-progress
             llvm: C:/Program Files/LLVM/lib/cmake/llvm
 
     steps:
     - uses: actions/checkout@v4
     
     - name: Install dependencies
+      shell: bash
       run: ${{ matrix.deps }}
       
     - name: Build
+      shell: bash
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"
-        cmake --build build --parallel
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
+        else
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"
+          cmake --build build --parallel
+        fi
         
     - name: Test
       shell: bash
