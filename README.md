@@ -1,20 +1,8 @@
 # Meadows Compiler
 
-A modular compiler frontend for a Python-like programming language, built with C++ and LLVM. Features both native compilation and WebAssembly support for browser-based development.
+A modular compiler frontend for a Python-like programming language, built with C++ and LLVM.
 
 File format is `.mds` (Meadows Source).
-
-## 🌐 Online IDE
-
-Try Meadows in your browser! Visit our online IDE at:
-**[https://nandan-varma.github.io/meadows](https://nandan-varma.github.io/meadows)**
-
-Features:
-- Real-time compilation to LLVM IR
-- Interactive code editor with syntax highlighting
-- AST and token visualization
-- Pre-loaded examples
-- No installation required
 
 ## Usage
 
@@ -162,8 +150,6 @@ The Meadows compiler includes a comprehensive test suite covering all aspects of
 ./run_tests.sh performance   # Performance benchmarks
 ./run_tests.sh applications  # Real-world application tests
 ```
-
-All tests generate an HTML report in `build/test_report.html` showing detailed results.
 
 ### Test Coverage
 
