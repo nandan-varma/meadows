@@ -1,118 +1,35 @@
-#pragma once
+#ifndef TOKEN_H
+#define TOKEN_H
 
 #include <string>
-#include <unordered_map>
-
-namespace meadows {
 
 enum class TokenType {
-  // Literals
-  IDENTIFIER,
-  INTEGER,
-  FLOAT,
-  STRING,
+    // Keywords
+    LET, FUNC, IF, ELSE, FOR, WHILE, PRINT, RETURN, IN, RANGE,
 
-  // Keywords
-  DEF,
-  IF,
-  ELIF,
-  ELSE,
-  WHILE,
-  FOR,
-  IN,
-  RETURN,
-  BREAK,
-  CONTINUE,
-  PASS,
-  TRUE,
-  FALSE,
-  NONE,
-  CLASS,
-  IMPORT,
-  FROM,
-  AS,
-  AND,
-  OR,
-  NOT,
+    // Literals
+    IDENTIFIER, STRING, NUMBER,
 
-  // Operators
-  PLUS,
-  MINUS,
-  MULTIPLY,
-  DIVIDE,
-  MODULO,
-  POWER,
-  ASSIGN,
-  PLUS_ASSIGN,
-  MINUS_ASSIGN,
-  MULTIPLY_ASSIGN,
-  DIVIDE_ASSIGN,
+    // Operators
+    PLUS, MINUS, STAR, SLASH, EQUAL, EQUAL_EQUAL, GREATER, LESS, GREATER_EQUAL, LESS_EQUAL,
 
-  // Comparison
-  EQUAL,
-  NOT_EQUAL,
-  LESS_THAN,
-  LESS_EQUAL,
-  GREATER_THAN,
-  GREATER_EQUAL,
+    // Punctuation
+    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACKET, RIGHT_BRACKET,
+    COMMA, COLON, SEMICOLON,
 
-  // Delimiters
-  LEFT_PAREN,
-  RIGHT_PAREN,
-  LEFT_BRACKET,
-  RIGHT_BRACKET,
-  LEFT_BRACE,
-  RIGHT_BRACE,
-  COMMA,
-  DOT,
-  COLON,
-  SEMICOLON,
+    // Comments
+    COMMENT,
 
-  // Special
-  NEWLINE,
-  INDENT,
-  DEDENT,
-  EOF_TOKEN,
-
-  // Error
-  UNKNOWN
+    // End of file
+    EOF_TOKEN
 };
 
-struct SourceLocation {
-  int line;
-  int column;
-  std::string filename;
+struct Token {
+    TokenType type;
+    std::string value;
+    int line;
 
-  SourceLocation(int line = 1, int column = 1, const std::string &filename = "")
-      : line(line), column(column), filename(filename) {}
+    Token(TokenType t, const std::string& v, int l) : type(t), value(v), line(l) {}
 };
 
-class Token {
-public:
-  TokenType type;
-  std::string value;
-  SourceLocation location;
-
-  Token(TokenType type, const std::string &value,
-        const SourceLocation &location)
-      : type(type), value(value), location(location) {}
-
-  Token() : type(TokenType::UNKNOWN), value(""), location() {}
-
-  std::string toString() const;
-  bool isKeyword() const;
-  bool isOperator() const;
-  bool isLiteral() const;
-};
-
-class TokenTypeUtil {
-public:
-  static std::unordered_map<std::string, TokenType> keywords;
-  static std::unordered_map<TokenType, std::string> tokenNames;
-
-  static TokenType getKeywordType(const std::string &word);
-  static std::string getTokenName(TokenType type);
-  static void initializeMaps();
-};
-
-} // namespace meadows
+#endif

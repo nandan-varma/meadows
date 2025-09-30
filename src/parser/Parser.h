@@ -1,87 +1,49 @@
-#pragma once
+#ifndef PARSER_H
+#define PARSER_H
 
-#include "../ast/Expression.h"
-#include "../ast/Statement.h"
-#include "../common/ErrorReporter.h"
-#include "../lexer/Lexer.h"
-#include <memory>
-#include <stdexcept>
+#include "../lexer/Token.h"
+#include "../ast/AST.h"
 #include <vector>
-
-namespace meadows {
-
-class ParseError : public std::runtime_error {
-public:
-  SourceLocation location;
-
-  ParseError(const std::string &message, const SourceLocation &location)
-      : std::runtime_error(message), location(location) {}
-};
+#include <memory>
 
 class Parser {
-private:
-  std::vector<Token> tokens;
-  size_t current;
-  ErrorReporter &errorReporter;
-
-  // Token management
-  Token peek(int offset = 0) const;
-  Token advance();
-  bool isAtEnd() const;
-  bool check(TokenType type) const;
-  bool match(TokenType type);
-  bool match(std::initializer_list<TokenType> types);
-  Token consume(TokenType type, const std::string &message);
-  void skipNewlines();
-
-  // Error handling
-  void reportError(const std::string &message);
-  void reportError(const std::string &message, const SourceLocation &location);
-  void escapeScope();
-  void synchronize();
-
-  // Expression parsing (precedence climbing)
-  std::unique_ptr<Expression> expression();
-  std::unique_ptr<Expression> assignment();
-  std::unique_ptr<Expression> logicalOr();
-  std::unique_ptr<Expression> logicalAnd();
-  std::unique_ptr<Expression> equality();
-  std::unique_ptr<Expression> comparison();
-  std::unique_ptr<Expression> term();
-  std::unique_ptr<Expression> factor();
-  std::unique_ptr<Expression> power();
-  std::unique_ptr<Expression> unary();
-  std::unique_ptr<Expression> postfix();
-  std::unique_ptr<Expression> primary();
-
-  // Statement parsing
-  std::unique_ptr<Statement> statement();
-  std::unique_ptr<Statement> expressionStatement();
-  std::unique_ptr<Statement> ifStatement();
-  std::unique_ptr<Statement> whileStatement();
-  std::unique_ptr<Statement> forStatement();
-  std::unique_ptr<Statement> returnStatement();
-  std::unique_ptr<Statement> breakStatement();
-  std::unique_ptr<Statement> continueStatement();
-  std::unique_ptr<Statement> passStatement();
-  std::unique_ptr<Statement> functionDefinition();
-  std::unique_ptr<Statement> classDefinition();
-  std::unique_ptr<Statement> importStatement();
-  std::unique_ptr<Statement> block();
-
-  // Helper methods
-  std::vector<Parameter> parseParameters();
-  std::vector<std::unique_ptr<Expression>> parseArguments();
-  BinaryOp tokenToBinaryOp(TokenType type);
-  UnaryOp tokenToUnaryOp(TokenType type);
-
 public:
-  Parser(std::vector<Token> tokens, ErrorReporter &errorReporter);
+    Parser(const std::vector<Token>& tokens);
+    std::vector<std::unique_ptr<Stmt>> parse();
 
-  std::unique_ptr<Program> parse();
+private:
+    const std::vector<Token>& tokens;
+    size_t current;
 
-  // For error reporting
-  std::string getErrorContext() const;
+    bool isAtEnd();
+    const Token& peek();
+    const Token& previous();
+    const Token& advance();
+    bool check(TokenType type);
+    bool match(TokenType type);
+    const Token& consume(TokenType type, const std::string& message);
+
+    std::unique_ptr<Stmt> parseStmt();
+    std::unique_ptr<Stmt> parseLetStmt();
+    std::unique_ptr<Stmt> parseFuncStmt();
+    std::unique_ptr<Stmt> parseIfStmt();
+    std::unique_ptr<Stmt> parseForStmt();
+    std::unique_ptr<Stmt> parseWhileStmt();
+    std::unique_ptr<Stmt> parseReturnStmt();
+    std::unique_ptr<Stmt> parsePrintStmt();
+    std::unique_ptr<Stmt> parseExprStmt();
+
+    std::unique_ptr<Expr> parseExpr();
+    std::unique_ptr<Expr> parseEquality();
+    std::unique_ptr<Expr> parseComparison();
+    std::unique_ptr<Expr> parseTerm();
+    std::unique_ptr<Expr> parseFactor();
+    std::unique_ptr<Expr> parseUnary();
+    std::unique_ptr<Expr> parseCall();
+    std::unique_ptr<Expr> parsePrimary();
+
+    std::vector<std::unique_ptr<Expr>> parseArgs();
+    std::vector<std::unique_ptr<Stmt>> parseBlock();
 };
 
-} // namespace meadows
+#endif
