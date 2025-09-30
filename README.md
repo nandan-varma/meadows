@@ -1,168 +1,102 @@
 # Meadows Compiler
 
-A modular compiler frontend for a Python-like programming language, built with C++ and LLVM.
+A simple compiled programming language called "Meadows" that compiles to LLVM IR and then to native executables.
 
-File format is `.mds` (Meadows Source).
+## Features
 
-## Usage
-
-The Meadows compiler supports various command-line options for different compilation modes and outputs.
-
-### Basic Syntax
-```bash
-./build/meadows [options] [input_file]
-
-# For better performance, use the optimized release build:
-./build-release/meadows [options] [input_file]
-```
-
-### Command-line Options
-
-| Option | Long Form | Description |
-|--------|-----------|-------------|
-| `-i <file>` | `--input <file>` | Specify input source file |
-| `-o <file>` | `--output <file>` | Specify output executable file (enables compile mode) |
-| `-c` | `--compile` | Compile to executable |
-| `-p` | `--parse-only` | Parse and show AST only |
-| `-t` | `--tokens` | Show tokenization output |
-| `-h` | `--help` | Show help message |
-
-### Usage Examples
-
-#### Interactive Demo
-```bash
-./build/meadows
-```
-Runs the built-in demo with test cases and demonstrates the compiler's capabilities.
-
-#### Parse and Show AST
-```bash
-./build/meadows my_program.mds
-./build/meadows --input my_program.mds --parse-only
-```
-Parses the source file and displays the Abstract Syntax Tree.
-
-#### Compile to Executable
-```bash
-./build/meadows -i my_program.mds -o my_program
-./build/meadows my_program.mds --output my_program --compile
-```
-Compiles the source file to an executable binary.
-
-#### Show Tokenization
-```bash
-./build/meadows --input my_program.mds --tokens
-```
-Shows the tokenization output along with the AST.
-
-#### Combined Options
-```bash
-./build/meadows my_program.mds --tokens --parse-only
-```
-Shows both tokenization and AST output without compiling.
+- **Variables**: `let name = "Alice"; let age = 30;`
+- **Functions**: `func greet(person) { print "Hello, " + person; }`
+- **Conditionals**: `if (age > 18) { print "Adult"; } else { print "Minor"; }`
+- **Loops**: `for (i in range(0, 5)) { print i; }` and `while` loops
+- **Comments**: `# comment` or `// comment`
+- **Print**: `print "Hello, world";`
 
 ## Building
 
-### Prerequisites
-- CMake 3.15+
-- C++17 compatible compiler
-- LLVM development libraries
-
-### Quick Build (Recommended)
-
-Use the provided build script for simplified building:
+### Local Build
 
 ```bash
-# Build debug version (default)
 ./build.sh
-
-# Build optimized release version  
-./build.sh release
-
-# Build both versions
-./build.sh both
-
-# Clean all builds
-./build.sh clean
-
-# Build and run tests
-./build.sh test
 ```
 
-### Debug Build (Default)
+This will create the `meadows` compiler in the `build/` directory.
+
+### Pre-built Binaries
+
+Pre-built binaries for Linux and macOS are available in [GitHub Releases](https://github.com/yourusername/meadows/releases). Download the appropriate archive for your platform and run the included `install.sh` script.
+
+## Usage
+
+Compile a `.ms` file:
+
 ```bash
-# Configure
-cmake -B build -S .
-
-# Build
-cmake --build build
-
-# Run
-./build/meadows [source_file.mds]
+./build/meadows path/to/file.ms
 ```
 
-The `release` command builds an optimized WebAssembly module with:
-- Maximum optimization (-O3)
-- Closure compiler integration
-- Smaller bundle sizes
-- Better runtime performance
+This generates `file.ms.ll` (LLVM IR) and `file.ms.out` (executable).
 
-## Example Output
+Run the executable:
 
-```
-=== AST ===
-Program:
-  FunctionDefinition: factorial
-    Parameters:
-      n
-    Body:
-      Block:
-        IfStatement:
-          Condition:
-            BinaryExpression(Identifier(n) <= IntegerLiteral(1))
-          Then:
-            Block:
-              ReturnStatement:
-                IntegerLiteral(1)
-          Else:
-            Block:
-              ReturnStatement:
-                BinaryExpression(Identifier(n) * FunctionCall(Identifier(factorial), [BinaryExpression(Identifier(n) - IntegerLiteral(1))]))
+```bash
+./file.ms.out
 ```
 
 ## Testing
 
-The Meadows compiler includes a comprehensive test suite covering all aspects of compilation:
-
-### Running Tests
+Run the test suite:
 
 ```bash
-# Run all tests
-./run_tests.sh
-
-# Run specific test categories
-./run_tests.sh build         # Build project only
-./run_tests.sh test          # Run comprehensive test suite  
-./run_tests.sh individual    # Test individual files
-./run_tests.sh compile       # Test compilation to executable
-./run_tests.sh comprehensive # Run all comprehensive categories
-./run_tests.sh errors        # Test error handling
-./run_tests.sh performance   # Performance benchmarks
-./run_tests.sh applications  # Real-world application tests
+./test.sh
 ```
 
-### Test Coverage
+This will build the project and run all tests in the `tests/` directory, comparing outputs to expected results. See [TESTING.md](TESTING.md) for details on the test framework.
 
-- **Language Features**: Lexer, parser, expressions, statements, functions, classes
-- **Compilation**: End-to-end compilation to executable files
-- **Error Handling**: Syntax errors, runtime errors, edge cases, graceful recovery
-- **Performance**: Compilation speed, memory usage, stress testing with large programs
-- **IR Generation**: LLVM code quality, optimization detection
-- **Integration**: Full pipeline testing from source to executable
-- **Applications**: Real-world examples (calculator, data structures, algorithms)
+## Releases
 
-### Test Files
+Automated releases are created when version tags (e.g., `v1.0.0`) are pushed to the repository. Each release includes:
 
-- `tests/test_*.mds` - Comprehensive test programs covering all language features
-- Built-in C++ test framework validates parsing, compilation, and execution
-- Automated performance benchmarking and regression detection
+- Pre-built binaries for Linux x64 and macOS x64
+- Debug and release builds
+- Installation scripts
+- Documentation
+
+See [GitHub Actions workflow](.github/workflows/release.yml) for details.
+
+## Project Structure
+
+- `src/lexer/`: Lexical analysis
+- `src/parser/`: Syntax parsing and AST construction
+- `src/ast/`: Abstract syntax tree definitions
+- `src/codegen/`: LLVM IR code generation
+- `src/main/`: Compiler entry point
+- `tests/`: Test cases (.ms files and .expected files)
+- `CMakeLists.txt`: Build configuration
+- `build.sh`: Build script
+- `test.sh`: Test runner
+- `format.sh`: Code formatting script (placeholder)
+- `.github/workflows/`: GitHub Actions automation
+
+## Dependencies
+
+- CMake
+- LLVM (installed via Homebrew on macOS)
+- clang++ (for final compilation to executable)
+
+## Language Syntax
+
+Statements end with `;`, blocks use `{ }`, whitespace is ignored.
+
+Example program:
+
+```meadows
+func factorial(n) {
+    if (n <= 1) {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+
+let result = factorial(5);
+print result;
+```
