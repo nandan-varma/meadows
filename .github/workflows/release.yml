@@ -39,6 +39,7 @@ jobs:
           1. Download the appropriate archive for your platform
           2. Extract the archive
           3. Run the included `install.sh` script or manually copy binaries to your PATH
+          4. Run executables from the extracted directory
 
           ### Available Binaries
           - `meadows` - Optimized release build of the compiler
@@ -109,7 +110,7 @@ jobs:
       continue-on-error: true
       run: |
         echo "Running tests to ensure binaries work..."
-        ./build-release/test.sh
+        ./test.sh
 
     - name: Prepare release artifacts
       shell: bash
