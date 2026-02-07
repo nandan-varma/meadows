@@ -14,6 +14,7 @@
  * - Creates proper function definitions with correct signatures
  * - Handles control flow (if/while/for statements)
  * - Supports function calls and variable access
+ * - Includes bounds checking and division-by-zero protection
  *
  * @ Limitations
  * - Arrays and objects are compile-time constants only
@@ -22,12 +23,19 @@
  */
 
 #include "../ast/AST.h"
+#include "MemoryUtils.h"
+#include "StringUtils.h"
+#include "TypeUtils.h"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <map>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 /**
  * @class CodeGen
@@ -44,22 +52,16 @@
  */
 class CodeGen : public ExprVisitor, public StmtVisitor {
 public:
-  CodeGen();
+  CodeGen(bool optimize = false);
 
-  /**
-   * @brief Generates LLVM IR from the given AST statements.
-   * @param statements The AST statements to generate code for.
-   * @throws std::runtime_error If code generation fails.
-   */
+  void setOptimize(bool optimize) { optimize_ = optimize; }
+
   void generate(const std::vector<std::unique_ptr<Stmt>> &statements);
 
-  /**
-   * @brief Retrieves the generated LLVM module.
-   * @return A unique pointer to the generated LLVM module.
-   */
   std::unique_ptr<llvm::Module> getModule();
 
 private:
+  bool optimize_ = false;
   std::unique_ptr<llvm::LLVMContext> context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
@@ -72,8 +74,24 @@ private:
   llvm::Value *exprResult;
   llvm::BasicBlock *currentBlock;
 
+  std::vector<std::map<std::string, llvm::Value *>> variableScopeStack;
+
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
+  void validateArrayBounds(llvm::Value *array, llvm::Value *index);
+  void validateDivision(llvm::Value *divisor);
+
+  void enterScope();
+  void exitScope();
+  void declareVariable(const std::string &name, llvm::Value *value);
+  llvm::Value *lookupVariable(const std::string &name);
+  bool variableExists(const std::string &name);
+
+  template <typename... Args> [[noreturn]] void error(Args &&...args) {
+    std::ostringstream oss;
+    (oss << ... << std::forward<Args>(args));
+    throw std::runtime_error(oss.str());
+  }
 
   void visitLiteralExpr(LiteralExpr &expr) override;
   void visitVarExpr(VarExpr &expr) override;
@@ -101,6 +119,9 @@ private:
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;
+
+  static constexpr size_t MAX_STRING_LENGTH = 1024 * 1024;
+  static constexpr size_t MAX_ARRAY_ELEMENTS = 1000000;
 };
 
 #endif

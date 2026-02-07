@@ -1,13 +1,99 @@
 #include "CodeGen.h"
+#include "StringUtils.h"
 #include <climits>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/Casting.h>
+#include <sstream>
 #include <stdexcept>
 
-CodeGen::CodeGen() {
+void CodeGen::enterScope() { variableScopeStack.emplace_back(); }
+
+void CodeGen::exitScope() {
+  if (!variableScopeStack.empty()) {
+    variableScopeStack.pop_back();
+  }
+}
+
+void CodeGen::declareVariable(const std::string &name, llvm::Value *value) {
+  if (!variableScopeStack.empty()) {
+    variableScopeStack.back()[name] = value;
+  } else {
+    variables[name] = value;
+  }
+}
+
+llvm::Value *CodeGen::lookupVariable(const std::string &name) {
+  for (auto it = variableScopeStack.rbegin(); it != variableScopeStack.rend();
+       ++it) {
+    auto varIt = it->find(name);
+    if (varIt != it->end()) {
+      return varIt->second;
+    }
+  }
+  auto it = variables.find(name);
+  if (it != variables.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+bool CodeGen::variableExists(const std::string &name) {
+  return lookupVariable(name) != nullptr;
+}
+
+void CodeGen::validateDivision(llvm::Value *divisor) {
+  auto *zero = llvm::ConstantInt::get(divisor->getType(), 0);
+  auto *isZero = builder->CreateICmpEQ(divisor, zero, "div_is_zero");
+  auto *divErrorBB =
+      llvm::BasicBlock::Create(*context, "div_error", currentFunction);
+  auto *continueBB =
+      llvm::BasicBlock::Create(*context, "div_continue", currentFunction);
+
+  builder->CreateCondBr(isZero, divErrorBB, continueBB);
+  builder->SetInsertPoint(divErrorBB);
+
+  auto *errorMsg =
+      builder->CreateGlobalStringPtr("RuntimeError: Division by zero\n");
+  auto *format = builder->CreateGlobalString("%s");
+  builder->CreateCall(printfFunc, {format, errorMsg});
+  builder->CreateRet(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+
+  builder->SetInsertPoint(continueBB);
+}
+
+void CodeGen::validateArrayBounds(llvm::Value *array, llvm::Value *index) {
+  auto *zero = llvm::ConstantInt::get(index->getType(), 0);
+  auto *isNegative = builder->CreateICmpSLT(index, zero, "idx_negative");
+
+  auto *arrayLen =
+      builder->CreateLoad(llvm::Type::getInt32Ty(*context), array, "array_len");
+  auto *isOutOfBounds = builder->CreateICmpSGE(index, arrayLen, "idx_oob");
+
+  auto *isInvalid = builder->CreateOr(isNegative, isOutOfBounds, "idx_invalid");
+
+  auto *boundsErrorBB =
+      llvm::BasicBlock::Create(*context, "bounds_error", currentFunction);
+  auto *continueBB =
+      llvm::BasicBlock::Create(*context, "bounds_continue", currentFunction);
+
+  builder->CreateCondBr(isInvalid, boundsErrorBB, continueBB);
+  builder->SetInsertPoint(boundsErrorBB);
+
+  auto *errorMsg = builder->CreateGlobalStringPtr(
+      "RuntimeError: Array index out of bounds\n");
+  auto *format = builder->CreateGlobalString("%s");
+  builder->CreateCall(printfFunc, {format, errorMsg});
+  builder->CreateRet(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+
+  builder->SetInsertPoint(continueBB);
+}
+
+CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
   context = std::make_unique<llvm::LLVMContext>();
   module = std::make_unique<llvm::Module>("meadows", *context);
   builder = std::make_unique<llvm::IRBuilder<>>(*context);
@@ -50,7 +136,8 @@ CodeGen::CodeGen() {
 }
 
 void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
-  // Create main function
+  variableScopeStack.clear();
+
   auto mainType =
       llvm::FunctionType::get(llvm::Type::getInt32Ty(*context), {}, false);
   auto mainFunc = llvm::Function::Create(
@@ -59,11 +146,15 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   builder->SetInsertPoint(entry);
   currentFunction = mainFunc;
   currentBlock = entry;
+
+  enterScope();
   variables.clear();
 
   for (auto &stmt : statements) {
     stmt->accept(*this);
   }
+
+  exitScope();
 
   builder->CreateRet(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
@@ -82,19 +173,15 @@ void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
                                           llvm::APInt(32, INT32_MAX));
     }
   } else {
+    StringUtils::StringPool::getInstance().intern(expr.value);
     exprResult = builder->CreateGlobalStringPtr(expr.value);
   }
 }
 
 void CodeGen::visitVarExpr(VarExpr &expr) {
-  auto it = variables.find(expr.name);
-  if (it == variables.end()) {
-    throw std::runtime_error("Undefined variable: " + expr.name);
-  }
-
-  llvm::Value *var = it->second;
+  llvm::Value *var = lookupVariable(expr.name);
   if (!var) {
-    throw std::runtime_error("Invalid variable allocation: " + expr.name);
+    error("Undefined variable: ", expr.name);
   }
 
   auto typeIt = variableTypes.find(expr.name);
@@ -108,14 +195,9 @@ void CodeGen::visitAssignExpr(AssignExpr &expr) {
   expr.value->accept(*this);
   auto val = exprResult;
 
-  auto it = variables.find(expr.name);
-  if (it == variables.end()) {
-    throw std::runtime_error("Undefined variable: " + expr.name);
-  }
-
-  llvm::Value *var = it->second;
+  llvm::Value *var = lookupVariable(expr.name);
   if (!var) {
-    throw std::runtime_error("Invalid variable allocation: " + expr.name);
+    error("Undefined variable in assignment: ", expr.name);
   }
 
   builder->CreateStore(val, var);
@@ -127,38 +209,35 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
   auto left = exprResult;
   expr.right->accept(*this);
   auto right = exprResult;
+
   if (expr.op == "+") {
-    bool leftIsString = left->getType()->isPointerTy();
-    bool rightIsString = right->getType()->isPointerTy();
-    if (leftIsString || rightIsString) {
+    if (TypeUtils::isPointerType(left) || TypeUtils::isPointerType(right)) {
       exprResult = concatenateStrings(left, right);
     } else {
       exprResult = builder->CreateAdd(left, right);
     }
   } else if (expr.op == "-") {
-    if (expr.left) {
-      exprResult = builder->CreateSub(left, right);
-    } else {
-      exprResult = builder->CreateNeg(right);
-    }
-  } else if (expr.op == "*")
+    exprResult = builder->CreateSub(left, right);
+  } else if (expr.op == "*") {
     exprResult = builder->CreateMul(left, right);
-  else if (expr.op == "/")
+  } else if (expr.op == "/") {
+    validateDivision(right);
     exprResult = builder->CreateSDiv(left, right);
-  else if (expr.op == "==")
+  } else if (expr.op == "==") {
     exprResult = builder->CreateICmpEQ(left, right);
-  else if (expr.op == "!=")
+  } else if (expr.op == "!=") {
     exprResult = builder->CreateICmpNE(left, right);
-  else if (expr.op == ">")
+  } else if (expr.op == ">") {
     exprResult = builder->CreateICmpSGT(left, right);
-  else if (expr.op == "<")
+  } else if (expr.op == "<") {
     exprResult = builder->CreateICmpSLT(left, right);
-  else if (expr.op == ">=")
+  } else if (expr.op == ">=") {
     exprResult = builder->CreateICmpSGE(left, right);
-  else if (expr.op == "<=")
+  } else if (expr.op == "<=") {
     exprResult = builder->CreateICmpSLE(left, right);
-  else
-    exprResult = nullptr;
+  } else {
+    error("Unknown binary operator: ", expr.op);
+  }
 }
 
 void CodeGen::visitUnaryExpr(UnaryExpr &expr) {
@@ -172,7 +251,7 @@ void CodeGen::visitUnaryExpr(UnaryExpr &expr) {
     exprResult =
         builder->CreateZExt(boolCond, llvm::Type::getInt32Ty(*context));
   } else {
-    throw std::runtime_error("Unknown unary operator: " + expr.op);
+    error("Unknown unary operator: ", expr.op);
   }
 }
 
@@ -250,6 +329,8 @@ void CodeGen::visitIndexExpr(IndexExpr &expr) {
   expr.index->accept(*this);
   auto indexVal = exprResult;
 
+  validateArrayBounds(arrayPtr, indexVal);
+
   auto arrayType = llvm::ArrayType::get(llvm::Type::getInt32Ty(*context), 0);
   auto zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
   std::vector<llvm::Value *> indices = {zero, indexVal};
@@ -298,26 +379,25 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
 void CodeGen::visitCallExpr(CallExpr &expr) {
   auto varExpr = dynamic_cast<VarExpr *>(expr.callee.get());
   if (!varExpr)
-    throw std::runtime_error("Only variable calls supported");
+    error("Only variable calls supported");
 
   auto func = module->getFunction(varExpr->name);
   if (!func) {
-    throw std::runtime_error("Undefined function: " + varExpr->name);
+    error("Undefined function: ", varExpr->name);
   }
 
-  // Check argument count
   if (func->arg_size() != expr.args.size()) {
-    throw std::runtime_error("Function " + varExpr->name + " expects " +
-                             std::to_string(func->arg_size()) +
-                             " arguments, got " +
-                             std::to_string(expr.args.size()));
+    std::ostringstream oss;
+    oss << "Function " << varExpr->name << " expects " << func->arg_size()
+        << " arguments, got " << expr.args.size();
+    error(oss.str());
   }
 
   std::vector<llvm::Value *> args;
   for (auto &arg : expr.args) {
     arg->accept(*this);
     if (!exprResult) {
-      throw std::runtime_error("Failed to generate argument code");
+      error("Failed to generate argument code for function: ", varExpr->name);
     }
     args.push_back(exprResult);
   }
@@ -384,13 +464,40 @@ llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
 
   auto result = builder->CreateCall(mallocFunc, {totalLen}, "concat");
 
+  auto mallocCheck = builder->CreateICmpNE(
+      result, llvm::ConstantPointerNull::get(i8PtrType), "malloc_success");
+  auto mallocErrorBB =
+      llvm::BasicBlock::Create(*context, "malloc_error", currentFunction);
+  auto mallocContinueBB =
+      llvm::BasicBlock::Create(*context, "malloc_continue", currentFunction);
+
+  builder->CreateCondBr(mallocCheck, mallocContinueBB, mallocErrorBB);
+  builder->SetInsertPoint(mallocErrorBB);
+
+  auto *errorMsg = builder->CreateGlobalStringPtr(
+      "RuntimeError: Memory allocation failed\n");
+  auto *format = builder->CreateGlobalString("%s");
+  builder->CreateCall(printfFunc, {format, errorMsg});
+  builder->CreateRet(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+
+  builder->SetInsertPoint(mallocContinueBB);
+
   auto resultI8Ptr = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
-  auto resultCast = builder->CreateBitCast(result, resultI8Ptr, "resultcpy");
-  builder->CreateCall(module->getFunction("strcpy"), {resultCast, leftPtr});
+  llvm::Value *resultCast =
+      builder->CreateBitCast(result, resultI8Ptr, "resultcpy");
+
+  auto strcpyFunc = module->getFunction("strcpy");
+  if (strcpyFunc) {
+    builder->CreateCall(strcpyFunc, {resultCast, leftPtr});
+  }
 
   auto destPtr = builder->CreateGEP(llvm::Type::getInt8Ty(*context), resultCast,
                                     leftLen, "destptr");
-  builder->CreateCall(module->getFunction("strcat"), {destPtr, rightPtr});
+  auto strcatFunc = module->getFunction("strcat");
+  if (strcatFunc) {
+    builder->CreateCall(strcatFunc, {destPtr, rightPtr});
+  }
 
   return resultCast;
 }
@@ -435,7 +542,7 @@ void CodeGen::visitLetStmt(LetStmt &stmt) {
   auto val = exprResult;
   auto alloca = builder->CreateAlloca(val->getType());
   builder->CreateStore(val, alloca);
-  variables[stmt.name] = alloca;
+  declareVariable(stmt.name, alloca);
   variableTypes[stmt.name] = val->getType();
 }
 
@@ -450,12 +557,14 @@ void CodeGen::visitFuncStmt(FuncStmt &stmt) {
                                      stmt.name, module.get());
   auto entry = llvm::BasicBlock::Create(*context, "entry", func);
   builder->SetInsertPoint(entry);
-  variables.clear();
+
+  enterScope();
+
   auto it = func->arg_begin();
   for (auto &param : stmt.params) {
     auto alloca = builder->CreateAlloca(llvm::Type::getInt32Ty(*context));
     builder->CreateStore(&*it, alloca);
-    variables[param] = alloca;
+    declareVariable(param, alloca);
     ++it;
   }
   currentFunction = func;
@@ -466,6 +575,9 @@ void CodeGen::visitFuncStmt(FuncStmt &stmt) {
     builder->CreateRet(
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
   }
+
+  exitScope();
+
   builder->SetInsertPoint(savedBlock);
   currentFunction = savedFunction;
 }
@@ -495,9 +607,13 @@ void CodeGen::visitForStmt(ForStmt &stmt) {
   auto startVal = exprResult;
   stmt.rangeEnd->accept(*this);
   auto endVal = exprResult;
+
+  enterScope();
+
   auto loopVar = builder->CreateAlloca(llvm::Type::getInt32Ty(*context));
   builder->CreateStore(startVal, loopVar);
-  variables[stmt.var] = loopVar;
+  declareVariable(stmt.var, loopVar);
+
   auto condBB = llvm::BasicBlock::Create(*context, "cond", currentFunction);
   auto bodyBB = llvm::BasicBlock::Create(*context, "body", currentFunction);
   auto endBB = llvm::BasicBlock::Create(*context, "endfor", currentFunction);
@@ -520,6 +636,8 @@ void CodeGen::visitForStmt(ForStmt &stmt) {
   builder->CreateStore(next, loopVar);
   builder->CreateBr(condBB);
   builder->SetInsertPoint(endBB);
+
+  exitScope();
 
   breakBlock = savedBreakBlock;
   continueBlock = savedContinueBlock;
@@ -571,6 +689,8 @@ void CodeGen::visitPrintStmt(PrintStmt &stmt) {
   } else if (val->getType()->isPointerTy()) {
     auto format = builder->CreateGlobalString("%s\n");
     builder->CreateCall(printfFunc, {format, val});
+  } else {
+    error("Unsupported type in print statement");
   }
 }
 

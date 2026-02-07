@@ -59,6 +59,23 @@ endif()
 #==============================================================================
 # LLVM Configuration
 #==============================================================================
+
+if(NOT LLVM_DIR)
+  if(APPLE)
+    if(EXISTS "/opt/homebrew/opt/llvm@17/lib/cmake/llvm")
+      set(LLVM_DIR "/opt/homebrew/opt/llvm@17/lib/cmake/llvm")
+    elseif(EXISTS "/usr/local/opt/llvm/lib/cmake/llvm")
+      set(LLVM_DIR "/usr/local/opt/llvm/lib/cmake/llvm")
+    endif()
+  elseif(UNIX)
+    if(EXISTS "/usr/lib/llvm-17/lib/cmake/llvm")
+      set(LLVM_DIR "/usr/lib/llvm-17/lib/cmake/llvm")
+    elseif(EXISTS "/usr/lib/llvm-16/lib/cmake/llvm")
+      set(LLVM_DIR "/usr/lib/llvm-16/lib/cmake/llvm")
+    endif()
+  endif()
+endif()
+
 find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -85,6 +102,7 @@ set(MEADOWS_SOURCES
   src/parser/Parser.cpp
   src/ast/AST.cpp
   src/codegen/CodeGen.cpp
+  src/codegen/StringUtils.cpp
 )
 
 set(MEADOWS_HEADERS

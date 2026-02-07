@@ -40,6 +40,7 @@ target_sources(meadows_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/parser/Parser.cpp
     ${CMAKE_SOURCE_DIR}/src/ast/AST.cpp
     ${CMAKE_SOURCE_DIR}/src/codegen/CodeGen.cpp
+    ${CMAKE_SOURCE_DIR}/src/codegen/StringUtils.cpp
 )
 
 target_link_libraries(meadows_tests PRIVATE Catch2 ${LLVM_LIBS})

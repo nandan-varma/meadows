@@ -1,8 +1,12 @@
 #include "codegen/CodeGen.h"
 #include "ast/AST.h"
 #include "catch_amalgamated.hpp"
+#include "codegen/StringUtils.h"
+#include "codegen/TypeUtils.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
+#include <llvm/IR/Verifier.h>
+#include <sstream>
 
 static std::unique_ptr<Parser> createParser(const std::string &source) {
   auto lexer = std::make_unique<Lexer>(source);
@@ -908,5 +912,183 @@ TEST_CASE("CodeGen handles logical operators", "[codegen][logical]") {
     REQUIRE_NOTHROW(codegen.generate(stmts));
     auto module = codegen.getModule();
     REQUIRE(module != nullptr);
+  }
+}
+
+TEST_CASE("StringUtils escape handler", "[stringutils]") {
+  SECTION("Process newline escape") {
+    std::string input = "line1\\nline2";
+    auto result = StringUtils::EscapeHandler::process(input);
+    REQUIRE(result == "line1\nline2");
+  }
+
+  SECTION("Process tab escape") {
+    std::string input = "col1\\tcol2";
+    auto result = StringUtils::EscapeHandler::process(input);
+    REQUIRE(result == "col1\tcol2");
+  }
+
+  SECTION("Process backslash escape") {
+    std::string input = "path\\\\to\\\\file";
+    auto result = StringUtils::EscapeHandler::process(input);
+    REQUIRE(result == "path\\to\\file");
+  }
+
+  SECTION("Process quote escape") {
+    std::string input = "He said \\\"hello\\\"";
+    auto result = StringUtils::EscapeHandler::process(input);
+    REQUIRE(result == "He said \"hello\"");
+  }
+
+  SECTION("Escape for output") {
+    std::string input = "line1\ncol1\t";
+    auto result = StringUtils::EscapeHandler::escape(input);
+    REQUIRE(result == "line1\\ncol1\\t");
+  }
+}
+
+TEST_CASE("StringPool singleton", "[stringpool]") {
+  SECTION("Intern returns same pointer for same string") {
+    auto &pool = StringUtils::StringPool::getInstance();
+    auto *str1 = pool.intern("test");
+    auto *str2 = pool.intern("test");
+    REQUIRE(str1 == str2);
+  }
+
+  SECTION("Intern returns different pointer for different strings") {
+    auto &pool = StringUtils::StringPool::getInstance();
+    auto *str1 = pool.intern("test1");
+    auto *str2 = pool.intern("test2");
+    REQUIRE(str1 != str2);
+  }
+
+  SECTION("Pool size increases with new strings") {
+    auto &pool = StringUtils::StringPool::getInstance();
+    size_t initialSize = pool.poolSize();
+    pool.intern("unique_test_string_12345");
+    REQUIRE(pool.poolSize() > initialSize);
+  }
+}
+
+TEST_CASE("TypeUtils helpers", "[typeutils]") {
+  SECTION("isIntegerType for i32") {
+    auto context = std::make_unique<llvm::LLVMContext>();
+    auto i32Type = llvm::Type::getInt32Ty(*context);
+    llvm::Value *constInt = llvm::ConstantInt::get(i32Type, 42);
+    REQUIRE(TypeUtils::isIntegerType(constInt) == true);
+    REQUIRE(TypeUtils::isPointerType(constInt) == false);
+  }
+
+  SECTION("isPointerType for pointer") {
+    auto context = std::make_unique<llvm::LLVMContext>();
+    auto i8PtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+    llvm::Value *ptr = llvm::ConstantPointerNull::get(i8PtrType);
+    REQUIRE(TypeUtils::isPointerType(ptr) == true);
+    REQUIRE(TypeUtils::isIntegerType(ptr) == false);
+  }
+
+  SECTION("isBooleanType for i1") {
+    auto context = std::make_unique<llvm::LLVMContext>();
+    auto i1Type = llvm::Type::getInt1Ty(*context);
+    llvm::Value *boolVal = llvm::ConstantInt::get(i1Type, 0);
+    REQUIRE(TypeUtils::isBooleanType(boolVal) == true);
+  }
+}
+
+TEST_CASE("CodeGen optimization flag", "[codegen][optimization]") {
+  SECTION("Create codegen with optimization disabled") {
+    CodeGen codegen(false);
+    auto parser = createParser("let x = 5;");
+    auto stmts = parser->parse();
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("Create codegen with optimization enabled") {
+    CodeGen codegen(true);
+    codegen.setOptimize(true);
+    auto parser = createParser("let x = 5;");
+    auto stmts = parser->parse();
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+}
+
+TEST_CASE("CodeGen module verification", "[codegen][verification]") {
+  SECTION("Generated module verifies successfully") {
+    auto parser = createParser("let x = 1 + 2; print x;");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    codegen.generate(stmts);
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    auto error = llvm::verifyModule(*module, &os);
+    REQUIRE(error == false);
+  }
+
+  SECTION("Complex program verifies successfully") {
+    auto parser = createParser("func fib(n) { "
+                               "  if (n <= 1) { return n; } "
+                               "  return fib(n - 1) + fib(n - 2); "
+                               "} "
+                               "let result = fib(5); "
+                               "print result;");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    codegen.generate(stmts);
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    auto error = llvm::verifyModule(*module, &os);
+    REQUIRE(error == false);
+  }
+}
+
+TEST_CASE("CodeGen scope management", "[codegen][scope]") {
+  SECTION("Nested blocks with variable shadowing") {
+    auto parser = createParser("let x = 1; "
+                               "{ "
+                               "  let x = 2; "
+                               "  { "
+                               "    let x = 3; "
+                               "    print x; "
+                               "  } "
+                               "  print x; "
+                               "} "
+                               "print x;");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("Function parameter shadows outer variable") {
+    auto parser = createParser("let x = 10; "
+                               "func outer(x) { "
+                               "  let y = x + 1; "
+                               "  return y; "
+                               "} "
+                               "let result = outer(5); "
+                               "print result;");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("Loop variable shadows outer variable") {
+    auto parser = createParser("let x = 0; "
+                               "for (x in range(0, 5)) { "
+                               "  print x; "
+                               "}");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
   }
 }
