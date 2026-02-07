@@ -4,32 +4,60 @@
 #include <string>
 
 enum class TokenType {
-    // Keywords
-    LET, FUNC, IF, ELSE, FOR, WHILE, PRINT, RETURN, IN, RANGE,
+  // Keywords
+  LET,
+  FUNC,
+  IF,
+  ELSE,
+  FOR,
+  WHILE,
+  PRINT,
+  RETURN,
+  IN,
+  RANGE,
 
-    // Literals
-    IDENTIFIER, STRING, NUMBER,
+  // Literals
+  IDENTIFIER,
+  STRING,
+  NUMBER,
 
-    // Operators
-    PLUS, MINUS, STAR, SLASH, EQUAL, EQUAL_EQUAL, GREATER, LESS, GREATER_EQUAL, LESS_EQUAL,
+  // Operators
+  PLUS,
+  MINUS,
+  STAR,
+  SLASH,
+  EQUAL,
+  EQUAL_EQUAL,
+  GREATER,
+  LESS,
+  GREATER_EQUAL,
+  LESS_EQUAL,
 
-    // Punctuation
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACKET, RIGHT_BRACKET,
-    COMMA, COLON, SEMICOLON,
+  // Punctuation
+  LEFT_PAREN,
+  RIGHT_PAREN,
+  LEFT_BRACE,
+  RIGHT_BRACE,
+  LEFT_BRACKET,
+  RIGHT_BRACKET,
+  COMMA,
+  COLON,
+  SEMICOLON,
 
-    // Comments
-    COMMENT,
+  // Comments
+  COMMENT,
 
-    // End of file
-    EOF_TOKEN
+  // End of file
+  EOF_TOKEN
 };
 
 struct Token {
-    TokenType type;
-    std::string value;
-    int line;
+  TokenType type;
+  std::string value;
+  int line;
 
-    Token(TokenType t, const std::string& v, int l) : type(t), value(v), line(l) {}
+  Token(TokenType t, const std::string &v, int l)
+      : type(t), value(v), line(l) {}
 };
 
 #endif

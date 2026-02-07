@@ -105,11 +105,19 @@ jobs:
         cmake -B build-release -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"
         cmake --build build-release --parallel
 
-    - name: Run tests
+    - name: Run unit tests
+      shell: bash
+      run: |
+        echo "Running unit tests..."
+        cmake -B build-test -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}" -DENABLE_TESTING=ON
+        cmake --build build-test --target meadows_tests --parallel
+        ./build-test/tests/meadows_tests
+
+    - name: Run integration tests
       shell: bash
       continue-on-error: true
       run: |
-        echo "Running tests to ensure binaries work..."
+        echo "Running integration tests to ensure binaries work..."
         ./test.sh
 
     - name: Prepare release artifacts
