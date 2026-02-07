@@ -64,15 +64,25 @@ private:
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
   std::map<std::string, llvm::Value *> variables;
+  std::map<std::string, llvm::Type *> variableTypes;
   llvm::Function *printfFunc;
+  llvm::Function *mallocFunc;
+  llvm::Function *strlenFunc;
   llvm::Function *currentFunction;
   llvm::Value *exprResult;
   llvm::BasicBlock *currentBlock;
 
+  llvm::Value *getStringLength(llvm::Value *str);
+  llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
+
   void visitLiteralExpr(LiteralExpr &expr) override;
   void visitVarExpr(VarExpr &expr) override;
+  void visitAssignExpr(AssignExpr &expr) override;
   void visitBinaryExpr(BinaryExpr &expr) override;
   void visitUnaryExpr(UnaryExpr &expr) override;
+  void visitLogicalExpr(LogicalExpr &expr) override;
+  void visitIndexExpr(IndexExpr &expr) override;
+  void visitFieldAccessExpr(FieldAccessExpr &expr) override;
   void visitCallExpr(CallExpr &expr) override;
   void visitArrayExpr(ArrayExpr &expr) override;
   void visitObjectExpr(ObjectExpr &expr) override;
@@ -86,6 +96,11 @@ private:
   void visitReturnStmt(ReturnStmt &stmt) override;
   void visitBlockStmt(BlockStmt &stmt) override;
   void visitPrintStmt(PrintStmt &stmt) override;
+  void visitBreakStmt(BreakStmt &stmt) override;
+  void visitContinueStmt(ContinueStmt &stmt) override;
+
+  llvm::BasicBlock *breakBlock = nullptr;
+  llvm::BasicBlock *continueBlock = nullptr;
 };
 
 #endif

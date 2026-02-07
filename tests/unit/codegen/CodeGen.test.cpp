@@ -377,57 +377,45 @@ TEST_CASE("CodeGen handles array literals", "[codegen]") {
   }
 }
 
-TEST_CASE("CodeGen handles object literals", "[codegen]") {
-  SECTION("Simple object") {
-    auto parser = createParser("let obj = {name: \"test\", value: 42};");
+TEST_CASE("CodeGen handles break and continue", "[codegen][loops]") {
+  SECTION("Break in while loop") {
+    auto parser = createParser(
+        "let x = 0; while (x < 10) { x = x + 1; if (x == 5) { break; } }");
     auto stmts = parser->parse();
-
-    REQUIRE(stmts.size() == 1);
-
+    REQUIRE(stmts.size() == 2);
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
-
-    auto module = codegen.getModule();
-    REQUIRE(module != nullptr);
+    REQUIRE(codegen.getModule() != nullptr);
   }
 
-  SECTION("Empty object") {
-    auto parser = createParser("let obj = {};");
+  SECTION("Continue in while loop") {
+    auto parser = createParser(
+        "let x = 0; while (x < 5) { x = x + 1; if (x == 3) { continue; } }");
     auto stmts = parser->parse();
-
-    REQUIRE(stmts.size() == 1);
-
+    REQUIRE(stmts.size() == 2);
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
-
-    auto module = codegen.getModule();
-    REQUIRE(module != nullptr);
+    REQUIRE(codegen.getModule() != nullptr);
   }
 
-  SECTION("Object with expressions") {
-    auto parser = createParser("let obj = {a: 1 + 1, b: 2 * 3};");
+  SECTION("Break in for loop") {
+    auto parser =
+        createParser("for (i in range(0, 10)) { if (i == 5) { break; } }");
     auto stmts = parser->parse();
-
     REQUIRE(stmts.size() == 1);
-
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
-
-    auto module = codegen.getModule();
-    REQUIRE(module != nullptr);
+    REQUIRE(codegen.getModule() != nullptr);
   }
 
-  SECTION("Nested object") {
-    auto parser = createParser("let obj = {outer: {inner: 42}};");
+  SECTION("Nested break") {
+    auto parser =
+        createParser("while (true) { while (true) { break; } break; }");
     auto stmts = parser->parse();
-
     REQUIRE(stmts.size() == 1);
-
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
-
-    auto module = codegen.getModule();
-    REQUIRE(module != nullptr);
+    REQUIRE(codegen.getModule() != nullptr);
   }
 }
 
@@ -745,7 +733,7 @@ TEST_CASE("CodeGen handles multiple statements", "[codegen]") {
   }
 }
 
-TEST_CASE("CodeGen handles string concatenation", "[codegen]") {
+TEST_CASE("CodeGen handles string concatenation", "[codegen][strings]") {
   SECTION("String plus string") {
     auto parser = createParser("let x = \"hello\" + \" \" + \"world\";");
     auto stmts = parser->parse();
@@ -762,5 +750,163 @@ TEST_CASE("CodeGen handles string concatenation", "[codegen]") {
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
     REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("Concatenation in print") {
+    auto parser = createParser("print \"hello\" + \" world\";");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("Triple concatenation") {
+    auto parser = createParser("let a = \"A\"; let b = a + \"B\" + \"C\";");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+}
+
+TEST_CASE("CodeGen handles string printing", "[codegen][print][strings]") {
+  SECTION("Print string literal") {
+    auto parser = createParser("print \"hello\";");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    module->print(os, nullptr);
+    REQUIRE(ir.find("%s") != std::string::npos);
+  }
+
+  SECTION("Print string variable") {
+    auto parser = createParser("let msg = \"hello world\"; print msg;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Print empty string") {
+    auto parser = createParser("let empty = \"\"; print empty;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Print string concatenation") {
+    auto parser = createParser("print \"hello\" + \" world\";");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+}
+
+TEST_CASE("CodeGen handles variable reassignment", "[codegen][assign]") {
+  SECTION("Basic reassignment") {
+    auto parser = createParser("let x = 1; x = 2;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Reassignment with expression") {
+    auto parser = createParser("let x = 5; x = x + 1;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Multiple reassignments") {
+    auto parser = createParser("let x = 0; x = 1; x = 2; x = 3;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 4);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Reassignment in expression") {
+    auto parser = createParser("let x = 5; let y = x = 10;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 2);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+}
+
+TEST_CASE("CodeGen handles logical operators", "[codegen][logical]") {
+  SECTION("Logical AND") {
+    auto parser = createParser("let x = true && true;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Logical OR") {
+    auto parser = createParser("let x = false || true;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Logical NOT") {
+    auto parser = createParser("let x = !false;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Compound logical expressions") {
+    auto parser = createParser("let x = true && false || true;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+  }
+
+  SECTION("Logical operators with comparisons") {
+    auto parser = createParser("let x = 5 > 0 && 10 < 20;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
   }
 }

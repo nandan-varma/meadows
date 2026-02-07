@@ -9,7 +9,8 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"for", TokenType::FOR},     {"while", TokenType::WHILE},
     {"print", TokenType::PRINT}, {"return", TokenType::RETURN},
     {"in", TokenType::IN},       {"range", TokenType::RANGE},
-    {"true", TokenType::TRUE},   {"false", TokenType::FALSE}};
+    {"true", TokenType::TRUE},   {"false", TokenType::FALSE},
+    {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}};
 
 Lexer::Lexer(const std::string &src) : source(src), pos(0), line(1) {}
 
@@ -74,6 +75,20 @@ Token Lexer::nextToken() {
       return Token(TokenType::EQUAL_EQUAL, "==", line);
     }
     return Token(TokenType::EQUAL, "=", line);
+  case '&':
+    advance();
+    if (peek() == '&') {
+      advance();
+      return Token(TokenType::AND, "&&", line);
+    }
+    return Token(TokenType::IDENTIFIER, "&", line);
+  case '|':
+    advance();
+    if (peek() == '|') {
+      advance();
+      return Token(TokenType::OR, "||", line);
+    }
+    return Token(TokenType::IDENTIFIER, "|", line);
   case '>':
     advance();
     if (peek() == '=') {
@@ -122,6 +137,9 @@ Token Lexer::nextToken() {
   case ';':
     advance();
     return Token(TokenType::SEMICOLON, ";", line);
+  case '.':
+    advance();
+    return Token(TokenType::DOT, ".", line);
   }
 
   // Error

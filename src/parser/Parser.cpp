@@ -59,6 +59,10 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
     return parsePrintStmt();
   if (match(TokenType::RETURN))
     return parseReturnStmt();
+  if (match(TokenType::BREAK))
+    return parseBreakStmt();
+  if (match(TokenType::CONTINUE))
+    return parseContinueStmt();
   if (match(TokenType::LEFT_BRACE))
     return parseBlockStmt();
   return parseExprStmt();
@@ -167,7 +171,43 @@ std::unique_ptr<Stmt> Parser::parseBlockStmt() {
   return std::make_unique<BlockStmt>(std::move(body));
 }
 
-std::unique_ptr<Expr> Parser::parseExpr() { return parseEquality(); }
+std::unique_ptr<Expr> Parser::parseExpr() { return parseAssignment(); }
+
+std::unique_ptr<Expr> Parser::parseAssignment() {
+  auto expr = parseOr();
+  if (match(TokenType::EQUAL)) {
+    auto varExpr = dynamic_cast<VarExpr *>(expr.get());
+    if (!varExpr) {
+      throw std::runtime_error("Invalid assignment target at line " +
+                               std::to_string(peek().line));
+    }
+    auto value = parseAssignment();
+    return std::make_unique<AssignExpr>(varExpr->name, std::move(value));
+  }
+  return expr;
+}
+
+std::unique_ptr<Expr> Parser::parseOr() {
+  auto expr = parseAnd();
+  while (match(TokenType::OR)) {
+    Token op = previous();
+    auto right = parseAnd();
+    expr = std::make_unique<LogicalExpr>(std::move(expr), LogicalOperator::OR,
+                                         std::move(right));
+  }
+  return expr;
+}
+
+std::unique_ptr<Expr> Parser::parseAnd() {
+  auto expr = parseEquality();
+  while (match(TokenType::AND)) {
+    Token op = previous();
+    auto right = parseEquality();
+    expr = std::make_unique<LogicalExpr>(std::move(expr), LogicalOperator::AND,
+                                         std::move(right));
+  }
+  return expr;
+}
 
 std::unique_ptr<Expr> Parser::parseEquality() {
   auto expr = parseComparison();
@@ -216,15 +256,40 @@ std::unique_ptr<Expr> Parser::parseUnary() {
     auto operand = parseUnary();
     return std::make_unique<UnaryExpr>(op, std::move(operand));
   }
+  if (match(TokenType::BANG)) {
+    std::string op = previous().value;
+    auto operand = parseUnary();
+    return std::make_unique<UnaryExpr>(op, std::move(operand));
+  }
   return parseCall();
 }
 
 std::unique_ptr<Expr> Parser::parseCall() {
-  auto expr = parsePrimary();
+  auto expr = parseIndex();
   if (match(TokenType::LEFT_PAREN)) {
     auto args = parseArgs();
     consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments");
     expr = std::make_unique<CallExpr>(std::move(expr), std::move(args));
+  }
+  return expr;
+}
+
+std::unique_ptr<Expr> Parser::parseIndex() {
+  auto expr = parseFieldAccess();
+  while (match(TokenType::LEFT_BRACKET)) {
+    auto index = parseExpr();
+    consume(TokenType::RIGHT_BRACKET, "Expect ']' after index");
+    expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index));
+  }
+  return expr;
+}
+
+std::unique_ptr<Expr> Parser::parseFieldAccess() {
+  auto expr = parsePrimary();
+  while (match(TokenType::DOT)) {
+    Token fieldName =
+        consume(TokenType::IDENTIFIER, "Expect field name after '.'");
+    expr = std::make_unique<FieldAccessExpr>(std::move(expr), fieldName.value);
   }
   return expr;
 }
@@ -285,4 +350,14 @@ std::vector<std::unique_ptr<Expr>> Parser::parseArgs() {
     } while (match(TokenType::COMMA));
   }
   return args;
+}
+
+std::unique_ptr<Stmt> Parser::parseBreakStmt() {
+  consume(TokenType::SEMICOLON, "Expect ';' after break");
+  return std::make_unique<BreakStmt>();
+}
+
+std::unique_ptr<Stmt> Parser::parseContinueStmt() {
+  consume(TokenType::SEMICOLON, "Expect ';' after continue");
+  return std::make_unique<ContinueStmt>();
 }

@@ -57,14 +57,21 @@ private:
   std::unique_ptr<Stmt> parseBlockStmt();
   std::unique_ptr<Stmt> parsePrintStmt();
   std::unique_ptr<Stmt> parseExprStmt();
+  std::unique_ptr<Stmt> parseBreakStmt();
+  std::unique_ptr<Stmt> parseContinueStmt();
 
   std::unique_ptr<Expr> parseExpr();
+  std::unique_ptr<Expr> parseAssignment();
+  std::unique_ptr<Expr> parseOr();
+  std::unique_ptr<Expr> parseAnd();
   std::unique_ptr<Expr> parseEquality();
   std::unique_ptr<Expr> parseComparison();
   std::unique_ptr<Expr> parseTerm();
   std::unique_ptr<Expr> parseFactor();
   std::unique_ptr<Expr> parseUnary();
   std::unique_ptr<Expr> parseCall();
+  std::unique_ptr<Expr> parseIndex();
+  std::unique_ptr<Expr> parseFieldAccess();
   std::unique_ptr<Expr> parsePrimary();
 
   std::vector<std::unique_ptr<Expr>> parseArgs();
