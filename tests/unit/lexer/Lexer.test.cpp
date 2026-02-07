@@ -249,3 +249,189 @@ TEST_CASE("Lexer distinguishes keywords from identifiers", "[lexer]") {
     CHECK(tokens[0].value == "myfunction");
   }
 }
+
+TEST_CASE("Lexer handles edge cases", "[lexer]") {
+  SECTION("Maximum integer value") {
+    Lexer lexer("2147483647");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::NUMBER);
+    CHECK(tokens[0].value == "2147483647");
+  }
+
+  SECTION("Zero value") {
+    Lexer lexer("0");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::NUMBER);
+    CHECK(tokens[0].value == "0");
+  }
+
+  SECTION("Leading zeros") {
+    Lexer lexer("007");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::NUMBER);
+    CHECK(tokens[0].value == "007");
+  }
+
+  SECTION("Mixed case keywords are identifiers") {
+    Lexer lexer("LET Func IF");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 4);
+    CHECK(tokens[0].type == TokenType::IDENTIFIER);
+    CHECK(tokens[1].type == TokenType::IDENTIFIER);
+    CHECK(tokens[2].type == TokenType::IDENTIFIER);
+  }
+
+  SECTION("String with escape-like sequence") {
+    Lexer lexer("\"hello\\nworld\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "hello\nworld");
+  }
+}
+
+TEST_CASE("Lexer handles escape sequences", "[lexer]") {
+  SECTION("Newline escape") {
+    Lexer lexer("\"line1\\nline2\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "line1\nline2");
+  }
+
+  SECTION("Tab escape") {
+    Lexer lexer("\"col1\\tcol2\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "col1\tcol2");
+  }
+
+  SECTION("Backslash escape") {
+    Lexer lexer("\"path\\\\to\\\\file\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "path\\to\\file");
+  }
+
+  SECTION("Quote escape") {
+    Lexer lexer("\"He said \\\"hello\\\"\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "He said \"hello\"");
+  }
+
+  SECTION("Carriage return escape") {
+    Lexer lexer("\"line1\\rline2\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "line1\rline2");
+  }
+
+  SECTION("Null character escape") {
+    Lexer lexer("\"before\\0after\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value.length() == 12);
+    CHECK(tokens[0].value[0] == 'b');
+    CHECK(tokens[0].value[6] == '\0');
+    CHECK(tokens[0].value[7] == 'a');
+  }
+
+  SECTION("Backspace escape") {
+    Lexer lexer("\"text\\bbackspace\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "text\bbackspace");
+  }
+
+  SECTION("Form feed escape") {
+    Lexer lexer("\"page1\\fpage2\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "page1\fpage2");
+  }
+
+  SECTION("Unknown escape passes through") {
+    Lexer lexer("\"unknown\\xescape\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "unknownxescape");
+  }
+
+  SECTION("Multiple escapes") {
+    Lexer lexer("\"\\n\\t\\\\\\\"\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "\n\t\\\"");
+  }
+
+  SECTION("Empty string") {
+    Lexer lexer("\"\"");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::STRING);
+    CHECK(tokens[0].value == "");
+  }
+}
+
+TEST_CASE("Lexer handles complex tokens", "[lexer]") {
+  SECTION("Deeply nested parentheses") {
+    Lexer lexer("((((((x))))))");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 14);
+    CHECK(tokens[0].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[1].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[2].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[3].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[4].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[5].type == TokenType::LEFT_PAREN);
+    CHECK(tokens[6].type == TokenType::IDENTIFIER);
+    CHECK(tokens[7].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[8].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[9].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[10].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[11].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[12].type == TokenType::RIGHT_PAREN);
+    CHECK(tokens[13].type == TokenType::EOF_TOKEN);
+  }
+
+  SECTION("Multiple operators in sequence") {
+    Lexer lexer("+-*/");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 5);
+    CHECK(tokens[0].type == TokenType::PLUS);
+    CHECK(tokens[1].type == TokenType::MINUS);
+    CHECK(tokens[2].type == TokenType::STAR);
+    CHECK(tokens[3].type == TokenType::SLASH);
+  }
+}

@@ -48,6 +48,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     -Wsign-conversion
     -Wdouble-promotion
     -Wformat=2
+    -Wno-system-headers
   )
   
   if(ENABLE_WERROR)

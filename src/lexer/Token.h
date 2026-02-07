@@ -11,10 +11,12 @@ enum class TokenType {
   ELSE,
   FOR,
   WHILE,
-  PRINT,
   RETURN,
+  PRINT,
   IN,
   RANGE,
+  TRUE,
+  FALSE,
 
   // Literals
   IDENTIFIER,
@@ -28,6 +30,8 @@ enum class TokenType {
   SLASH,
   EQUAL,
   EQUAL_EQUAL,
+  BANG,
+  BANG_EQUAL,
   GREATER,
   LESS,
   GREATER_EQUAL,

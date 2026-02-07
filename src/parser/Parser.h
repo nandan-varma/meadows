@@ -6,9 +6,33 @@
 #include <memory>
 #include <vector>
 
+/**
+ * @class Parser
+ * @brief Performs syntax analysis on tokenized Meadows source code.
+ *
+ * The Parser uses recursive descent parsing to build an Abstract Syntax Tree
+ * (AST) from the token stream produced by the Lexer. It enforces language
+ * grammar rules and provides meaningful error messages with line numbers.
+ *
+ * @ Responsibility
+ * - Parse tokens into AST nodes according to language grammar
+ * - Handle all statement types (variable declarations, functions, control flow)
+ * - Parse expressions with correct operator precedence
+ * - Generate descriptive error messages for syntax errors
+ */
 class Parser {
 public:
+  /**
+   * @brief Constructs a Parser for the given tokens.
+   * @param tokens The token stream to parse.
+   */
   Parser(std::vector<Token> tokens);
+
+  /**
+   * @brief Parses the entire token stream into an AST.
+   * @return A vector of statement AST nodes.
+   * @throws std::runtime_error If a syntax error is encountered.
+   */
   std::vector<std::unique_ptr<Stmt>> parse();
 
 private:
@@ -30,6 +54,7 @@ private:
   std::unique_ptr<Stmt> parseForStmt();
   std::unique_ptr<Stmt> parseWhileStmt();
   std::unique_ptr<Stmt> parseReturnStmt();
+  std::unique_ptr<Stmt> parseBlockStmt();
   std::unique_ptr<Stmt> parsePrintStmt();
   std::unique_ptr<Stmt> parseExprStmt();
 

@@ -8,7 +8,8 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"if", TokenType::IF},       {"else", TokenType::ELSE},
     {"for", TokenType::FOR},     {"while", TokenType::WHILE},
     {"print", TokenType::PRINT}, {"return", TokenType::RETURN},
-    {"in", TokenType::IN},       {"range", TokenType::RANGE}};
+    {"in", TokenType::IN},       {"range", TokenType::RANGE},
+    {"true", TokenType::TRUE},   {"false", TokenType::FALSE}};
 
 Lexer::Lexer(const std::string &src) : source(src), pos(0), line(1) {}
 
@@ -87,6 +88,13 @@ Token Lexer::nextToken() {
       return Token(TokenType::LESS_EQUAL, "<=", line);
     }
     return Token(TokenType::LESS, "<", line);
+  case '!':
+    advance();
+    if (peek() == '=') {
+      advance();
+      return Token(TokenType::BANG_EQUAL, "!=", line);
+    }
+    return Token(TokenType::BANG, "!", line);
   case '(':
     advance();
     return Token(TokenType::LEFT_PAREN, "(", line);
@@ -147,9 +155,42 @@ Token Lexer::string() {
   std::string value;
   int startLine = line;
   while (!isAtEnd() && peek() != '"') {
-    if (peek() == '\n')
-      line++;
-    value += advance();
+    if (peek() == '\\' && pos + 1 < source.size()) {
+      advance(); // skip backslash
+      char escaped = advance();
+      switch (escaped) {
+      case 'n':
+        value += '\n';
+        break;
+      case 't':
+        value += '\t';
+        break;
+      case '\\':
+        value += '\\';
+        break;
+      case '"':
+        value += '"';
+        break;
+      case 'r':
+        value += '\r';
+        break;
+      case '0':
+        value += '\0';
+        break;
+      case 'b':
+        value += '\b';
+        break;
+      case 'f':
+        value += '\f';
+        break;
+      default:
+        value += escaped;
+      }
+    } else {
+      if (peek() == '\n')
+        line++;
+      value += advance();
+    }
   }
   if (isAtEnd()) {
     throw std::runtime_error("Unterminated string starting at line " +

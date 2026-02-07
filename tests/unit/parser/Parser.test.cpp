@@ -275,3 +275,370 @@ TEST_CASE("Parser handles nested blocks", "[parser]") {
   REQUIRE(funcStmt != nullptr);
   REQUIRE(funcStmt->body.size() == 1);
 }
+
+TEST_CASE("Parser handles unary minus", "[parser]") {
+  SECTION("Simple unary minus") {
+    auto parser = createParser("let x = -5;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+    CHECK(letStmt->name == "x");
+
+    auto unaryExpr = dynamic_cast<UnaryExpr *>(letStmt->initializer.get());
+    REQUIRE(unaryExpr != nullptr);
+    CHECK(unaryExpr->op == "-");
+  }
+
+  SECTION("Double unary minus") {
+    auto parser = createParser("let x = --5;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto outer = dynamic_cast<UnaryExpr *>(letStmt->initializer.get());
+    REQUIRE(outer != nullptr);
+    CHECK(outer->op == "-");
+
+    auto inner = dynamic_cast<UnaryExpr *>(outer->operand.get());
+    REQUIRE(inner != nullptr);
+    CHECK(inner->op == "-");
+  }
+
+  SECTION("Unary minus in expression") {
+    auto parser = createParser("let x = -5 + 3;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto binaryExpr = dynamic_cast<BinaryExpr *>(letStmt->initializer.get());
+    REQUIRE(binaryExpr != nullptr);
+    CHECK(binaryExpr->op == "+");
+  }
+}
+
+TEST_CASE("Parser handles complex expressions", "[parser]") {
+  SECTION("Chained comparisons") {
+    auto parser = createParser("let x = 1 < 2 < 3;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+  }
+
+  SECTION("Mixed arithmetic") {
+    auto parser = createParser("let x = 1 + 2 - 3 * 4 / 5;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+  }
+
+  SECTION("Parenthesized expressions") {
+    auto parser = createParser("let x = (1 + 2) * (3 - 4);");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto outer = dynamic_cast<BinaryExpr *>(letStmt->initializer.get());
+    REQUIRE(outer != nullptr);
+    CHECK(outer->op == "*");
+  }
+}
+
+TEST_CASE("Parser handles multiple function parameters", "[parser]") {
+  SECTION("Many parameters") {
+    auto parser =
+        createParser("func many(a, b, c, d, e) { return a + b + c + d + e; }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto funcStmt = dynamic_cast<FuncStmt *>(stmts[0].get());
+    REQUIRE(funcStmt != nullptr);
+    CHECK(funcStmt->params.size() == 5);
+  }
+
+  SECTION("No parameters") {
+    auto parser = createParser("func noParams() { return 42; }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto funcStmt = dynamic_cast<FuncStmt *>(stmts[0].get());
+    REQUIRE(funcStmt != nullptr);
+    CHECK(funcStmt->params.empty());
+  }
+
+  SECTION("Function calls with many arguments") {
+    auto parser = createParser("let x = many(1, 2, 3, 4, 5);");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto callExpr = dynamic_cast<CallExpr *>(letStmt->initializer.get());
+    REQUIRE(callExpr != nullptr);
+    CHECK(callExpr->args.size() == 5);
+  }
+}
+
+TEST_CASE("Parser handles long string literals", "[parser]") {
+  SECTION("Long string") {
+    std::string longStr(1000, 'a');
+    auto parser = createParser("let x = \"" + longStr + "\";");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto literalExpr = dynamic_cast<LiteralExpr *>(letStmt->initializer.get());
+    REQUIRE(literalExpr != nullptr);
+    CHECK(literalExpr->value.length() == 1000);
+  }
+}
+
+TEST_CASE("Parser handles nested if statements", "[parser]") {
+  SECTION("Nested if without else") {
+    auto parser = createParser("if (true) { if (false) { print 1; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto outerIf = dynamic_cast<IfStmt *>(stmts[0].get());
+    REQUIRE(outerIf != nullptr);
+
+    auto innerIf = dynamic_cast<IfStmt *>(outerIf->thenBranch[0].get());
+    REQUIRE(innerIf != nullptr);
+  }
+
+  SECTION("If with nested if-else") {
+    auto parser =
+        createParser("if (true) { if (false) { print 1; } else { print 2; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto outerIf = dynamic_cast<IfStmt *>(stmts[0].get());
+    REQUIRE(outerIf != nullptr);
+    REQUIRE(outerIf->thenBranch.size() == 1);
+
+    auto innerIf = dynamic_cast<IfStmt *>(outerIf->thenBranch[0].get());
+    REQUIRE(innerIf != nullptr);
+    CHECK(innerIf->elseBranch.size() == 1);
+  }
+}
+
+TEST_CASE("Parser handles empty blocks", "[parser]") {
+  SECTION("Empty function body") {
+    auto parser = createParser("func empty() {}");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto funcStmt = dynamic_cast<FuncStmt *>(stmts[0].get());
+    REQUIRE(funcStmt != nullptr);
+    CHECK(funcStmt->body.empty());
+  }
+
+  SECTION("Empty if body") {
+    auto parser = createParser("if (true) {}");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto ifStmt = dynamic_cast<IfStmt *>(stmts[0].get());
+    REQUIRE(ifStmt != nullptr);
+    CHECK(ifStmt->thenBranch.empty());
+  }
+
+  SECTION("Empty while body") {
+    auto parser = createParser("while (false) {}");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto whileStmt = dynamic_cast<WhileStmt *>(stmts[0].get());
+    REQUIRE(whileStmt != nullptr);
+    CHECK(whileStmt->body.empty());
+  }
+}
+
+TEST_CASE("Parser handles nested loops", "[parser]") {
+  SECTION("For inside while") {
+    auto parser =
+        createParser("while (true) { for (i in range(0, 1)) { print i; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto whileStmt = dynamic_cast<WhileStmt *>(stmts[0].get());
+    REQUIRE(whileStmt != nullptr);
+    REQUIRE(whileStmt->body.size() == 1);
+
+    auto forStmt = dynamic_cast<ForStmt *>(whileStmt->body[0].get());
+    REQUIRE(forStmt != nullptr);
+  }
+
+  SECTION("While inside for") {
+    auto parser =
+        createParser("for (i in range(0, 1)) { while (false) { print i; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto forStmt = dynamic_cast<ForStmt *>(stmts[0].get());
+    REQUIRE(forStmt != nullptr);
+    REQUIRE(forStmt->body.size() == 1);
+
+    auto whileStmt = dynamic_cast<WhileStmt *>(forStmt->body[0].get());
+    REQUIRE(whileStmt != nullptr);
+  }
+
+  SECTION("Nested for loops") {
+    auto parser = createParser(
+        "for (i in range(0, 2)) { for (j in range(0, 2)) { print i; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto outerFor = dynamic_cast<ForStmt *>(stmts[0].get());
+    REQUIRE(outerFor != nullptr);
+    REQUIRE(outerFor->body.size() == 1);
+
+    auto innerFor = dynamic_cast<ForStmt *>(outerFor->body[0].get());
+    REQUIRE(innerFor != nullptr);
+  }
+}
+
+TEST_CASE("Parser handles if-else if chains", "[parser]") {
+  SECTION("If-else if pattern") {
+    auto parser =
+        createParser("if (false) { print 1; } else { if (true) { print 2; } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto ifStmt = dynamic_cast<IfStmt *>(stmts[0].get());
+    REQUIRE(ifStmt != nullptr);
+    REQUIRE(ifStmt->elseBranch.size() == 1);
+
+    auto elseIfStmt = dynamic_cast<IfStmt *>(ifStmt->elseBranch[0].get());
+    REQUIRE(elseIfStmt != nullptr);
+  }
+}
+
+TEST_CASE("Parser handles function calls", "[parser]") {
+  SECTION("Function call with no arguments") {
+    auto parser =
+        createParser("func getFive() { return 5; } let x = getFive();");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 2);
+
+    auto funcStmt = dynamic_cast<FuncStmt *>(stmts[0].get());
+    REQUIRE(funcStmt != nullptr);
+    CHECK(funcStmt->params.empty());
+
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[1].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto callExpr = dynamic_cast<CallExpr *>(letStmt->initializer.get());
+    REQUIRE(callExpr != nullptr);
+    CHECK(callExpr->args.empty());
+  }
+
+  SECTION("Function call with one argument") {
+    auto parser =
+        createParser("func square(x) { return x * x; } let y = square(5);");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 2);
+
+    auto funcStmt = dynamic_cast<FuncStmt *>(stmts[0].get());
+    REQUIRE(funcStmt != nullptr);
+    CHECK(funcStmt->params.size() == 1);
+
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[1].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto callExpr = dynamic_cast<CallExpr *>(letStmt->initializer.get());
+    REQUIRE(callExpr != nullptr);
+    CHECK(callExpr->args.size() == 1);
+  }
+
+  SECTION("Nested function calls") {
+    auto parser = createParser(
+        "func add(x, y) { return x + y; } let z = add(add(1, 2), 3);");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 2);
+
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[1].get());
+    REQUIRE(letStmt != nullptr);
+
+    auto outerCall = dynamic_cast<CallExpr *>(letStmt->initializer.get());
+    REQUIRE(outerCall != nullptr);
+
+    auto innerCall = dynamic_cast<CallExpr *>(outerCall->args[0].get());
+    REQUIRE(innerCall != nullptr);
+    CHECK(innerCall->args.size() == 2);
+  }
+}
+
+TEST_CASE("Parser handles multiple expressions", "[parser]") {
+  SECTION("Multiple expression statements") {
+    auto parser = createParser("1; 2; 3;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 3);
+  }
+
+  SECTION("Mixed statements") {
+    auto parser = createParser("let x = 1; x; x + 1; print x;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 4);
+  }
+}
+
+TEST_CASE("Parser handles variable shadowing", "[parser]") {
+  SECTION("Shadowing in nested block") {
+    auto parser = createParser("let x = 1; { let x = 2; print x; } print x;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 3);
+    auto outerLet = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(outerLet != nullptr);
+    CHECK(outerLet->name == "x");
+  }
+}
+
+TEST_CASE("Parser handles deep nesting", "[parser]") {
+  SECTION("Deep parenthesized expressions") {
+    auto parser = createParser("let x = (((((1)))));");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+  }
+
+  SECTION("Deep nested if-while-for") {
+    auto parser = createParser(
+        "if (true) { while (true) { for (i in range(0, 1)) { print 1; } } }");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto ifStmt = dynamic_cast<IfStmt *>(stmts[0].get());
+    REQUIRE(ifStmt != nullptr);
+    REQUIRE(ifStmt->thenBranch.size() == 1);
+
+    auto whileStmt = dynamic_cast<WhileStmt *>(ifStmt->thenBranch[0].get());
+    REQUIRE(whileStmt != nullptr);
+    REQUIRE(whileStmt->body.size() == 1);
+
+    auto forStmt = dynamic_cast<ForStmt *>(whileStmt->body[0].get());
+    REQUIRE(forStmt != nullptr);
+  }
+}

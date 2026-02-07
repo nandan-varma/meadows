@@ -14,6 +14,8 @@
 
 namespace fs = std::filesystem;
 
+bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg);
+
 // Maximum file size: 10MB
 const std::uintmax_t MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -24,32 +26,23 @@ bool containsDangerousChars(const std::string &str) {
   return str.find_first_of(DANGEROUS_CHARS) != std::string::npos;
 }
 
+bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg);
+
 bool validateInputFile(const std::string &filepath, std::string &errorMsg) {
-  // Check for dangerous characters in the entire path (command injection
-  // prevention)
-  if (containsDangerousChars(filepath)) {
-    errorMsg = "Invalid characters in file path";
-    return false;
-  }
-
-  // Check for path traversal
-  if (filepath.find("..") != std::string::npos) {
-    errorMsg = "Path traversal not allowed (..)";
-    return false;
-  }
-
-  // Get filename from path
   fs::path p(filepath);
+
+  if (!validatePathSecurity(p, errorMsg)) {
+    return false;
+  }
+
   std::string filename = p.filename().string();
 
-  // Check file extension
   if (filename.length() < 3 ||
       filename.substr(filename.length() - 3) != ".ms") {
     errorMsg = "File must have .ms extension";
     return false;
   }
 
-  // Check file exists and is readable
   if (!fs::exists(filepath)) {
     errorMsg = "File does not exist: " + filepath;
     return false;
@@ -60,7 +53,6 @@ bool validateInputFile(const std::string &filepath, std::string &errorMsg) {
     return false;
   }
 
-  // Check file size (prevent DoS with huge files)
   try {
     auto size = fs::file_size(filepath);
     if (size > MAX_FILE_SIZE) {
@@ -86,6 +78,22 @@ bool validateOutputFilename(const std::string &filename,
   // Check for path traversal in the entire path
   if (filename.find("..") != std::string::npos) {
     errorMsg = "Invalid path in output filename";
+    return false;
+  }
+
+  return true;
+}
+
+bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg) {
+  std::string pathStr = filepath.string();
+
+  if (containsDangerousChars(pathStr)) {
+    errorMsg = "Invalid characters in file path";
+    return false;
+  }
+
+  if (pathStr.find("..") != std::string::npos) {
+    errorMsg = "Path traversal not allowed (..)";
     return false;
   }
 

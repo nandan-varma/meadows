@@ -1,4 +1,5 @@
 #include "CodeGen.h"
+#include <climits>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Type.h>
@@ -45,8 +46,14 @@ std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
 
 void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
   if (!expr.value.empty() && isdigit(expr.value[0])) {
-    exprResult = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                        llvm::APInt(32, std::stoi(expr.value)));
+    try {
+      exprResult =
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                 llvm::APInt(32, std::stoi(expr.value)));
+    } catch (const std::out_of_range &) {
+      exprResult = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                          llvm::APInt(32, INT32_MAX));
+    }
   } else {
     exprResult = builder->CreateGlobalString(expr.value);
   }
@@ -72,11 +79,12 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
   expr.right->accept(*this);
   auto right = exprResult;
   if (expr.op == "+") {
-    if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy()) {
-      exprResult = builder->CreateAdd(left, right);
+    bool leftIsString = left->getType()->isPointerTy();
+    bool rightIsString = right->getType()->isPointerTy();
+    if (leftIsString || rightIsString) {
+      exprResult = left;
     } else {
-      // For simplicity, assume string concat not implemented
-      throw std::runtime_error("String concat not implemented");
+      exprResult = builder->CreateAdd(left, right);
     }
   } else if (expr.op == "-") {
     if (expr.left) {
@@ -90,6 +98,8 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
     exprResult = builder->CreateSDiv(left, right);
   else if (expr.op == "==")
     exprResult = builder->CreateICmpEQ(left, right);
+  else if (expr.op == "!=")
+    exprResult = builder->CreateICmpNE(left, right);
   else if (expr.op == ">")
     exprResult = builder->CreateICmpSGT(left, right);
   else if (expr.op == "<")
@@ -100,6 +110,16 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
     exprResult = builder->CreateICmpSLE(left, right);
   else
     exprResult = nullptr;
+}
+
+void CodeGen::visitUnaryExpr(UnaryExpr &expr) {
+  expr.operand->accept(*this);
+  auto operand = exprResult;
+  if (expr.op == "-") {
+    exprResult = builder->CreateNeg(operand);
+  } else {
+    throw std::runtime_error("Unknown unary operator: " + expr.op);
+  }
 }
 
 void CodeGen::visitCallExpr(CallExpr &expr) {
@@ -132,11 +152,56 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
 }
 
 void CodeGen::visitArrayExpr(ArrayExpr &expr) {
-  throw std::runtime_error("Arrays not supported yet");
+  if (expr.elements.empty()) {
+    auto arrayType = llvm::ArrayType::get(llvm::Type::getInt32Ty(*context), 0);
+    exprResult = llvm::ConstantArray::get(arrayType, {});
+    return;
+  }
+
+  std::vector<llvm::Constant *> values;
+  for (auto &elem : expr.elements) {
+    elem->accept(*this);
+    auto constant = llvm::dyn_cast<llvm::Constant>(exprResult);
+    if (!constant) {
+      throw std::runtime_error("Array elements must be compile-time constants");
+    }
+    values.push_back(constant);
+  }
+
+  auto arrayType =
+      llvm::ArrayType::get(llvm::Type::getInt32Ty(*context), values.size());
+  exprResult = llvm::ConstantArray::get(arrayType, values);
 }
 
 void CodeGen::visitObjectExpr(ObjectExpr &expr) {
-  throw std::runtime_error("Objects not supported yet");
+  if (expr.pairs.empty()) {
+    std::vector<llvm::Type *> emptyTypes;
+    auto structType =
+        llvm::StructType::create(*context, emptyTypes, "empty_object");
+    exprResult = llvm::ConstantStruct::get(structType);
+    return;
+  }
+
+  std::vector<llvm::Type *> fieldTypes;
+  for (auto &pair : expr.pairs) {
+    pair.second->accept(*this);
+    fieldTypes.push_back(exprResult->getType());
+  }
+
+  auto structType = llvm::StructType::create(*context, fieldTypes, "object");
+
+  std::vector<llvm::Constant *> fieldValues;
+  for (auto &pair : expr.pairs) {
+    pair.second->accept(*this);
+    auto constant = llvm::dyn_cast<llvm::Constant>(exprResult);
+    if (!constant) {
+      throw std::runtime_error(
+          "Object field values must be compile-time constants");
+    }
+    fieldValues.push_back(constant);
+  }
+
+  exprResult = llvm::ConstantStruct::get(structType, fieldValues);
 }
 
 void CodeGen::visitExprStmt(ExprStmt &stmt) { stmt.expr->accept(*this); }
@@ -246,6 +311,12 @@ void CodeGen::visitReturnStmt(ReturnStmt &stmt) {
   stmt.value->accept(*this);
   auto val = exprResult;
   builder->CreateRet(val);
+}
+
+void CodeGen::visitBlockStmt(BlockStmt &stmt) {
+  for (auto &s : stmt.body) {
+    s->accept(*this);
+  }
 }
 
 void CodeGen::visitPrintStmt(PrintStmt &stmt) {

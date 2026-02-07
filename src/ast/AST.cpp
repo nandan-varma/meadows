@@ -7,6 +7,7 @@ void VarExpr::accept(ExprVisitor &visitor) { visitor.visitVarExpr(*this); }
 void BinaryExpr::accept(ExprVisitor &visitor) {
   visitor.visitBinaryExpr(*this);
 }
+void UnaryExpr::accept(ExprVisitor &visitor) { visitor.visitUnaryExpr(*this); }
 void CallExpr::accept(ExprVisitor &visitor) { visitor.visitCallExpr(*this); }
 void ArrayExpr::accept(ExprVisitor &visitor) { visitor.visitArrayExpr(*this); }
 void ObjectExpr::accept(ExprVisitor &visitor) {
@@ -22,4 +23,5 @@ void WhileStmt::accept(StmtVisitor &visitor) { visitor.visitWhileStmt(*this); }
 void ReturnStmt::accept(StmtVisitor &visitor) {
   visitor.visitReturnStmt(*this);
 }
+void BlockStmt::accept(StmtVisitor &visitor) { visitor.visitBlockStmt(*this); }
 void PrintStmt::accept(StmtVisitor &visitor) { visitor.visitPrintStmt(*this); }
