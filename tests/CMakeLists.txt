@@ -21,6 +21,7 @@ target_include_directories(Catch2 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set(TEST_SOURCES
     unit/lexer/Lexer.test.cpp
     unit/parser/Parser.test.cpp
+    unit/codegen/CodeGen.test.cpp
 )
 
 # Create test executable
@@ -38,9 +39,10 @@ target_sources(meadows_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/lexer/Token.h
     ${CMAKE_SOURCE_DIR}/src/parser/Parser.cpp
     ${CMAKE_SOURCE_DIR}/src/ast/AST.cpp
+    ${CMAKE_SOURCE_DIR}/src/codegen/CodeGen.cpp
 )
 
-target_link_libraries(meadows_tests PRIVATE Catch2)
+target_link_libraries(meadows_tests PRIVATE Catch2 ${LLVM_LIBS})
 
 # Set C++ standard
 set_target_properties(meadows_tests PROPERTIES

@@ -167,11 +167,91 @@ Located in `scripts/` directory:
 ./scripts/dev/format.sh --check   # Check formatting (CI mode)
 ```
 
-## Language Syntax
+## Language Syntax Quick Reference
 
-Statements end with `;`, blocks use `{ }`, whitespace is ignored.
+Meadows is a C-style compiled language with simple syntax.
 
-### Example Program
+### Statements & Comments
+
+```meadows
+let x = 42;           # Variable declaration (ends with ;)
+print "Hello";        # Print statement
+// This is a comment
+```
+
+### Variables & Types
+
+```meadows
+let name = "Alice";        # String
+let age = 30;              # Integer
+let numbers = [1, 2, 3];   # Array
+let person = {            # Object
+    name: "Bob",
+    age: 25
+};
+```
+
+### Operators
+
+```meadows
+# Arithmetic
+let sum = 10 + 5;         # Addition
+let diff = 10 - 5;        # Subtraction
+let prod = 10 * 5;        # Multiplication
+let quot = 10 / 5;        # Division
+let neg = -10;            # Unary minus
+
+# Comparison
+let eq = 10 == 10;        # Equal
+let gt = 10 > 5;          # Greater than
+let lt = 5 < 10;          # Less than
+let ge = 10 >= 10;        # Greater or equal
+let le = 5 <= 10;         # Less or equal
+```
+
+### Control Flow
+
+```meadows
+if (age > 18) {
+    print "Adult";
+} else {
+    print "Minor";
+}
+
+while (count > 0) {
+    print count;
+    count = count - 1;
+}
+
+for (i in range(0, 5)) {
+    print i;  # Prints 0, 1, 2, 3, 4
+}
+```
+
+### Functions
+
+```meadows
+func factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+let result = factorial(5);
+print result;
+```
+
+### String Escapes
+
+```meadows
+let newline = "line1\nline2";
+let tab = "col1\tcol2";
+let quote = "He said \"hello\"";
+let path = "C:\\path\\to\\file";
+```
+
+### Complete Example
 
 ```meadows
 func factorial(n) {
@@ -226,7 +306,7 @@ Automated releases are created when version tags (e.g., `v1.0.0`) are pushed:
 
 - [TESTING.md](TESTING.md) - Detailed testing guide
 - [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) - Implementation details
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview (if exists)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview
 
 ## License
 

@@ -1,6 +1,26 @@
 #ifndef CODEGEN_H
 #define CODEGEN_H
 
+/**
+ * @file CodeGen.h
+ * @brief LLVM IR code generation for the Meadows language.
+ *
+ * This file defines the CodeGen class that traverses the AST and generates
+ * equivalent LLVM IR code. It uses the Visitor pattern to process different
+ * AST node types and emit corresponding LLVM instructions.
+ *
+ * @ Features
+ * - Generates valid LLVM IR for all supported language constructs
+ * - Creates proper function definitions with correct signatures
+ * - Handles control flow (if/while/for statements)
+ * - Supports function calls and variable access
+ *
+ * @ Limitations
+ * - Arrays and objects are compile-time constants only
+ * - No runtime memory allocation for dynamic structures
+ * - Limited to i32 integer type for numeric operations
+ */
+
 #include "../ast/AST.h"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
@@ -9,10 +29,34 @@
 #include <llvm/IR/Module.h>
 #include <map>
 
+/**
+ * @class CodeGen
+ * @brief Generates LLVM IR from Meadows AST.
+ *
+ * The CodeGen class traverses the AST using the Visitor pattern and emits
+ * corresponding LLVM IR instructions. It maintains the LLVM context,
+ * module, and IR builder needed for code generation.
+ *
+ * @ Usage
+ * 1. Create CodeGen instance
+ * 2. Call generate() with AST statements
+ * 3. Call getModule() to retrieve the generated LLVM module
+ */
 class CodeGen : public ExprVisitor, public StmtVisitor {
 public:
   CodeGen();
+
+  /**
+   * @brief Generates LLVM IR from the given AST statements.
+   * @param statements The AST statements to generate code for.
+   * @throws std::runtime_error If code generation fails.
+   */
   void generate(const std::vector<std::unique_ptr<Stmt>> &statements);
+
+  /**
+   * @brief Retrieves the generated LLVM module.
+   * @return A unique pointer to the generated LLVM module.
+   */
   std::unique_ptr<llvm::Module> getModule();
 
 private:
@@ -28,6 +72,7 @@ private:
   void visitLiteralExpr(LiteralExpr &expr) override;
   void visitVarExpr(VarExpr &expr) override;
   void visitBinaryExpr(BinaryExpr &expr) override;
+  void visitUnaryExpr(UnaryExpr &expr) override;
   void visitCallExpr(CallExpr &expr) override;
   void visitArrayExpr(ArrayExpr &expr) override;
   void visitObjectExpr(ObjectExpr &expr) override;
@@ -39,6 +84,7 @@ private:
   void visitForStmt(ForStmt &stmt) override;
   void visitWhileStmt(WhileStmt &stmt) override;
   void visitReturnStmt(ReturnStmt &stmt) override;
+  void visitBlockStmt(BlockStmt &stmt) override;
   void visitPrintStmt(PrintStmt &stmt) override;
 };
 

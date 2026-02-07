@@ -1,6 +1,20 @@
 #ifndef AST_H
 #define AST_H
 
+/**
+ * @file AST.h
+ * @brief Abstract Syntax Tree node definitions for the Meadows language.
+ *
+ * This file defines the AST node classes used to represent the syntactic
+ * structure of Meadows programs. The AST is built by the Parser and used
+ * by the CodeGen to generate LLVM IR.
+ *
+ * @ Architecture
+ * - Expression nodes (Expr) represent values and computations
+ * - Statement nodes (Stmt) represent program statements
+ * - Visitor pattern is used for traversing and processing the AST
+ */
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -11,18 +25,33 @@ class Stmt;
 class ExprVisitor;
 class StmtVisitor;
 
+/**
+ * @brief Base class for all expression nodes.
+ *
+ * Expressions produce values and can be evaluated, combined, or used
+ * as sub-expressions in larger expressions.
+ */
 class Expr {
 public:
   virtual ~Expr() = default;
   virtual void accept(ExprVisitor &visitor) = 0;
 };
 
+/**
+ * @brief Base class for all statement nodes.
+ *
+ * Statements perform actions but do not produce values directly.
+ * They include variable declarations, control flow, function definitions, etc.
+ */
 class Stmt {
 public:
   virtual ~Stmt() = default;
   virtual void accept(StmtVisitor &visitor) = 0;
 };
 
+/**
+ * @brief Represents a literal value (number or string).
+ */
 class LiteralExpr : public Expr {
 public:
   std::string value;
@@ -30,6 +59,9 @@ public:
   void accept(ExprVisitor &visitor) override;
 };
 
+/**
+ * @brief Represents a variable reference.
+ */
 class VarExpr : public Expr {
 public:
   std::string name;
@@ -45,6 +77,15 @@ public:
   BinaryExpr(std::unique_ptr<Expr> l, const std::string &o,
              std::unique_ptr<Expr> r)
       : left(std::move(l)), op(o), right(std::move(r)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
+class UnaryExpr : public Expr {
+public:
+  std::string op;
+  std::unique_ptr<Expr> operand;
+  UnaryExpr(const std::string &o, std::unique_ptr<Expr> op)
+      : op(o), operand(std::move(op)) {}
   void accept(ExprVisitor &visitor) override;
 };
 
@@ -140,6 +181,13 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
+class BlockStmt : public Stmt {
+public:
+  std::vector<std::unique_ptr<Stmt>> body;
+  BlockStmt(std::vector<std::unique_ptr<Stmt>> b) : body(std::move(b)) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
 class PrintStmt : public Stmt {
 public:
   std::unique_ptr<Expr> expr;
@@ -149,9 +197,11 @@ public:
 
 class ExprVisitor {
 public:
+  virtual ~ExprVisitor() = default;
   virtual void visitLiteralExpr(LiteralExpr &expr) = 0;
   virtual void visitVarExpr(VarExpr &expr) = 0;
   virtual void visitBinaryExpr(BinaryExpr &expr) = 0;
+  virtual void visitUnaryExpr(UnaryExpr &expr) = 0;
   virtual void visitCallExpr(CallExpr &expr) = 0;
   virtual void visitArrayExpr(ArrayExpr &expr) = 0;
   virtual void visitObjectExpr(ObjectExpr &expr) = 0;
@@ -159,6 +209,7 @@ public:
 
 class StmtVisitor {
 public:
+  virtual ~StmtVisitor() = default;
   virtual void visitExprStmt(ExprStmt &stmt) = 0;
   virtual void visitLetStmt(LetStmt &stmt) = 0;
   virtual void visitFuncStmt(FuncStmt &stmt) = 0;
@@ -166,6 +217,7 @@ public:
   virtual void visitForStmt(ForStmt &stmt) = 0;
   virtual void visitWhileStmt(WhileStmt &stmt) = 0;
   virtual void visitReturnStmt(ReturnStmt &stmt) = 0;
+  virtual void visitBlockStmt(BlockStmt &stmt) = 0;
   virtual void visitPrintStmt(PrintStmt &stmt) = 0;
 };
 

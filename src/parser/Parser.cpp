@@ -59,6 +59,8 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
     return parsePrintStmt();
   if (match(TokenType::RETURN))
     return parseReturnStmt();
+  if (match(TokenType::LEFT_BRACE))
+    return parseBlockStmt();
   return parseExprStmt();
 }
 
@@ -159,11 +161,17 @@ std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
   return statements;
 }
 
+std::unique_ptr<Stmt> Parser::parseBlockStmt() {
+  auto body = parseBlock();
+  consume(TokenType::RIGHT_BRACE, "Expect '}' after block");
+  return std::make_unique<BlockStmt>(std::move(body));
+}
+
 std::unique_ptr<Expr> Parser::parseExpr() { return parseEquality(); }
 
 std::unique_ptr<Expr> Parser::parseEquality() {
   auto expr = parseComparison();
-  while (match(TokenType::EQUAL_EQUAL)) {
+  while (match(TokenType::EQUAL_EQUAL) || match(TokenType::BANG_EQUAL)) {
     std::string op = previous().value;
     auto right = parseComparison();
     expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
@@ -205,10 +213,8 @@ std::unique_ptr<Expr> Parser::parseFactor() {
 std::unique_ptr<Expr> Parser::parseUnary() {
   if (match(TokenType::MINUS)) {
     std::string op = previous().value;
-    auto right = parseUnary();
-    return std::make_unique<BinaryExpr>(
-        nullptr, op,
-        std::move(right)); // For simplicity, treat as binary with null left
+    auto operand = parseUnary();
+    return std::make_unique<UnaryExpr>(op, std::move(operand));
   }
   return parseCall();
 }
@@ -229,6 +235,12 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
   }
   if (match(TokenType::NUMBER)) {
     return std::make_unique<LiteralExpr>(previous().value);
+  }
+  if (match(TokenType::TRUE)) {
+    return std::make_unique<LiteralExpr>("1");
+  }
+  if (match(TokenType::FALSE)) {
+    return std::make_unique<LiteralExpr>("0");
   }
   if (match(TokenType::IDENTIFIER)) {
     return std::make_unique<VarExpr>(previous().value);
