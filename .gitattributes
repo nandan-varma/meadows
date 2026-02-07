@@ -1,0 +1,44 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# C++ files
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+
+# Scripts
+*.sh text eol=lf
+
+# CMake
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# Config files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.so binary
+*.dll binary
+*.dylib binary
+*.exe binary
+
+# Diff behavior
+*.cpp diff=cpp
+*.h diff=cpp
+*.hpp diff=cpp

@@ -1,21 +1,197 @@
-cmake_minimum_required(VERSION 3.10)
-project(meadows)
+#==============================================================================
+# Meadows Compiler - CMake Build Configuration
+#==============================================================================
 
+cmake_minimum_required(VERSION 3.16)
+
+#==============================================================================
+# Project Declaration
+#==============================================================================
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION)
+
+project(Meadows
+  VERSION ${PROJECT_VERSION}
+  DESCRIPTION "A simple compiled programming language"
+  HOMEPAGE_URL "https://github.com/yourusername/meadows"
+  LANGUAGES C CXX
+)
+
+#==============================================================================
+# CMake Options
+#==============================================================================
+option(BUILD_TESTS "Build tests" ON)
+option(BUILD_EXAMPLES "Build examples" ON)
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
+option(ENABLE_WERROR "Treat warnings as errors" OFF)
+
+#==============================================================================
+# C++ Standard
+#==============================================================================
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
+#==============================================================================
+# Compiler Warnings
+#==============================================================================
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  add_compile_options(
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Wshadow
+    -Wnon-virtual-dtor
+    -Wcast-align
+    -Wunused
+    -Woverloaded-virtual
+    -Wconversion
+    -Wsign-conversion
+    -Wdouble-promotion
+    -Wformat=2
+  )
+  
+  if(ENABLE_WERROR)
+    add_compile_options(-Werror)
+  endif()
+endif()
+
+#==============================================================================
+# LLVM Configuration
+#==============================================================================
 find_package(LLVM REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-# Add source files
-file(GLOB LEXER_SOURCES "src/lexer/*.cpp")
-file(GLOB PARSER_SOURCES "src/parser/*.cpp")
-file(GLOB AST_SOURCES "src/ast/*.cpp")
-file(GLOB CODEGEN_SOURCES "src/codegen/*.cpp")
-file(GLOB MAIN_SOURCES "src/main/*.cpp")
+# Map LLVM components to libraries
+llvm_map_components_to_libnames(LLVM_LIBS
+  support
+  core
+  irreader
+  native
+  nativecodegen
+)
 
-add_executable(meadows ${LEXER_SOURCES} ${PARSER_SOURCES} ${AST_SOURCES} ${CODEGEN_SOURCES} ${MAIN_SOURCES})
+#==============================================================================
+# Source Files
+#==============================================================================
+set(MEADOWS_SOURCES
+  src/main/meadows.cpp
+  src/lexer/Lexer.cpp
+  src/parser/Parser.cpp
+  src/ast/AST.cpp
+  src/codegen/CodeGen.cpp
+)
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
-target_link_libraries(meadows ${llvm_libs})
+set(MEADOWS_HEADERS
+  src/lexer/Lexer.h
+  src/lexer/Token.h
+  src/parser/Parser.h
+  src/ast/AST.h
+  src/codegen/CodeGen.h
+)
+
+#==============================================================================
+# Main Executable
+#==============================================================================
+add_executable(${PROJECT_NAME} ${MEADOWS_SOURCES})
+
+target_link_libraries(${PROJECT_NAME}
+  PRIVATE
+    ${LLVM_LIBS}
+)
+
+# Set output directory
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+#==============================================================================
+# Installation
+#==============================================================================
+include(GNUInstallDirs)
+
+install(TARGETS ${PROJECT_NAME}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(FILES ${MEADOWS_HEADERS}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/meadows
+)
+
+#==============================================================================
+# Tests
+#==============================================================================
+if(BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
+#==============================================================================
+# Examples
+#==============================================================================
+if(BUILD_EXAMPLES)
+  # Copy example files to build directory
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/examples
+    DESTINATION ${CMAKE_BINARY_DIR}
+  )
+endif()
+
+#==============================================================================
+# Coverage
+#==============================================================================
+if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(--coverage -O0 -g)
+  add_link_options(--coverage)
+endif()
+
+#==============================================================================
+# CPack Configuration
+#==============================================================================
+set(CPACK_PACKAGE_NAME "meadows")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Meadows Compiler")
+set(CPACK_PACKAGE_VENDOR "Meadows Contributors")
+set(CPACK_PACKAGE_CONTACT "your-email@example.com")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+# Platform-specific package generators
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(CPACK_GENERATOR "TGZ;DEB;RPM")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  set(CPACK_GENERATOR "TGZ;DragNDrop")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  set(CPACK_GENERATOR "ZIP;NSIS")
+else()
+  set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)
+
+#==============================================================================
+# Print Configuration Summary
+#==============================================================================
+message("")
+message("=== Meadows Compiler Configuration ===")
+message("Version: ${PROJECT_VERSION}")
+message("Build Type: ${CMAKE_BUILD_TYPE}")
+message("C++ Standard: ${CMAKE_CXX_STANDARD}")
+message("Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+message("")
+message("Options:")
+message("  Build Tests: ${BUILD_TESTS}")
+message("  Build Examples: ${BUILD_EXAMPLES}")
+message("  Enable Coverage: ${ENABLE_COVERAGE}")
+message("  Treat Warnings as Errors: ${ENABLE_WERROR}")
+message("")
+message("LLVM:")
+message("  Version: ${LLVM_PACKAGE_VERSION}")
+message("  Directory: ${LLVM_DIR}")
+message("=====================================")
+message("")
