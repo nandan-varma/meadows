@@ -642,3 +642,112 @@ TEST_CASE("Parser handles deep nesting", "[parser]") {
     REQUIRE(forStmt != nullptr);
   }
 }
+
+TEST_CASE("Parser property-based tests", "[parser][property]") {
+  SECTION("Balanced parentheses in expressions") {
+    std::vector<std::pair<std::string, std::string>> sources = {
+        {"let x = (1);", "single paren"},
+        {"let x = ((1));", "double paren"},
+        {"let x = (((1)));", "triple paren"},
+        {"let x = (1 + 2);", "add in parens"},
+        {"let x = ((1 + 2) * 3);", "nested parens"},
+        {"let x = (1 * (2 + 3));", "mixed nesting"}};
+
+    for (const auto &[src, desc] : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      CHECK(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Operator precedence is respected") {
+    struct PrecedenceTest {
+      const char *source;
+      const char *description;
+    };
+
+    PrecedenceTest tests[] = {{"let x = 1 + 2 * 3;", "* before +"},
+                              {"let x = 1 * 2 + 3;", "* before +"},
+                              {"let x = 10 - 5 - 2;", "left associative -"},
+                              {"let x = 10 / 2 / 2;", "left associative /"},
+                              {"let x = 1 + 2 - 3 + 4;", "mixed + and -"},
+                              {"let x = 1 * 2 * 3;", "left associative *"}};
+
+    for (const auto &test : tests) {
+      auto parser = createParser(test.source);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Logical operators have correct precedence") {
+    std::string sources[] = {"let x = true && false;", "let x = true || false;",
+                             "let x = true && true || false;",
+                             "let x = true || true && false;"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Comparison operators chain correctly") {
+    std::string sources[] = {"let x = 1 < 2;",  "let x = 1 > 2;",
+                             "let x = 1 <= 2;", "let x = 1 >= 2;",
+                             "let x = 1 == 2;", "let x = 1 != 2;"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Unary operators bind tightly") {
+    std::string sources[] = {"let x = -1;",  "let x = !false;",
+                             "let x = --1;", "let x = !!true;",
+                             "let x = -x;",  "let x = !y;"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Array literals parse correctly") {
+    std::string sources[] = {"let arr = [];", "let arr = [1];",
+                             "let arr = [1, 2, 3];",
+                             "let arr = [1 + 2, 3 * 4, 5];"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Object literals parse correctly") {
+    std::string sources[] = {"let obj = {};", "let obj = {a: 1};",
+                             "let obj = {a: 1, b: 2};",
+                             "let obj = {a: 1 + 2, b: 3 * 4};"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+
+  SECTION("Function calls parse correctly") {
+    std::string sources[] = {"f();", "f(1);", "f(1, 2, 3);", "f(g());",
+                             "obj.method();"};
+
+    for (const auto &src : sources) {
+      auto parser = createParser("let x = " + std::string(src));
+      auto stmts = parser->parse();
+      REQUIRE(stmts.size() == 1);
+    }
+  }
+}

@@ -435,3 +435,107 @@ TEST_CASE("Lexer handles complex tokens", "[lexer]") {
     CHECK(tokens[3].type == TokenType::SLASH);
   }
 }
+
+TEST_CASE("Lexer property-based tests", "[lexer][property]") {
+  SECTION("Identifiers preserve exact text") {
+    std::string identifiers[] = {
+        "x",          "var",
+        "myVariable", "_private",
+        "a1",         "var_123",
+        "__double__", "veryLongVariableNameThatShouldStillWorkCorrectly"};
+
+    for (const auto &id : identifiers) {
+      Lexer lexer(id);
+      auto tokens = lexer.tokenize();
+
+      REQUIRE(tokens.size() == 2);
+      CHECK(tokens[0].type == TokenType::IDENTIFIER);
+      CHECK(tokens[0].value == id);
+    }
+  }
+
+  SECTION("Numbers preserve exact digits") {
+    std::string numbers[] = {"0", "1", "42", "12345", "007", "1000", "999999"};
+
+    for (const auto &num : numbers) {
+      Lexer lexer(num);
+      auto tokens = lexer.tokenize();
+
+      REQUIRE(tokens.size() == 2);
+      CHECK(tokens[0].type == TokenType::NUMBER);
+      CHECK(tokens[0].value == num);
+    }
+  }
+
+  SECTION("All escape sequences are processed correctly") {
+    struct EscapeTest {
+      const char *input;
+      const char *expected;
+    };
+
+    EscapeTest tests[] = {
+        {"\"\\n\"", "\n"},  {"\"\\t\"", "\t"}, {"\"\\\\\"", "\\"},
+        {"\"\\\"\"", "\""}, {"\"\\r\"", "\r"}, {"\"\\b\"", "\b"},
+        {"\"\\f\"", "\f"},  {"\"\\a\"", "a"},  {"\"test\\n\"", "test\n"}};
+
+    for (const auto &test : tests) {
+      Lexer lexer(test.input);
+      auto tokens = lexer.tokenize();
+
+      REQUIRE(tokens.size() == 2);
+      CHECK(tokens[0].type == TokenType::STRING);
+      CHECK(tokens[0].value == test.expected);
+    }
+
+    SECTION("Null character escape") {
+      Lexer lexer("\"\\0\"");
+      auto tokens = lexer.tokenize();
+      REQUIRE(tokens.size() == 2);
+      CHECK(tokens[0].type == TokenType::STRING);
+      CHECK(tokens[0].value.length() == 1);
+      CHECK(tokens[0].value[0] == '\0');
+    }
+  }
+
+  SECTION("Line tracking is consistent") {
+    std::string source = "let x = 1;\nlet y = 2;\nlet z = 3;";
+    Lexer lexer(source);
+    auto tokens = lexer.tokenize();
+
+    int letCount = 0;
+    for (const auto &token : tokens) {
+      if (token.type == TokenType::LET) {
+        letCount++;
+        if (letCount == 1)
+          CHECK(token.line == 1);
+        if (letCount == 2)
+          CHECK(token.line == 2);
+        if (letCount == 3)
+          CHECK(token.line == 3);
+      }
+    }
+    CHECK(letCount == 3);
+  }
+
+  SECTION("Comments are completely ignored") {
+    std::string sources[] = {"# comment\nlet x = 1;", "// comment\nlet x = 1;",
+                             "# line1\n# line2\nlet x = 1;",
+                             "let x = 1; # inline\nlet y = 2;"};
+
+    for (const auto &src : sources) {
+      Lexer lexer(src);
+      auto tokens = lexer.tokenize();
+
+      bool foundLet = false;
+      bool foundX = false;
+      for (const auto &token : tokens) {
+        if (token.type == TokenType::LET)
+          foundLet = true;
+        if (token.type == TokenType::IDENTIFIER && token.value == "x")
+          foundX = true;
+      }
+      CHECK(foundLet);
+      CHECK(foundX);
+    }
+  }
+}

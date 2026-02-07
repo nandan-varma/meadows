@@ -103,6 +103,7 @@ set(MEADOWS_SOURCES
   src/ast/AST.cpp
   src/codegen/CodeGen.cpp
   src/codegen/StringUtils.cpp
+  src/codegen/SymbolTable.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -111,6 +112,7 @@ set(MEADOWS_HEADERS
   src/parser/Parser.h
   src/ast/AST.h
   src/codegen/CodeGen.h
+  src/codegen/SymbolTable.h
 )
 
 #==============================================================================

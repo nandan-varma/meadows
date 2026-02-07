@@ -16,11 +16,11 @@ namespace fs = std::filesystem;
 
 bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg);
 
-// Maximum file size: 10MB
-const std::uintmax_t MAX_FILE_SIZE = 10 * 1024 * 1024;
+constexpr std::uintmax_t MAX_FILE_SIZE = 10 * 1024 * 1024;
+constexpr int MAX_FILENAME_LENGTH = 3;
+constexpr const char *FILE_EXTENSION = ".ms";
 
-// Characters that could be used for command injection
-const std::string DANGEROUS_CHARS = ";|&`$(){}[]<>!\\\"'\n\r\t";
+constexpr const char *DANGEROUS_CHARS = ";|&`$(){}[]<>!\\\"'\n\r\t";
 
 bool containsDangerousChars(const std::string &str) {
   return str.find_first_of(DANGEROUS_CHARS) != std::string::npos;
@@ -234,8 +234,8 @@ int main(int argc, char *argv[]) {
     std::cerr << "Unexpected error: " << e.what() << std::endl;
     return 1;
   } catch (...) {
-    std::cerr << "Unknown error occurred" << std::endl;
-    return 1;
+    std::cerr << "Unknown critical error occurred" << std::endl;
+    return 2;
   }
 
   return 0;
