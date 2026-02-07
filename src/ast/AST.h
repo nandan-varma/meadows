@@ -69,6 +69,46 @@ public:
   void accept(ExprVisitor &visitor) override;
 };
 
+class AssignExpr : public Expr {
+public:
+  std::string name;
+  std::unique_ptr<Expr> value;
+  AssignExpr(const std::string &n, std::unique_ptr<Expr> v)
+      : name(n), value(std::move(v)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
+enum class LogicalOperator { AND, OR };
+
+class LogicalExpr : public Expr {
+public:
+  std::unique_ptr<Expr> left;
+  LogicalOperator op;
+  std::unique_ptr<Expr> right;
+  LogicalExpr(std::unique_ptr<Expr> l, LogicalOperator o,
+              std::unique_ptr<Expr> r)
+      : left(std::move(l)), op(o), right(std::move(r)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
+class IndexExpr : public Expr {
+public:
+  std::unique_ptr<Expr> array;
+  std::unique_ptr<Expr> index;
+  IndexExpr(std::unique_ptr<Expr> a, std::unique_ptr<Expr> i)
+      : array(std::move(a)), index(std::move(i)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
+class FieldAccessExpr : public Expr {
+public:
+  std::unique_ptr<Expr> object;
+  std::string fieldName;
+  FieldAccessExpr(std::unique_ptr<Expr> obj, std::string name)
+      : object(std::move(obj)), fieldName(std::move(name)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
 class BinaryExpr : public Expr {
 public:
   std::unique_ptr<Expr> left;
@@ -181,6 +221,16 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
+class BreakStmt : public Stmt {
+public:
+  void accept(StmtVisitor &visitor) override;
+};
+
+class ContinueStmt : public Stmt {
+public:
+  void accept(StmtVisitor &visitor) override;
+};
+
 class BlockStmt : public Stmt {
 public:
   std::vector<std::unique_ptr<Stmt>> body;
@@ -200,8 +250,12 @@ public:
   virtual ~ExprVisitor() = default;
   virtual void visitLiteralExpr(LiteralExpr &expr) = 0;
   virtual void visitVarExpr(VarExpr &expr) = 0;
+  virtual void visitAssignExpr(AssignExpr &expr) = 0;
   virtual void visitBinaryExpr(BinaryExpr &expr) = 0;
   virtual void visitUnaryExpr(UnaryExpr &expr) = 0;
+  virtual void visitLogicalExpr(LogicalExpr &expr) = 0;
+  virtual void visitIndexExpr(IndexExpr &expr) = 0;
+  virtual void visitFieldAccessExpr(FieldAccessExpr &expr) = 0;
   virtual void visitCallExpr(CallExpr &expr) = 0;
   virtual void visitArrayExpr(ArrayExpr &expr) = 0;
   virtual void visitObjectExpr(ObjectExpr &expr) = 0;
@@ -217,6 +271,8 @@ public:
   virtual void visitForStmt(ForStmt &stmt) = 0;
   virtual void visitWhileStmt(WhileStmt &stmt) = 0;
   virtual void visitReturnStmt(ReturnStmt &stmt) = 0;
+  virtual void visitBreakStmt(BreakStmt &stmt) = 0;
+  virtual void visitContinueStmt(ContinueStmt &stmt) = 0;
   virtual void visitBlockStmt(BlockStmt &stmt) = 0;
   virtual void visitPrintStmt(PrintStmt &stmt) = 0;
 };

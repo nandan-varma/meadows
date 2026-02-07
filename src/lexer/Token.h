@@ -17,6 +17,8 @@ enum class TokenType {
   RANGE,
   TRUE,
   FALSE,
+  BREAK,
+  CONTINUE,
 
   // Literals
   IDENTIFIER,
@@ -36,6 +38,8 @@ enum class TokenType {
   LESS,
   GREATER_EQUAL,
   LESS_EQUAL,
+  AND,
+  OR,
 
   // Punctuation
   LEFT_PAREN,
@@ -47,6 +51,7 @@ enum class TokenType {
   COMMA,
   COLON,
   SEMICOLON,
+  DOT,
 
   // Comments
   COMMENT,
