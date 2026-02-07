@@ -149,10 +149,11 @@ Token Lexer::nextToken() {
 }
 
 Token Lexer::identifier() {
-  std::string value;
+  size_t start = pos;
   while (isalnum(peek()) || peek() == '_') {
-    value += advance();
+    advance();
   }
+  std::string value = source.substr(start, pos - start);
   auto it = keywords.find(value);
   if (it != keywords.end()) {
     return Token(it->second, value, line);
@@ -161,60 +162,67 @@ Token Lexer::identifier() {
 }
 
 Token Lexer::number() {
-  std::string value;
+  size_t start = pos;
   while (isdigit(peek())) {
-    value += advance();
+    advance();
   }
+  std::string value = source.substr(start, pos - start);
   return Token(TokenType::NUMBER, value, line);
 }
 
+static char unescapeChar(char c) {
+  switch (c) {
+  case 'n':
+    return '\n';
+  case 't':
+    return '\t';
+  case '\\':
+    return '\\';
+  case '"':
+    return '"';
+  case 'r':
+    return '\r';
+  case '0':
+    return '\0';
+  case 'b':
+    return '\b';
+  case 'f':
+    return '\f';
+  default:
+    return c;
+  }
+}
+
 Token Lexer::string() {
-  advance(); // skip "
-  std::string value;
+  advance();
+  size_t start = pos;
   int startLine = line;
+  size_t nonEscapeCount = 0;
   while (!isAtEnd() && peek() != '"') {
     if (peek() == '\\' && pos + 1 < source.size()) {
-      advance(); // skip backslash
-      char escaped = advance();
-      switch (escaped) {
-      case 'n':
-        value += '\n';
-        break;
-      case 't':
-        value += '\t';
-        break;
-      case '\\':
-        value += '\\';
-        break;
-      case '"':
-        value += '"';
-        break;
-      case 'r':
-        value += '\r';
-        break;
-      case '0':
-        value += '\0';
-        break;
-      case 'b':
-        value += '\b';
-        break;
-      case 'f':
-        value += '\f';
-        break;
-      default:
-        value += escaped;
-      }
-    } else {
-      if (peek() == '\n')
-        line++;
-      value += advance();
+      advance();
     }
+    if (peek() == '\n') {
+      line++;
+    }
+    advance();
+    nonEscapeCount++;
   }
   if (isAtEnd()) {
     throw std::runtime_error("Unterminated string starting at line " +
                              std::to_string(startLine));
   }
-  advance(); // skip closing "
+  std::string value;
+  value.reserve(nonEscapeCount);
+  for (size_t i = start; i < pos; ++i) {
+    if (source[i] == '\\' && i + 1 < pos) {
+      value += unescapeChar(source[i + 1]);
+      ++i;
+    } else {
+      value += source[i];
+    }
+  }
+  advance();
   return Token(TokenType::STRING, value, line);
 }
 

@@ -1,5 +1,6 @@
 #include "CodeGen.h"
 #include "StringUtils.h"
+#include "SymbolTable.h"
 #include <climits>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
@@ -9,39 +10,22 @@
 #include <sstream>
 #include <stdexcept>
 
-void CodeGen::enterScope() { variableScopeStack.emplace_back(); }
+constexpr int INT32_BIT_WIDTH = 32;
 
-void CodeGen::exitScope() {
-  if (!variableScopeStack.empty()) {
-    variableScopeStack.pop_back();
-  }
-}
+void CodeGen::enterScope() { symbolTable.enterScope(); }
+
+void CodeGen::exitScope() { symbolTable.exitScope(); }
 
 void CodeGen::declareVariable(const std::string &name, llvm::Value *value) {
-  if (!variableScopeStack.empty()) {
-    variableScopeStack.back()[name] = value;
-  } else {
-    variables[name] = value;
-  }
+  symbolTable.declare(name, value);
 }
 
 llvm::Value *CodeGen::lookupVariable(const std::string &name) {
-  for (auto it = variableScopeStack.rbegin(); it != variableScopeStack.rend();
-       ++it) {
-    auto varIt = it->find(name);
-    if (varIt != it->end()) {
-      return varIt->second;
-    }
-  }
-  auto it = variables.find(name);
-  if (it != variables.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return symbolTable.lookup(name);
 }
 
 bool CodeGen::variableExists(const std::string &name) {
-  return lookupVariable(name) != nullptr;
+  return symbolTable.exists(name);
 }
 
 void CodeGen::validateDivision(llvm::Value *divisor) {
@@ -130,6 +114,12 @@ CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
       false);
   module->getOrInsertFunction("strcat", strcatType);
 
+  auto freeType = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  freeFunc = llvm::cast<llvm::Function>(
+      module->getOrInsertFunction("free", freeType).getCallee());
+
   currentFunction = nullptr;
   exprResult = nullptr;
   currentBlock = nullptr;
@@ -148,7 +138,6 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   currentBlock = entry;
 
   enterScope();
-  variables.clear();
 
   for (auto &stmt : statements) {
     stmt->accept(*this);
@@ -156,8 +145,21 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
 
   exitScope();
 
+  freeAllocatedStrings();
+
+  if (optimize_) {
+    module->print(llvm::errs(), nullptr);
+  }
+
   builder->CreateRet(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
+}
+
+void CodeGen::freeAllocatedStrings() {
+  for (auto ptr : allocatedStrings) {
+    builder->CreateCall(freeFunc, {ptr});
+  }
+  allocatedStrings.clear();
 }
 
 std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
@@ -165,12 +167,14 @@ std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
 void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
   if (!expr.value.empty() && isdigit(expr.value[0])) {
     try {
+      exprResult = llvm::ConstantInt::get(
+          llvm::Type::getInt32Ty(*context),
+          llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
+    } catch (const std::out_of_range &) {
+      constexpr int32_t MAX_I32_VALUE = INT32_MAX;
       exprResult =
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                 llvm::APInt(32, std::stoi(expr.value)));
-    } catch (const std::out_of_range &) {
-      exprResult = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                          llvm::APInt(32, INT32_MAX));
+                                 llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
     }
   } else {
     StringUtils::StringPool::getInstance().intern(expr.value);
@@ -499,6 +503,7 @@ llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
     builder->CreateCall(strcatFunc, {destPtr, rightPtr});
   }
 
+  allocatedStrings.push_back(resultCast);
   return resultCast;
 }
 

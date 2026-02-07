@@ -7,7 +7,7 @@
  *
  * This file defines the CodeGen class that traverses the AST and generates
  * equivalent LLVM IR code. It uses the Visitor pattern to process different
- * AST node types and emit corresponding LLVM instructions.
+ * AST node types and emits corresponding LLVM instructions.
  *
  * @ Features
  * - Generates valid LLVM IR for all supported language constructs
@@ -25,6 +25,7 @@
 #include "../ast/AST.h"
 #include "MemoryUtils.h"
 #include "StringUtils.h"
+#include "SymbolTable.h"
 #include "TypeUtils.h"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
@@ -65,10 +66,11 @@ private:
   std::unique_ptr<llvm::LLVMContext> context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
-  std::map<std::string, llvm::Value *> variables;
+  SymbolTable symbolTable;
   std::map<std::string, llvm::Type *> variableTypes;
   llvm::Function *printfFunc;
   llvm::Function *mallocFunc;
+  llvm::Function *freeFunc;
   llvm::Function *strlenFunc;
   llvm::Function *currentFunction;
   llvm::Value *exprResult;
@@ -122,6 +124,9 @@ private:
 
   static constexpr size_t MAX_STRING_LENGTH = 1024 * 1024;
   static constexpr size_t MAX_ARRAY_ELEMENTS = 1000000;
+
+  std::vector<llvm::Value *> allocatedStrings;
+  void freeAllocatedStrings();
 };
 
 #endif
