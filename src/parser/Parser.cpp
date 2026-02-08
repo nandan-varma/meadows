@@ -1,21 +1,52 @@
 #include "Parser.h"
 #include <stdexcept>
 
-Parser::Parser(std::vector<Token> t) : tokens(std::move(t)), current(0) {}
+Parser::Parser(std::vector<Token> t)
+    : tokens(std::move(t)), current(0), diagnostics_(nullptr),
+      inErrorRecovery_(false), consecutiveErrors_(0) {}
+
+Parser::Parser(std::vector<Token> t, meadows::DiagnosticsCollector &diagnostics)
+    : tokens(std::move(t)), current(0), diagnostics_(&diagnostics),
+      inErrorRecovery_(false), consecutiveErrors_(0) {}
 
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
   std::vector<std::unique_ptr<Stmt>> statements;
   while (!isAtEnd()) {
-    statements.push_back(parseStmt());
+    try {
+      auto stmt = parseStmt();
+      if (stmt) {
+        statements.push_back(std::move(stmt));
+        // Successfully parsed a statement, reset consecutive error counter
+        consecutiveErrors_ = 0;
+        inErrorRecovery_ = false;
+      }
+    } catch (const meadows::MeadowsException &e) {
+      // Fatal error - rethrow
+      throw;
+    } catch (const std::runtime_error &e) {
+      // Legacy error handling - convert to diagnostic if available
+      if (diagnostics_) {
+        meadows::SourceLocation loc("", peek().line, peek().column);
+        diagnostics_->reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                                  e.what(), loc);
+        synchronize();
+      } else {
+        throw;
+      }
+    }
   }
   return statements;
 }
 
-bool Parser::isAtEnd() { return peek().type == TokenType::EOF_TOKEN; }
+bool Parser::hasErrors() const {
+  return diagnostics_ && diagnostics_->hasErrors();
+}
 
-const Token &Parser::peek() { return tokens[current]; }
+bool Parser::isAtEnd() const { return peek().type == TokenType::EOF_TOKEN; }
 
-const Token &Parser::previous() { return tokens[current - 1]; }
+const Token &Parser::peek() const { return tokens[current]; }
+
+const Token &Parser::previous() const { return tokens[current - 1]; }
 
 const Token &Parser::advance() {
   if (!isAtEnd())
@@ -23,7 +54,7 @@ const Token &Parser::advance() {
   return previous();
 }
 
-bool Parser::check(TokenType type) {
+bool Parser::check(TokenType type) const {
   if (isAtEnd())
     return false;
   return peek().type == type;
@@ -37,11 +68,66 @@ bool Parser::match(TokenType type) {
   return false;
 }
 
-const Token &Parser::consume(TokenType type, const std::string &message) {
+const Token &Parser::consume(TokenType type, meadows::ErrorCode code,
+                             const std::string &message) {
   if (check(type)) {
     return advance();
   }
-  throw std::runtime_error(message + " at line " + std::to_string(peek().line));
+  error(code, message);
+  // Return current token anyway to allow parsing to continue
+  return peek();
+}
+
+void Parser::error(meadows::ErrorCode code, const std::string &message) {
+  if (diagnostics_) {
+    meadows::SourceLocation loc("", peek().line, peek().column);
+    loc.endColumn = loc.column + 1;
+    diagnostics_->reportError(code, message, loc);
+    consecutiveErrors_++;
+    inErrorRecovery_ = true;
+  } else {
+    meadows::SourceLocation loc("", peek().line, peek().column);
+    throw meadows::ParseException(code, message, loc);
+  }
+}
+
+void Parser::synchronize() {
+  if (!diagnostics_)
+    return;
+
+  inErrorRecovery_ = true;
+
+  advance(); // Skip the token that caused the error
+
+  // Synchronize at statement boundaries
+  while (!isAtEnd()) {
+    // Semicolon ends most statements
+    if (previous().type == TokenType::SEMICOLON)
+      return;
+
+    // Keywords that start new statements
+    switch (peek().type) {
+    case TokenType::LET:
+    case TokenType::FUNC:
+    case TokenType::IF:
+    case TokenType::FOR:
+    case TokenType::WHILE:
+    case TokenType::PRINT:
+    case TokenType::RETURN:
+    case TokenType::BREAK:
+    case TokenType::CONTINUE:
+    case TokenType::LEFT_BRACE: // Block start
+      return;
+    default:
+      break;
+    }
+
+    advance();
+  }
+}
+
+bool Parser::shouldAbortRecovery() const {
+  return consecutiveErrors_ >= MAX_CONSECUTIVE_ERRORS;
 }
 
 std::unique_ptr<Stmt> Parser::parseStmt() {
@@ -178,8 +264,10 @@ std::unique_ptr<Expr> Parser::parseAssignment() {
   if (match(TokenType::EQUAL)) {
     auto varExpr = dynamic_cast<VarExpr *>(expr.get());
     if (!varExpr) {
-      throw std::runtime_error("Invalid assignment target at line " +
-                               std::to_string(peek().line));
+      meadows::SourceLocation loc("", peek().line, peek().column);
+      throw meadows::ParseException(
+          meadows::ErrorCode::PARSE_INVALID_ASSIGNMENT_TARGET,
+          "Invalid assignment target", loc);
     }
     auto value = parseAssignment();
     return std::make_unique<AssignExpr>(varExpr->name, std::move(value));
@@ -338,8 +426,9 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     consume(TokenType::RIGHT_PAREN, "Expect ')' after expression");
     return expr;
   }
-  throw std::runtime_error("Expect expression at line " +
-                           std::to_string(peek().line));
+  meadows::SourceLocation loc("", peek().line, peek().column);
+  throw meadows::ParseException(meadows::ErrorCode::PARSE_EXPECTED_EXPRESSION,
+                                "Expect expression", loc);
 }
 
 std::vector<std::unique_ptr<Expr>> Parser::parseArgs() {

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v0.1.0, etc.
+      - "v*.*.*"
 
 jobs:
   create-release:
@@ -12,220 +12,94 @@ jobs:
       tag_name: ${{ steps.get_version.outputs.tag_name }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Get version from tag
-      id: get_version
-      run: |
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        VERSION=${TAG_NAME#v}
-        echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Release version: ${VERSION}"
+      - name: Get version from tag
+        id: get_version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: ${{ steps.get_version.outputs.tag_name }}
-        name: Meadows Compiler ${{ steps.get_version.outputs.version }}
-        body: |
-          ## Meadows Compiler Release ${{ steps.get_version.outputs.version }}
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.get_version.outputs.tag_name }}
+          name: Meadows Compiler ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Meadows Compiler ${{ steps.get_version.outputs.version }}
 
-          This release includes pre-built binaries for Linux and macOS platforms.
+            Pre-built binaries for Linux and macOS.
+          draft: false
+          prerelease: false
 
-          ### Download Instructions
-          1. Download the appropriate archive for your platform
-          2. Extract the archive
-          3. Run the included `install.sh` script or manually copy binaries to your PATH
-          4. Run executables from the extracted directory
-
-          ### Available Binaries
-          - `meadows` - Optimized release build of the compiler
-          - `meadows-debug` - Debug build with symbols for development
-          - `meadows_test` - Test runner (release build)
-          - `meadows_test-debug` - Test runner (debug build)
-
-          ### Platform Support
-          - **Linux x64**: `meadows-linux-x64-${{ steps.get_version.outputs.version }}.tar.gz`
-          - **macOS x64**: `meadows-macos-x64-${{ steps.get_version.outputs.version }}.zip`
-
-          Built from commit: ${{ github.sha }}
-        draft: false
-        prerelease: false
-
-  build-and-upload:
+  build:
     needs: create-release
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
         include:
-          - os: ubuntu-latest
-            llvm: /usr/lib/llvm-17/lib/cmake/llvm
-            artifact_name: meadows-linux-x64
-            archive_cmd: tar -czf
-            archive_ext: tar.gz
-          - os: macos-latest
-            llvm: $(brew --prefix llvm@17)/lib/cmake/llvm
-            artifact_name: meadows-macos-x64
-            archive_cmd: zip -r
-            archive_ext: zip
+          - os: ubuntu
+            name: Linux
+            llvm-dev: llvm-17-dev
+            llvm-runtime: llvm-17-runtime
+          - os: macos
+            name: macOS
+            llvm-dev: llvm@17
+            llvm-runtime: ""
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      shell: bash
-      run: |
-        echo "Installing dependencies on ${{ matrix.os }}..."
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.28.x"
 
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential llvm-17-dev
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          brew install cmake llvm@17
-        fi
+      - name: Install Dependencies
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu" ]]; then
+            sudo apt-get update && sudo apt-get install -y ${{ matrix.llvm-dev }} ${{ matrix.llvm-runtime }}
+            sudo ldconfig /usr/lib/llvm-17/lib
+          else
+            brew install ${{ matrix.llvm-dev }}
+          fi
 
-    - name: Build Debug
-      shell: bash
-      run: |
-        echo "Building debug version..."
-        cmake -B build-debug -DCMAKE_BUILD_TYPE=Debug -DLLVM_DIR="${{ matrix.llvm }}"
-        cmake --build build-debug --parallel
+      - name: Run CI Pipeline
+        run: ./scripts/ci/run_ci.sh
 
-    - name: Build Release
-      shell: bash
-      run: |
-        echo "Building release version..."
-        cmake -B build-release -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}"
-        cmake --build build-release --parallel
+      - name: Package Artifacts
+        run: |
+          VERSION=${{ needs.create-release.outputs.version }}
+          mkdir -p release/meadows-${{ matrix.name }}
 
-    - name: Run unit tests
-      shell: bash
-      run: |
-        echo "Running unit tests..."
-        cmake -B build-test -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}" -DENABLE_TESTING=ON
-        cmake --build build-test --target meadows_tests --parallel
-        ./build-test/tests/meadows_tests
+          cp build/bin/Meadows release/meadows-${{ matrix.name }}/
+          cp build/tests/meadows_tests release/meadows-${{ matrix.name }}/
+          cp README.md release/meadows-${{ matrix.name }}/
+          chmod +x release/meadows-${{ matrix.name }}/meadows
 
-    - name: Run integration tests
-      shell: bash
-      continue-on-error: true
-      run: |
-        echo "Running integration tests to ensure binaries work..."
-        ./test.sh
+          cat > release/meadows-${{ matrix.name }}/VERSION << EOF
+          Meadows Compiler ${VERSION}
+          Platform: ${{ matrix.name }}
+          Commit: ${{ github.sha }}
+          EOF
 
-    - name: Prepare release artifacts
-      shell: bash
-      run: |
-        echo "Preparing release artifacts..."
+          cd release
+          ARCHIVE_NAME=meadows-${{ matrix.name }}-${VERSION}.tar.gz
+          tar -czf "${ARCHIVE_NAME}" meadows-${{ matrix.name }}/
+          echo "ARCHIVE=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
 
-        VERSION="${{ needs.create-release.outputs.version }}"
-
-        # Create release directory
-        mkdir -p release/${{ matrix.artifact_name }}
-
-        # Copy debug binaries
-        cp build-debug/meadows release/${{ matrix.artifact_name }}/meadows-debug
-        cp test.sh release/${{ matrix.artifact_name }}/meadows_test-debug
-
-        # Copy release binaries
-        cp build-release/meadows release/${{ matrix.artifact_name }}/meadows
-        cp test.sh release/${{ matrix.artifact_name }}/meadows_test
-
-        # Copy documentation and scripts
-        cp README.md release/${{ matrix.artifact_name }}/
-        cp format.sh release/${{ matrix.artifact_name }}/
-
-        # Make all binaries executable
-        chmod +x release/${{ matrix.artifact_name }}/meadows*
-
-        # Create version info file
-        cat > release/${{ matrix.artifact_name }}/VERSION << EOF
-        Meadows Compiler Release ${VERSION}
-        Built on: $(date)
-        Platform: ${{ matrix.os }}
-        Commit: ${{ github.sha }}
-        Tag: ${{ needs.create-release.outputs.tag_name }}
-
-        Binaries included:
-        - meadows (Optimized release build)
-        - meadows-debug (Debug build with symbols)
-        - meadows_test (Release test runner)
-        - meadows_test-debug (Debug test runner)
-
-        Installation:
-        Run ./install.sh or manually copy binaries to your PATH
-        EOF
-
-        # Create install script
-        cat > release/${{ matrix.artifact_name }}/install.sh << 'EOF'
-        #!/bin/bash
-        # Meadows Compiler Installation Script
-
-        INSTALL_DIR="${HOME}/.local/bin"
-
-        echo "Installing Meadows compiler binaries to ${INSTALL_DIR}..."
-
-        # Create install directory if it doesn't exist
-        mkdir -p "${INSTALL_DIR}"
-
-        # Copy binaries
-        cp meadows "${INSTALL_DIR}/"
-        cp meadows-debug "${INSTALL_DIR}/"
-        cp meadows_test "${INSTALL_DIR}/"
-        cp meadows_test-debug "${INSTALL_DIR}/"
-
-        # Make sure binaries are executable
-        chmod +x "${INSTALL_DIR}"/meadows*
-
-        echo "Installation complete!"
-        echo ""
-        echo "Make sure ${INSTALL_DIR} is in your PATH:"
-        echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-        echo ""
-        echo "Available commands:"
-        echo "  meadows           - Meadows compiler (release build)"
-        echo "  meadows-debug     - Meadows compiler (debug build)"
-        echo "  meadows_test      - Test runner (release build)"
-        echo "  meadows_test-debug - Test runner (debug build)"
-        echo ""
-        echo "To verify installation, run: meadows --help"
-        EOF
-
-        chmod +x release/${{ matrix.artifact_name }}/install.sh
-
-        # Display what we're including
-        echo "Release contents:"
-        ls -la release/${{ matrix.artifact_name }}/
-
-    - name: Create archive
-      shell: bash
-      run: |
-        cd release
-        VERSION="${{ needs.create-release.outputs.version }}"
-        ARCHIVE_NAME="${{ matrix.artifact_name }}-${VERSION}.${{ matrix.archive_ext }}"
-
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          tar -czf "${ARCHIVE_NAME}" ${{ matrix.artifact_name }}/
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          zip -r "${ARCHIVE_NAME}" ${{ matrix.artifact_name }}/
-        fi
-
-        echo "Created archive: ${ARCHIVE_NAME}"
-        ls -la "${ARCHIVE_NAME}"
-
-    - name: Upload Release Asset
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: ${{ needs.create-release.outputs.tag_name }}
-        artifacts: ./release/${{ matrix.artifact_name }}-${{ needs.create-release.outputs.version }}.${{ matrix.archive_ext }}
-        allowUpdates: true
-        omitBodyDuringUpdate: true
-        omitNameDuringUpdate: true
+      - name: Upload Release Asset
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.create-release.outputs.tag_name }}
+          artifacts: release/meadows-${{ matrix.name }}-${{ needs.create-release.outputs.version }}.tar.gz
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true

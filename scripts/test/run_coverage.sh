@@ -48,7 +48,7 @@ cd "$BUILD_DIR"
 echo -e "${YELLOW}Building with coverage...${NC}"
 cmake .. \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DENABLE_TESTING=ON \
+  -DBUILD_TESTS=ON \
   -DENABLE_COVERAGE=ON \
   ${LLVM_DIR:+-DLLVM_DIR="${LLVM_DIR}"}
 

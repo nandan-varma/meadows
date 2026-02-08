@@ -1,24 +1,40 @@
 #!/bin/bash
 # Run integration tests (.ms files)
 
-set -e
+# Don't exit on error - we handle failures ourselves
+# set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build"
-COMPILER="$BUILD_DIR/bin/Meadows"
-TEST_DIR="$PROJECT_ROOT/examples"
+COMPILER=""
 
-# Check for compiler in multiple locations
-if [ ! -f "$COMPILER" ]; then
-    COMPILER="$BUILD_DIR/Meadows"
+# Find compiler in order of preference
+for dir in "$BUILD_DIR/bin" "$BUILD_DIR" "$PROJECT_ROOT/build-debug/bin" "$PROJECT_ROOT/build-release/bin"; do
+    if [ -f "$dir/Meadows" ]; then
+        COMPILER="$dir/Meadows"
+        break
+    fi
+done
+
+# Fallback to any Meadows binary
+if [ -z "$COMPILER" ]; then
+    COMPILER=$(find "$PROJECT_ROOT" -name "Meadows" -type f -executable 2>/dev/null | head -1)
 fi
-if [ ! -f "$COMPILER" ]; then
-    COMPILER="$PROJECT_ROOT/build-debug/Meadows"
+
+if [ -z "$COMPILER" ] || [ ! -f "$COMPILER" ]; then
+    echo -e "${RED}Error: Compiler not found${NC}"
+    echo "Searched in:"
+    echo "  $BUILD_DIR/bin/Meadows"
+    echo "  $BUILD_DIR/Meadows"
+    echo "  $PROJECT_ROOT/build-debug/bin/Meadows"
+    echo "  $PROJECT_ROOT/build-release/bin/Meadows"
+    exit 1
 fi
-if [ ! -f "$COMPILER" ]; then
-    COMPILER="$PROJECT_ROOT/build-release/Meadows"
-fi
+
+echo -e "${YELLOW}Using compiler: $COMPILER${NC}"
+
+TEST_DIR="$PROJECT_ROOT/examples"
 
 # Colors
 RED='\033[0;31m'

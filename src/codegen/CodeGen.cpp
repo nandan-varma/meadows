@@ -446,6 +446,10 @@ llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
     leftPtr = builder->CreateBitCast(left, i8PtrType, "leftptr");
   } else {
     auto ci = llvm::dyn_cast<llvm::ConstantInt>(left);
+    if (!ci) {
+      error("Expected constant integer in string concatenation");
+      return nullptr;
+    }
     auto numStr =
         builder->CreateGlobalStringPtr(std::to_string(ci->getZExtValue()));
     leftPtr = numStr;
@@ -455,6 +459,10 @@ llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
     rightPtr = builder->CreateBitCast(right, i8PtrType, "rightptr");
   } else {
     auto ci = llvm::dyn_cast<llvm::ConstantInt>(right);
+    if (!ci) {
+      error("Expected constant integer in string concatenation");
+      return nullptr;
+    }
     auto numStr =
         builder->CreateGlobalStringPtr(std::to_string(ci->getZExtValue()));
     rightPtr = numStr;
