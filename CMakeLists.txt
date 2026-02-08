@@ -96,8 +96,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 #==============================================================================
 # Source Files
 #==============================================================================
-set(MEADOWS_SOURCES
-  src/main/meadows.cpp
+set(MEADOWS_LIB_SOURCES
   src/lexer/Lexer.cpp
   src/parser/Parser.cpp
   src/ast/AST.cpp
@@ -130,12 +129,29 @@ set(MEADOWS_HEADERS
 )
 
 #==============================================================================
+# Object Library (shared between main executable and tests)
+#==============================================================================
+add_library(meadows_lib OBJECT ${MEADOWS_LIB_SOURCES})
+
+target_link_libraries(meadows_lib
+  PRIVATE
+    ${LLVM_LIBS}
+)
+
+target_include_directories(meadows_lib
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${LLVM_INCLUDE_DIRS}
+)
+
+#==============================================================================
 # Main Executable
 #==============================================================================
-add_executable(${PROJECT_NAME} ${MEADOWS_SOURCES})
+add_executable(${PROJECT_NAME} src/main/meadows.cpp)
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
+    meadows_lib
     ${LLVM_LIBS}
 )
 

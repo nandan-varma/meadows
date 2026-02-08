@@ -27,7 +27,7 @@ if [ ! -d "$BUILD_DIR" ]; then
     echo -e "${YELLOW}Build directory not found. Building...${NC}"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    cmake .. -DENABLE_TESTING=ON -DLLVM_DIR=/opt/homebrew/opt/llvm@17/lib/cmake/llvm
+    cmake .. -DBUILD_TESTS=ON -DLLVM_DIR=/opt/homebrew/opt/llvm@17/lib/cmake/llvm
 fi
 
 # Build tests

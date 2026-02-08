@@ -25,7 +25,7 @@ echo "  Configuring with CMake..."
 cmake .. \
     -DCMAKE_BUILD_TYPE=Debug \
     -DLLVM_DIR=/opt/homebrew/opt/llvm@17/lib/cmake/llvm \
-    -DENABLE_TESTING=ON
+    -DBUILD_TESTS=ON
 
 # Build
 echo "  Compiling..."

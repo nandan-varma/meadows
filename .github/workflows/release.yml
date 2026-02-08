@@ -109,13 +109,12 @@ jobs:
       shell: bash
       run: |
         echo "Running unit tests..."
-        cmake -B build-test -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}" -DENABLE_TESTING=ON
+        cmake -B build-test -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR="${{ matrix.llvm }}" -DBUILD_TESTS=ON
         cmake --build build-test --target meadows_tests --parallel
         ./build-test/tests/meadows_tests
 
     - name: Run integration tests
       shell: bash
-      continue-on-error: true
       run: |
         echo "Running integration tests to ensure binaries work..."
         ./test.sh
@@ -131,11 +130,11 @@ jobs:
         mkdir -p release/${{ matrix.artifact_name }}
 
         # Copy debug binaries
-        cp build-debug/meadows release/${{ matrix.artifact_name }}/meadows-debug
+        cp build-debug/bin/Meadows release/${{ matrix.artifact_name }}/meadows-debug
         cp test.sh release/${{ matrix.artifact_name }}/meadows_test-debug
 
         # Copy release binaries
-        cp build-release/meadows release/${{ matrix.artifact_name }}/meadows
+        cp build-release/bin/Meadows release/${{ matrix.artifact_name }}/meadows
         cp test.sh release/${{ matrix.artifact_name }}/meadows_test
 
         # Copy documentation and scripts
