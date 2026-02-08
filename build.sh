@@ -91,8 +91,8 @@ case $TARGET in
         echo -e "${GREEN}========================================${NC}"
         echo
         echo "Binaries:"
-        echo "  Debug:   build-debug/meadows"
-        echo "  Release: build-release/meadows"
+        echo "  Debug:   build-debug/bin/Meadows"
+        echo "  Release: build-release/bin/Meadows"
         echo "  Tests:   build/tests/meadows_tests"
         ;;
     debug)

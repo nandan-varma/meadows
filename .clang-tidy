@@ -21,7 +21,7 @@ Checks: '*,
   bugprone-*
   cert-*
   explicit*
-  hICPP-*
+  hicpp-*
   misc-*
   modernize-*
   performance-*

@@ -10,7 +10,7 @@ TEST_DIR="$PROJECT_ROOT/tests/security"
 
 # Check for compiler in multiple locations
 if [ ! -f "$COMPILER" ]; then
-    COMPILER="$BUILD_DIR/Meadows"
+    COMPILER="$PROJECT_ROOT/build/Meadows"
 fi
 if [ ! -f "$COMPILER" ]; then
     COMPILER="$PROJECT_ROOT/build-debug/Meadows"
