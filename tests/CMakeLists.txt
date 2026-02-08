@@ -3,13 +3,15 @@
 # Download Catch2 if not present
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/catch_amalgamated.hpp")
     message(STATUS "Downloading Catch2...")
-    file(DOWNLOAD 
+    file(DOWNLOAD
         https://github.com/catchorg/Catch2/releases/download/v3.5.2/catch_amalgamated.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/catch_amalgamated.hpp
+        EXPECTED_HASH SHA256=aae5b5a8b83e7d3f33d9bf3c902a5a396b4195c390881ea5557e935cdac49d38
     )
-    file(DOWNLOAD 
+    file(DOWNLOAD
         https://github.com/catchorg/Catch2/releases/download/v3.5.2/catch_amalgamated.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/catch_amalgamated.cpp
+        EXPECTED_HASH SHA256=6e0d09fec95cb32a9b75574b2a8f45ea1f430bb5fbbd4df1c91d2d2f3f2e5b7c
     )
 endif()
 
@@ -22,29 +24,24 @@ set(TEST_SOURCES
     unit/lexer/Lexer.test.cpp
     unit/parser/Parser.test.cpp
     unit/codegen/CodeGen.test.cpp
+    unit/utils/Exceptions.test.cpp
+    unit/utils/DiagnosticsCollector.test.cpp
+    unit/utils/ErrorCodes.test.cpp
+    unit/utils/Timer.test.cpp
+    unit/utils/WarningManager.test.cpp
 )
 
 # Create test executable
 add_executable(meadows_tests ${TEST_SOURCES})
 
 # Include directories
-target_include_directories(meadows_tests PRIVATE 
+target_include_directories(meadows_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/tests
 )
 
-# Link with source files and Catch2
-target_sources(meadows_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/lexer/Lexer.cpp
-    ${CMAKE_SOURCE_DIR}/src/lexer/Token.h
-    ${CMAKE_SOURCE_DIR}/src/parser/Parser.cpp
-    ${CMAKE_SOURCE_DIR}/src/ast/AST.cpp
-    ${CMAKE_SOURCE_DIR}/src/codegen/CodeGen.cpp
-    ${CMAKE_SOURCE_DIR}/src/codegen/StringUtils.cpp
-    ${CMAKE_SOURCE_DIR}/src/codegen/SymbolTable.cpp
-)
-
-target_link_libraries(meadows_tests PRIVATE Catch2 ${LLVM_LIBS})
+# Link with object library and Catch2
+target_link_libraries(meadows_tests PRIVATE meadows_lib Catch2 ${LLVM_LIBS})
 
 # Set C++ standard
 set_target_properties(meadows_tests PROPERTIES

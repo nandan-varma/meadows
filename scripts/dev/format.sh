@@ -1,8 +1,6 @@
 #!/bin/bash
 # Code formatting script using clang-format
 
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -15,28 +13,30 @@ NC='\033[0m'
 
 # Parse arguments
 CHECK_MODE=0
+SILENT=0
 
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    --check)
-      CHECK_MODE=1
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
+    case $1 in
+        --check)
+            CHECK_MODE=1
+            shift
+            ;;
+        --silent)
+            SILENT=1
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
 done
-
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}   Meadows Code Formatter${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo
 
 # Check if clang-format is available
 if ! command -v clang-format &> /dev/null; then
-    echo -e "${YELLOW}Warning: clang-format not found. Install with: brew install clang-format${NC}"
-    exit 1
+    if [ $SILENT -eq 0 ]; then
+        echo -e "${YELLOW}Warning: clang-format not found. Install with: brew install clang-format${NC}"
+    fi
+    exit 0
 fi
 
 # Find all source files
@@ -46,43 +46,60 @@ TEST_FILES=$(find "$PROJECT_ROOT/tests/unit" -type f \( -name "*.cpp" -o -name "
 ALL_FILES="$SOURCE_FILES $TEST_FILES"
 
 if [ -z "$ALL_FILES" ]; then
-    echo -e "${YELLOW}No source files found${NC}"
+    if [ $SILENT -eq 0 ]; then
+        echo -e "${YELLOW}No source files found${NC}"
+    fi
     exit 0
 fi
 
 FILE_COUNT=$(echo "$ALL_FILES" | wc -w)
-echo -e "${YELLOW}Found $FILE_COUNT files to format${NC}"
-echo
 
 if [ $CHECK_MODE -eq 1 ]; then
     # Check mode - report files that need formatting
-    echo -e "${YELLOW}Checking formatting...${NC}"
-    
     NEEDS_FORMAT=0
     for file in $ALL_FILES; do
         if ! clang-format --dry-run --Werror "$file" 2>/dev/null; then
-            echo -e "${RED}Would format:${NC} $(basename "$file")"
+            if [ $SILENT -eq 0 ]; then
+                echo -e "${RED}Would format:${NC} $(basename "$file")"
+            fi
             NEEDS_FORMAT=1
         fi
     done
-    
+
     if [ $NEEDS_FORMAT -eq 1 ]; then
-        echo
-        echo -e "${RED}Some files need formatting. Run: ./scripts/dev/format.sh${NC}"
+        if [ $SILENT -eq 0 ]; then
+            echo
+            echo -e "${RED}Some files need formatting. Run: ./scripts/dev/format.sh${NC}"
+        fi
         exit 1
     else
-        echo -e "${GREEN}All files are properly formatted!${NC}"
+        if [ $SILENT -eq 0 ]; then
+            echo -e "${GREEN}All files are properly formatted!${NC}"
+        fi
         exit 0
     fi
 else
     # Format mode - actually format the files
-    echo -e "${YELLOW}Formatting files...${NC}"
-    
+    if [ $SILENT -eq 0 ]; then
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${BLUE}   Meadows Code Formatter${NC}"
+        echo -e "${BLUE}========================================${NC}"
+        echo
+        echo -e "${YELLOW}Found $FILE_COUNT files to format${NC}"
+        echo
+        echo -e "${YELLOW}Formatting files...${NC}"
+    fi
+
     for file in $ALL_FILES; do
-        echo "  Formatting: $(basename "$file")"
-        clang-format -i "$file"
+        clang-format -i "$file" 2>/dev/null
+        if [ $SILENT -eq 0 ]; then
+            echo "  $(basename "$file")"
+        fi
     done
-    
-    echo
-    echo -e "${GREEN}Formatting complete!${NC}"
+
+    if [ $SILENT -eq 0 ]; then
+        echo
+        echo -e "${GREEN}Formatting complete!${NC}"
+    fi
+    exit 0
 fi

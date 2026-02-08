@@ -57,6 +57,28 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
 endif()
 
 #==============================================================================
+# Security Hardening
+#==============================================================================
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  add_compile_options(
+    -fstack-protector-strong
+    -D_FORTIFY_SOURCE=2
+  )
+
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_link_options(
+      -Wl,-z,relro
+      -Wl,-z,now
+    )
+  endif()
+
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    add_compile_options(-fPIE)
+    add_link_options(-pie)
+  endif()
+endif()
+
+#==============================================================================
 # LLVM Configuration
 #==============================================================================
 
@@ -96,8 +118,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 #==============================================================================
 # Source Files
 #==============================================================================
-set(MEADOWS_SOURCES
-  src/main/meadows.cpp
+set(MEADOWS_LIB_SOURCES
   src/lexer/Lexer.cpp
   src/parser/Parser.cpp
   src/ast/AST.cpp
@@ -105,6 +126,11 @@ set(MEADOWS_SOURCES
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
   src/lsp/LSPInterface.cpp
+  src/utils/ErrorCodes.cpp
+  src/utils/Exceptions.cpp
+  src/utils/DiagnosticsCollector.cpp
+  src/utils/ErrorFormatter.cpp
+  src/utils/WarningManager.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -115,15 +141,39 @@ set(MEADOWS_HEADERS
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
   src/lsp/LSPInterface.h
+  src/utils/ErrorCodes.h
+  src/utils/Exceptions.h
+  src/utils/DiagnosticsCollector.h
+  src/utils/ErrorFormatter.h
+  src/utils/Timer.h
+  src/utils/ASTPrinter.h
+  src/utils/WarningManager.h
+)
+
+#==============================================================================
+# Object Library (shared between main executable and tests)
+#==============================================================================
+add_library(meadows_lib OBJECT ${MEADOWS_LIB_SOURCES})
+
+target_link_libraries(meadows_lib
+  PRIVATE
+    ${LLVM_LIBS}
+)
+
+target_include_directories(meadows_lib
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${LLVM_INCLUDE_DIRS}
 )
 
 #==============================================================================
 # Main Executable
 #==============================================================================
-add_executable(${PROJECT_NAME} ${MEADOWS_SOURCES})
+add_executable(${PROJECT_NAME} src/main/meadows.cpp)
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
+    meadows_lib
     ${LLVM_LIBS}
 )
 

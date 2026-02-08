@@ -1,4 +1,6 @@
 #include "Lexer.h"
+#include "../utils/ErrorCodes.h"
+#include "../utils/Exceptions.h"
 #include <cctype>
 #include <stdexcept>
 #include <unordered_map>
@@ -24,7 +26,7 @@ std::vector<Token> Lexer::tokenize() {
   return tokens;
 }
 
-char Lexer::peek() {
+char Lexer::peek() const {
   if (isAtEnd())
     return '\0';
   return source[pos];
@@ -36,7 +38,7 @@ char Lexer::advance() {
   return c;
 }
 
-bool Lexer::isAtEnd() { return pos >= source.size(); }
+bool Lexer::isAtEnd() const { return pos >= source.size(); }
 
 Token Lexer::nextToken() {
   skipWhitespace();
@@ -220,8 +222,9 @@ Token Lexer::string() {
     nonEscapeCount++;
   }
   if (isAtEnd()) {
-    throw std::runtime_error("Unterminated string starting at line " +
-                             std::to_string(startLine));
+    meadows::SourceLocation loc("", startLine, startColumn);
+    throw meadows::LexicalException(meadows::ErrorCode::LEX_UNTERMINATED_STRING,
+                                    "Unterminated string", loc);
   }
   std::string value;
   value.reserve(nonEscapeCount);

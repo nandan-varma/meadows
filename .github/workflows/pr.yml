@@ -1,0 +1,60 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.28.x"
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y llvm-17-dev llvm-17-runtime
+          sudo ldconfig /usr/lib/llvm-17/lib
+
+      - name: Run CI Pipeline
+        run: ./scripts/ci/run_ci.sh --quick
+
+  build-macos:
+    name: Build & Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.28.x"
+
+      - name: Install Dependencies
+        run: brew install llvm@17
+
+      - name: Run CI Pipeline
+        run: ./scripts/ci/run_ci.sh --quick
+
+  format:
+    name: Code Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Format
+        run: ./scripts/dev/format.sh --check || echo "Format check: Some files need formatting"

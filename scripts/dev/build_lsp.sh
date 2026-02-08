@@ -48,7 +48,7 @@ fi
 
 ./build.sh release
 
-if [ ! -f "build-release/meadows" ]; then
+if [ ! -f "build-release/bin/Meadows" ]; then
     echo -e "${RED}Error: Compiler build failed${NC}"
     exit 1
 fi
@@ -57,7 +57,7 @@ echo -e "${GREEN}✓ Compiler built successfully${NC}"
 echo
 
 # Add build directory to PATH for LSP server
-export PATH="$PROJECT_ROOT/build-release:$PATH"
+export PATH="$PROJECT_ROOT/build-release/bin:$PATH"
 
 # Step 2: Build LSP Server
 echo -e "${YELLOW}Step 2: Building LSP server...${NC}"

@@ -36,76 +36,83 @@ TARGET="all"
 JOBS=""
 VERBOSE=0
 LLVM_DIR=""
-CMAKE_ARGS=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    all|debug|release|tests|clean)
-      TARGET="$1"
-      shift
-      ;;
-    -j)
-      JOBS="$2"
-      shift 2
-      ;;
-    -v|--verbose)
-      VERBOSE=1
-      shift
-      ;;
-    --llvm)
-      LLVM_DIR="$2"
-      export LLVM_DIR
-      shift 2
-      ;;
-    *)
-      CMAKE_ARGS="$CMAKE_ARGS $1"
-      shift
-      ;;
-  esac
+    case $1 in
+        all|debug|release|tests|clean)
+            TARGET="$1"
+            shift
+            ;;
+        -j)
+            JOBS="$2"
+            shift 2
+            ;;
+        -v|--verbose)
+            VERBOSE=1
+            shift
+            ;;
+        --llvm)
+            LLVM_DIR="$2"
+            export LLVM_DIR
+            shift 2
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown option '$1'${NC}"
+            exit 1
+            ;;
+    esac
 done
 
-# Show usage if requested
-if [ "$TARGET" == "help" ] || [ "$TARGET" == "-h" ] || [ "$TARGET" == "--help" ]; then
-    sed -n '2,20p' "$0"
-    exit 0
+# Detect LLVM if not provided
+if [[ -z "$LLVM_DIR" ]]; then
+    source "$SCRIPT_DIR/scripts/dev/detect_llvm.sh"
+    LLVM_DIR=$(get_llvm_dir)
 fi
+
+if [[ -z "$LLVM_DIR" ]]; then
+    echo -e "${RED}Error: LLVM 17 not found${NC}"
+    echo "Install LLVM 17 and try again, or use --llvm to specify location"
+    exit 1
+fi
+
+export LLVM_DIR
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}   Meadows Compiler Build System${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
+echo "LLVM: $LLVM_DIR"
+echo
 
 case $TARGET in
     all)
         echo -e "${YELLOW}Building all targets...${NC}"
+        "$SCRIPT_DIR/scripts/build/build_debug.sh"
         echo
-        "$SCRIPT_DIR/scripts/build/build_debug.sh" $CMAKE_ARGS
+        "$SCRIPT_DIR/scripts/build/build_release.sh"
         echo
-        "$SCRIPT_DIR/scripts/build/build_release.sh" $CMAKE_ARGS
-        echo
-        "$SCRIPT_DIR/scripts/build/build_tests.sh" $CMAKE_ARGS
+        "$SCRIPT_DIR/scripts/build/build_tests.sh"
         echo
         echo -e "${GREEN}========================================${NC}"
         echo -e "${GREEN}   All builds complete!${NC}"
         echo -e "${GREEN}========================================${NC}"
-        echo
-        echo "Binaries:"
-        echo "  Debug:   build-debug/meadows"
-        echo "  Release: build-release/meadows"
+        echo "  Debug:   build-debug/bin/Meadows"
+        echo "  Release: build-release/bin/Meadows"
         echo "  Tests:   build/tests/meadows_tests"
         ;;
     debug)
-        "$SCRIPT_DIR/scripts/build/build_debug.sh" $CMAKE_ARGS
+        "$SCRIPT_DIR/scripts/build/build_debug.sh"
         ;;
     release)
-        "$SCRIPT_DIR/scripts/build/build_release.sh" $CMAKE_ARGS
+        "$SCRIPT_DIR/scripts/build/build_release.sh"
         ;;
     tests)
-        "$SCRIPT_DIR/scripts/build/build_tests.sh" $CMAKE_ARGS
+        "$SCRIPT_DIR/scripts/build/build_tests.sh"
         ;;
     clean)
-        "$SCRIPT_DIR/scripts/build/build_clean.sh"
+        rm -rf build build-debug build-release
+        echo -e "${GREEN}Build directories cleaned${NC}"
         ;;
     *)
         echo -e "${RED}Error: Unknown target '$TARGET'${NC}"
