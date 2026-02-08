@@ -38,19 +38,23 @@ jobs:
 
   build:
     needs: create-release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu
+          - runs-on: ubuntu-latest
             name: Linux
             llvm-dev: llvm-17-dev
             llvm-runtime: llvm-17-runtime
-          - os: macos
+            install-cmd: |
+              sudo apt-get update && sudo apt-get install -y llvm-17-dev llvm-17-runtime
+              sudo ldconfig /usr/lib/llvm-17/lib
+          - runs-on: macos-latest
             name: macOS
             llvm-dev: llvm@17
             llvm-runtime: ""
+            install-cmd: brew install llvm@17
 
     steps:
       - name: Checkout code
@@ -62,13 +66,7 @@ jobs:
           cmake-version: "3.28.x"
 
       - name: Install Dependencies
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu" ]]; then
-            sudo apt-get update && sudo apt-get install -y ${{ matrix.llvm-dev }} ${{ matrix.llvm-runtime }}
-            sudo ldconfig /usr/lib/llvm-17/lib
-          else
-            brew install ${{ matrix.llvm-dev }}
-          fi
+        run: ${{ matrix.install-cmd }}
 
       - name: Run CI Pipeline
         run: ./scripts/ci/run_ci.sh
