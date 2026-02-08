@@ -82,16 +82,7 @@ NJOBS=$(get_cmake_jobs)
 echo "Jobs: $NJOBS"
 echo
 
-# Build Debug
-echo -e "${YELLOW}Building Debug...${NC}"
-cmake -B build-debug \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DLLVM_DIR="$LLVM_DIR" \
-    -DBUILD_TESTS=ON
-cmake --build build-debug --parallel "$NJOBS"
-
-# Build Release
-echo
+# Build Release (for packaging)
 echo -e "${YELLOW}Building Release...${NC}"
 cmake -B build-release \
     -DCMAKE_BUILD_TYPE=Release \
@@ -99,13 +90,13 @@ cmake -B build-release \
     -DBUILD_TESTS=ON
 cmake --build build-release --parallel "$NJOBS"
 
-# Copy release binary to build for tests
+# Copy release binary to common location for tests
 mkdir -p build
 cp build-release/bin/Meadows build/Meadows
 
 echo
 echo -e "${YELLOW}Running unit tests...${NC}"
-./build/tests/meadows_tests
+./build-release/tests/meadows_tests
 
 if [[ $QUICK -eq 0 ]]; then
     echo
