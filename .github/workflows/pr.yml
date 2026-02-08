@@ -12,67 +12,55 @@ concurrency:
 
 jobs:
   build:
-    name: Build and Test
-    runs-on: macos-latest
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            llvm-package: llvm-17-dev
+          - os: macos-latest
+            llvm-package: llvm@17
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup CMake
-        uses: jsalmon11/action-cmake@v1
-        with:
-          build-dir: build
-          preset: release
+        uses: cmake-actions/setupcmake@v1
 
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v4
         with:
-          path: ~/llvm-cache
-          key: llvm-17-macos-${{ hashFiles('CMakeLists.txt') }}
+          path: |
+            ~/llvm-cache
+            /usr/lib/llvm-17
+          key: llvm-17-${{ matrix.os }}-${{ hashFiles('CMakeLists.txt', '.github/workflows/*.yml') }}
 
-      - name: Install LLVM 17
+      - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
-          brew install llvm@17
-          mkdir -p ~/llvm-cache
-          cp -r $(brew --prefix llvm@17) ~/llvm-cache/
-
-      - name: Restore LLVM Cache
-        if: steps.cache-llvm.outputs.cache-hit == 'true'
-        run: |
-          cp -r ~/llvm-cache/llvm@17 $(brew --prefix)/
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ${{ matrix.llvm-package }} cmake build-essential
+          else
+            brew install ${{ matrix.llvm-package }} cmake
+          fi
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j$(sysctl -n hw.ncpu)
+        run: cmake --build build --parallel $(nproc)
 
       - name: Run Unit Tests
-        run: |
-          ./build/tests/meadows_tests "[unit]" || true
+        run: ./build/tests/meadows_tests
 
       - name: Run Integration Tests
-        run: |
-          ./scripts/test/run_integration_tests.sh || true
-
-      - name: Build Release
-        run: |
-          cmake -B build-release -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-release -j$(sysctl -n hw.ncpu)
-
-      - name: Run Security Tests
-        run: |
-          ./scripts/test/run_security_tests.sh || true
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: meadows-release
-          path: build-release/bin/Meadows
-          retention-days: 7
+        run: ./scripts/test/run_integration_tests.sh
 
   format:
     name: Code Format
@@ -83,5 +71,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check Format
-        run: |
-          ./scripts/dev/format.sh --check || true
+        run: ./scripts/dev/format.sh --check
