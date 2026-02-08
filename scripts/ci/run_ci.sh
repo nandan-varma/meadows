@@ -78,19 +78,30 @@ if [[ "$PLATFORM" == "Linux" ]]; then
     fi
 fi
 
+NJOBS=$(get_cmake_jobs)
+echo "Jobs: $NJOBS"
 echo
-echo -e "${YELLOW}Configuring...${NC}"
-cd "$PROJECT_ROOT"
-cmake -B build \
+
+# Build Debug
+echo -e "${YELLOW}Building Debug...${NC}"
+cmake -B build-debug \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DLLVM_DIR="$LLVM_DIR" \
+    -DBUILD_TESTS=ON
+cmake --build build-debug --parallel "$NJOBS"
+
+# Build Release
+echo
+echo -e "${YELLOW}Building Release...${NC}"
+cmake -B build-release \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_DIR="$LLVM_DIR" \
     -DBUILD_TESTS=ON
+cmake --build build-release --parallel "$NJOBS"
 
-echo
-echo -e "${YELLOW}Building...${NC}"
-NJOBS=$(get_cmake_jobs)
-echo "Jobs: $NJOBS"
-cmake --build build --parallel "$NJOBS"
+# Copy release binary to build for tests
+mkdir -p build
+cp build-release/bin/Meadows build/Meadows
 
 echo
 echo -e "${YELLOW}Running unit tests...${NC}"
