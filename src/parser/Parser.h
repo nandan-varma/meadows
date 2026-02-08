@@ -3,6 +3,7 @@
 
 #include "../ast/AST.h"
 #include "../lexer/Token.h"
+#include "../utils/DiagnosticsCollector.h"
 #include <memory>
 #include <vector>
 
@@ -14,11 +15,8 @@
  * (AST) from the token stream produced by the Lexer. It enforces language
  * grammar rules and provides meaningful error messages with line numbers.
  *
- * @ Responsibility
- * - Parse tokens into AST nodes according to language grammar
- * - Handle all statement types (variable declarations, functions, control flow)
- * - Parse expressions with correct operator precedence
- * - Generate descriptive error messages for syntax errors
+ * Supports error recovery - continues parsing after non-fatal errors to
+ * report multiple issues in a single pass.
  */
 class Parser {
 public:
@@ -29,15 +27,36 @@ public:
   Parser(std::vector<Token> tokens);
 
   /**
+   * @brief Constructs a Parser with diagnostics collection.
+   * @param tokens The token stream to parse.
+   * @param diagnostics Collector for errors and warnings.
+   */
+  Parser(std::vector<Token> tokens, meadows::DiagnosticsCollector &diagnostics);
+
+  /**
    * @brief Parses the entire token stream into an AST.
    * @return A vector of statement AST nodes.
-   * @throws std::runtime_error If a syntax error is encountered.
+   * @throws std::runtime_error If a fatal syntax error is encountered.
    */
   std::vector<std::unique_ptr<Stmt>> parse();
+
+  /**
+   * @brief Check if any errors were reported during parsing.
+   */
+  bool hasErrors() const;
+
+  /**
+   * @brief Get the diagnostics collector (if used).
+   */
+  meadows::DiagnosticsCollector *diagnostics() { return diagnostics_; }
 
 private:
   std::vector<Token> tokens;
   size_t current;
+  meadows::DiagnosticsCollector *diagnostics_;
+  bool inErrorRecovery_;
+  int consecutiveErrors_;
+  static constexpr int MAX_CONSECUTIVE_ERRORS = 3;
 
   bool isAtEnd();
   const Token &peek();
@@ -45,7 +64,29 @@ private:
   const Token &advance();
   bool check(TokenType type);
   bool match(TokenType type);
-  const Token &consume(TokenType type, const std::string &message);
+  const Token &consume(TokenType type, meadows::ErrorCode code,
+                       const std::string &message);
+
+  // Backward compatibility - uses generic error code
+  const Token &consume(TokenType type, const std::string &message) {
+    return consume(type, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message);
+  }
+
+  /**
+   * @brief Report an error at current position.
+   */
+  void error(meadows::ErrorCode code, const std::string &message);
+
+  /**
+   * @brief Synchronize parser state after error (panic mode recovery).
+   * Skips tokens until a synchronization point is found.
+   */
+  void synchronize();
+
+  /**
+   * @brief Check if we should stop recovery attempts.
+   */
+  bool shouldAbortRecovery() const;
 
   std::unique_ptr<Stmt> parseStmt();
   std::unique_ptr<Stmt> parseLetStmt();

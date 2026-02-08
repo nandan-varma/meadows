@@ -105,6 +105,11 @@ set(MEADOWS_SOURCES
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
   src/lsp/LSPInterface.cpp
+  src/utils/ErrorCodes.cpp
+  src/utils/Exceptions.cpp
+  src/utils/DiagnosticsCollector.cpp
+  src/utils/ErrorFormatter.cpp
+  src/utils/WarningManager.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -115,6 +120,13 @@ set(MEADOWS_HEADERS
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
   src/lsp/LSPInterface.h
+  src/utils/ErrorCodes.h
+  src/utils/Exceptions.h
+  src/utils/DiagnosticsCollector.h
+  src/utils/ErrorFormatter.h
+  src/utils/Timer.h
+  src/utils/ASTPrinter.h
+  src/utils/WarningManager.h
 )
 
 #==============================================================================
