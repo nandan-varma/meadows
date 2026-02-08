@@ -12,14 +12,15 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"true", TokenType::TRUE},   {"false", TokenType::FALSE},
     {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}};
 
-Lexer::Lexer(const std::string &src) : source(src), pos(0), line(1) {}
+Lexer::Lexer(const std::string &src)
+    : source(src), pos(0), line(1), column(1), currentLineStart(0) {}
 
 std::vector<Token> Lexer::tokenize() {
   std::vector<Token> tokens;
   while (!isAtEnd()) {
     tokens.push_back(nextToken());
   }
-  tokens.push_back(Token(TokenType::EOF_TOKEN, "", line));
+  tokens.push_back(Token(TokenType::EOF_TOKEN, "", line, column));
   return tokens;
 }
 
@@ -29,15 +30,20 @@ char Lexer::peek() {
   return source[pos];
 }
 
-char Lexer::advance() { return source[pos++]; }
+char Lexer::advance() {
+  char c = source[pos++];
+  column++;
+  return c;
+}
 
 bool Lexer::isAtEnd() { return pos >= source.size(); }
 
 Token Lexer::nextToken() {
   skipWhitespace();
   if (isAtEnd())
-    return Token(TokenType::EOF_TOKEN, "", line);
+    return Token(TokenType::EOF_TOKEN, "", line, column);
 
+  int startColumn = column;
   char c = peek();
   if (c == '#') {
     skipComment();
@@ -58,97 +64,98 @@ Token Lexer::nextToken() {
   switch (c) {
   case '+':
     advance();
-    return Token(TokenType::PLUS, "+", line);
+    return Token(TokenType::PLUS, "+", line, startColumn);
   case '-':
     advance();
-    return Token(TokenType::MINUS, "-", line);
+    return Token(TokenType::MINUS, "-", line, startColumn);
   case '*':
     advance();
-    return Token(TokenType::STAR, "*", line);
+    return Token(TokenType::STAR, "*", line, startColumn);
   case '/':
     advance();
-    return Token(TokenType::SLASH, "/", line);
+    return Token(TokenType::SLASH, "/", line, startColumn);
   case '=':
     advance();
     if (peek() == '=') {
       advance();
-      return Token(TokenType::EQUAL_EQUAL, "==", line);
+      return Token(TokenType::EQUAL_EQUAL, "==", line, startColumn);
     }
-    return Token(TokenType::EQUAL, "=", line);
+    return Token(TokenType::EQUAL, "=", line, startColumn);
   case '&':
     advance();
     if (peek() == '&') {
       advance();
-      return Token(TokenType::AND, "&&", line);
+      return Token(TokenType::AND, "&&", line, startColumn);
     }
-    return Token(TokenType::IDENTIFIER, "&", line);
+    return Token(TokenType::IDENTIFIER, "&", line, startColumn);
   case '|':
     advance();
     if (peek() == '|') {
       advance();
-      return Token(TokenType::OR, "||", line);
+      return Token(TokenType::OR, "||", line, startColumn);
     }
-    return Token(TokenType::IDENTIFIER, "|", line);
+    return Token(TokenType::IDENTIFIER, "|", line, startColumn);
   case '>':
     advance();
     if (peek() == '=') {
       advance();
-      return Token(TokenType::GREATER_EQUAL, ">=", line);
+      return Token(TokenType::GREATER_EQUAL, ">=", line, startColumn);
     }
-    return Token(TokenType::GREATER, ">", line);
+    return Token(TokenType::GREATER, ">", line, startColumn);
   case '<':
     advance();
     if (peek() == '=') {
       advance();
-      return Token(TokenType::LESS_EQUAL, "<=", line);
+      return Token(TokenType::LESS_EQUAL, "<=", line, startColumn);
     }
-    return Token(TokenType::LESS, "<", line);
+    return Token(TokenType::LESS, "<", line, startColumn);
   case '!':
     advance();
     if (peek() == '=') {
       advance();
-      return Token(TokenType::BANG_EQUAL, "!=", line);
+      return Token(TokenType::BANG_EQUAL, "!=", line, startColumn);
     }
-    return Token(TokenType::BANG, "!", line);
+    return Token(TokenType::BANG, "!", line, startColumn);
   case '(':
     advance();
-    return Token(TokenType::LEFT_PAREN, "(", line);
+    return Token(TokenType::LEFT_PAREN, "(", line, startColumn);
   case ')':
     advance();
-    return Token(TokenType::RIGHT_PAREN, ")", line);
+    return Token(TokenType::RIGHT_PAREN, ")", line, startColumn);
   case '{':
     advance();
-    return Token(TokenType::LEFT_BRACE, "{", line);
+    return Token(TokenType::LEFT_BRACE, "{", line, startColumn);
   case '}':
     advance();
-    return Token(TokenType::RIGHT_BRACE, "}", line);
+    return Token(TokenType::RIGHT_BRACE, "}", line, startColumn);
   case '[':
     advance();
-    return Token(TokenType::LEFT_BRACKET, "[", line);
+    return Token(TokenType::LEFT_BRACKET, "[", line, startColumn);
   case ']':
     advance();
-    return Token(TokenType::RIGHT_BRACKET, "]", line);
+    return Token(TokenType::RIGHT_BRACKET, "]", line, startColumn);
   case ',':
     advance();
-    return Token(TokenType::COMMA, ",", line);
+    return Token(TokenType::COMMA, ",", line, startColumn);
   case ':':
     advance();
-    return Token(TokenType::COLON, ":", line);
+    return Token(TokenType::COLON, ":", line, startColumn);
   case ';':
     advance();
-    return Token(TokenType::SEMICOLON, ";", line);
+    return Token(TokenType::SEMICOLON, ";", line, startColumn);
   case '.':
     advance();
-    return Token(TokenType::DOT, ".", line);
+    return Token(TokenType::DOT, ".", line, startColumn);
   }
 
   // Error
   advance();
-  return Token(TokenType::IDENTIFIER, std::string(1, c),
-               line); // For now, treat as identifier
+  return Token(TokenType::IDENTIFIER, std::string(1, c), line,
+               startColumn); // For now, treat as identifier
 }
 
 Token Lexer::identifier() {
+  int startColumn = column;
   size_t start = pos;
   while (isalnum(peek()) || peek() == '_') {
     advance();
@@ -156,18 +163,19 @@ Token Lexer::identifier() {
   std::string value = source.substr(start, pos - start);
   auto it = keywords.find(value);
   if (it != keywords.end()) {
-    return Token(it->second, value, line);
+    return Token(it->second, value, line, startColumn);
   }
-  return Token(TokenType::IDENTIFIER, value, line);
+  return Token(TokenType::IDENTIFIER, value, line, startColumn);
 }
 
 Token Lexer::number() {
+  int startColumn = column;
   size_t start = pos;
   while (isdigit(peek())) {
     advance();
   }
   std::string value = source.substr(start, pos - start);
-  return Token(TokenType::NUMBER, value, line);
+  return Token(TokenType::NUMBER, value, line, startColumn);
 }
 
 static char unescapeChar(char c) {
@@ -194,6 +202,7 @@ static char unescapeChar(char c) {
 }
 
 Token Lexer::string() {
+  int startColumn = column;
   advance();
   size_t start = pos;
   int startLine = line;
@@ -204,6 +213,8 @@ Token Lexer::string() {
     }
     if (peek() == '\n') {
       line++;
+      column = 1;
+      currentLineStart = pos + 1;
     }
     advance();
     nonEscapeCount++;
@@ -223,7 +234,7 @@ Token Lexer::string() {
     }
   }
   advance();
-  return Token(TokenType::STRING, value, line);
+  return Token(TokenType::STRING, value, line, startColumn);
 }
 
 void Lexer::skipWhitespace() {
@@ -234,6 +245,8 @@ void Lexer::skipWhitespace() {
     } else if (c == '\n') {
       advance();
       line++;
+      column = 1;
+      currentLineStart = pos;
     } else {
       break;
     }

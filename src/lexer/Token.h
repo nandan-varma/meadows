@@ -64,9 +64,10 @@ struct Token {
   TokenType type;
   std::string value;
   int line;
+  int column;
 
-  Token(TokenType t, const std::string &v, int l)
-      : type(t), value(v), line(l) {}
+  Token(TokenType t, const std::string &v, int l, int c = 0)
+      : type(t), value(v), line(l), column(c) {}
 };
 
 #endif

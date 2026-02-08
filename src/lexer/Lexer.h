@@ -28,6 +28,8 @@ public:
    */
   Lexer(const std::string &source);
 
+  int getColumn() const { return column; }
+
   /**
    * @brief Tokenizes the entire source code.
    * @return A vector of tokens representing the tokenized source.
@@ -39,6 +41,8 @@ private:
   std::string source;
   size_t pos;
   int line;
+  int column;
+  int currentLineStart;
 
   char peek();
   char advance();
