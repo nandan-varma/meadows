@@ -29,7 +29,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup CMake
-        uses: cmake-actions/setupcmake@v1
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.28.x'
 
       - name: Cache LLVM
         id: cache-llvm
