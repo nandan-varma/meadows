@@ -69,15 +69,15 @@ public:
    * @brief Check if a warning is enabled
    */
   bool isEnabled(ErrorCode code) const {
-    // Check if explicitly disabled
     if (disabledWarnings_.count(code))
       return false;
 
-    // Check if explicitly enabled
     if (enabledWarnings_.count(code))
       return true;
 
-    // Check based on level
+    if (level_ == Level::OFF)
+      return false;
+
     return isEnabledByLevel(code);
   }
 

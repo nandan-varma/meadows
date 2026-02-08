@@ -7,6 +7,8 @@
 
 namespace meadows {
 
+constexpr double MICROSECONDS_PER_MILLISECOND = 1000.0;
+
 /**
  * @brief Simple timer for performance measurements
  */
@@ -36,7 +38,7 @@ public:
     auto end = std::chrono::high_resolution_clock::now();
     auto duration =
         std::chrono::duration_cast<std::chrono::microseconds>(end - start_);
-    return duration.count() / 1000.0; // Convert to milliseconds
+    return duration.count() / MICROSECONDS_PER_MILLISECOND;
   }
 
   /**

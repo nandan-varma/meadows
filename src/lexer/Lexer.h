@@ -44,9 +44,9 @@ private:
   int column;
   int currentLineStart;
 
-  char peek();
+  char peek() const;
   char advance();
-  bool isAtEnd();
+  bool isAtEnd() const;
   Token nextToken();
   Token identifier();
   Token number();

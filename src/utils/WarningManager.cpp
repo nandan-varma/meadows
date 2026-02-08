@@ -3,12 +3,7 @@
 
 namespace meadows {
 
-void WarningManager::setupDefaultWarnings() {
-  // Default warnings (enabled at DEFAULT level)
-  enabledWarnings_.insert(ErrorCode::WARN_UNUSED_VARIABLE);
-  enabledWarnings_.insert(ErrorCode::WARN_UNREACHABLE_CODE);
-  enabledWarnings_.insert(ErrorCode::WARN_DIVISION_BY_ZERO);
-}
+void WarningManager::setupDefaultWarnings() {}
 
 bool WarningManager::isEnabledByLevel(ErrorCode code) const {
   switch (level_) {
@@ -16,8 +11,9 @@ bool WarningManager::isEnabledByLevel(ErrorCode code) const {
     return false;
 
   case Level::DEFAULT:
-    // Only warnings explicitly enabled
-    return enabledWarnings_.count(code) > 0;
+    return code == ErrorCode::WARN_UNUSED_VARIABLE ||
+           code == ErrorCode::WARN_UNREACHABLE_CODE ||
+           code == ErrorCode::WARN_DIVISION_BY_ZERO;
 
   case Level::ALL:
     // All standard warnings

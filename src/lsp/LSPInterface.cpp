@@ -37,12 +37,13 @@ void LSPInterface::emitDiagnosticsJSON(
     const auto &d = diagnostics[i];
     std::cout << "    {" << std::endl;
     std::cout << "      \"range\": {" << std::endl;
-    std::cout << "        \"start\": {\"line\": " << (d.location.line - 1)
-              << ", \"character\": " << (d.location.column - 1) << "},"
-              << std::endl;
-    std::cout << "        \"end\": {\"line\": " << (d.location.line - 1)
-              << ", \"character\": " << (d.location.endColumn - 1) << "}"
-              << std::endl;
+    std::cout << "        \"start\": {\"line\": "
+              << (d.location.line - LSP_LINE_OFFSET)
+              << ", \"character\": " << (d.location.column - LSP_COLUMN_OFFSET)
+              << "}," << std::endl;
+    std::cout << "        \"end\": {\"line\": "
+              << (d.location.line - LSP_LINE_OFFSET) << ", \"character\": "
+              << (d.location.endColumn - LSP_COLUMN_OFFSET) << "}" << std::endl;
     std::cout << "      }," << std::endl;
     std::cout << "      \"severity\": " << severityFromString(d.severity) << ","
               << std::endl;
@@ -64,12 +65,12 @@ void LSPInterface::emitDiagnosticsJSON(
                   << escapeJson(rel.first.file) << "\"," << std::endl;
         std::cout << "            \"range\": {" << std::endl;
         std::cout << "              \"start\": {\"line\": "
-                  << (rel.first.line - 1)
-                  << ", \"character\": " << (rel.first.column - 1) << "},"
+                  << (rel.first.line - LSP_LINE_OFFSET) << ", \"character\": "
+                  << (rel.first.column - LSP_COLUMN_OFFSET) << "},"
                   << std::endl;
         std::cout << "              \"end\": {\"line\": "
-                  << (rel.first.line - 1)
-                  << ", \"character\": " << (rel.first.endColumn - 1) << "}"
+                  << (rel.first.line - LSP_LINE_OFFSET) << ", \"character\": "
+                  << (rel.first.endColumn - LSP_COLUMN_OFFSET) << "}"
                   << std::endl;
         std::cout << "            }" << std::endl;
         std::cout << "          }," << std::endl;
@@ -99,7 +100,7 @@ void LSPInterface::emitDiagnosticsJSON(
 LSPDiagnostic LSPInterface::parseError(const std::string &error,
                                        const std::string &filePath) {
   LSPDiagnostic diag;
-  diag.severity = 1; // Error
+  diag.severity = static_cast<int>(LSPSeverity::Error);
   diag.source = "meadows-compiler";
 
   // Try to parse line number from error message
@@ -110,7 +111,7 @@ LSPDiagnostic LSPInterface::parseError(const std::string &error,
   if (std::regex_search(error, match, lineRegex)) {
     diag.line = std::stoi(match[1].str());
   } else {
-    diag.line = 1; // Default to line 1 if not found
+    diag.line = LSP_LINE_OFFSET;
   }
 
   // Try to find column information
@@ -118,11 +119,11 @@ LSPDiagnostic LSPInterface::parseError(const std::string &error,
   if (std::regex_search(error, match, colRegex)) {
     diag.startColumn = std::stoi(match[1].str());
   } else {
-    diag.startColumn = 1;
+    diag.startColumn = LSP_COLUMN_OFFSET;
   }
 
   // Estimate end column based on token length or default to start + 1
-  diag.endColumn = diag.startColumn + 1;
+  diag.endColumn = diag.startColumn + LSP_DEFAULT_TOKEN_WIDTH;
 
   // Extract the message (remove common prefixes)
   std::string msg = error;
@@ -166,7 +167,9 @@ std::string LSPInterface::escapeJson(const std::string &str) {
       oss << "\\t";
       break;
     default:
-      if (c >= 0x20 && c <= 0x7E) {
+      constexpr unsigned char ASCII_PRINTABLE_MIN = 0x20;
+      constexpr unsigned char ASCII_PRINTABLE_MAX = 0x7E;
+      if (c >= ASCII_PRINTABLE_MIN && c <= ASCII_PRINTABLE_MAX) {
         oss << c;
       } else {
         oss << "\\u" << std::hex << (static_cast<unsigned int>(c) & 0xFF);
@@ -194,7 +197,7 @@ LSPInterface::parseErrorToDiagnostic(const std::string &error,
   if (std::regex_search(error, match, lineRegex)) {
     loc.line = std::stoi(match[1].str());
   } else {
-    loc.line = 1;
+    loc.line = LSP_LINE_OFFSET;
   }
 
   // Try to find column information
@@ -202,11 +205,11 @@ LSPInterface::parseErrorToDiagnostic(const std::string &error,
   if (std::regex_search(error, match, colRegex)) {
     loc.column = std::stoi(match[1].str());
   } else {
-    loc.column = 1;
+    loc.column = LSP_COLUMN_OFFSET;
   }
 
   // Estimate end column
-  loc.endColumn = loc.column + 1;
+  loc.endColumn = loc.column + LSP_DEFAULT_TOKEN_WIDTH;
 
   // Extract the message
   std::string msg = error;
@@ -244,12 +247,12 @@ LSPInterface::parseErrorToDiagnostic(const std::string &error,
 
 int LSPInterface::severityFromString(const std::string &severity) {
   if (severity == "error")
-    return 1;
+    return static_cast<int>(LSPSeverity::Error);
   if (severity == "warning")
-    return 2;
+    return static_cast<int>(LSPSeverity::Warning);
   if (severity == "info")
-    return 3;
+    return static_cast<int>(LSPSeverity::Information);
   if (severity == "hint")
-    return 4;
-  return 1; // Default to error
+    return static_cast<int>(LSPSeverity::Hint);
+  return static_cast<int>(LSPSeverity::Error);
 }

@@ -58,11 +58,11 @@ private:
   int consecutiveErrors_;
   static constexpr int MAX_CONSECUTIVE_ERRORS = 3;
 
-  bool isAtEnd();
-  const Token &peek();
-  const Token &previous();
+  bool isAtEnd() const;
+  const Token &peek() const;
+  const Token &previous() const;
   const Token &advance();
-  bool check(TokenType type);
+  bool check(TokenType type) const;
   bool match(TokenType type);
   const Token &consume(TokenType type, meadows::ErrorCode code,
                        const std::string &message);
