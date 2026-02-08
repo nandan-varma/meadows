@@ -42,11 +42,11 @@ bool Parser::hasErrors() const {
   return diagnostics_ && diagnostics_->hasErrors();
 }
 
-bool Parser::isAtEnd() { return peek().type == TokenType::EOF_TOKEN; }
+bool Parser::isAtEnd() const { return peek().type == TokenType::EOF_TOKEN; }
 
-const Token &Parser::peek() { return tokens[current]; }
+const Token &Parser::peek() const { return tokens[current]; }
 
-const Token &Parser::previous() { return tokens[current - 1]; }
+const Token &Parser::previous() const { return tokens[current - 1]; }
 
 const Token &Parser::advance() {
   if (!isAtEnd())
@@ -54,7 +54,7 @@ const Token &Parser::advance() {
   return previous();
 }
 
-bool Parser::check(TokenType type) {
+bool Parser::check(TokenType type) const {
   if (isAtEnd())
     return false;
   return peek().type == type;
@@ -86,8 +86,8 @@ void Parser::error(meadows::ErrorCode code, const std::string &message) {
     consecutiveErrors_++;
     inErrorRecovery_ = true;
   } else {
-    throw std::runtime_error(message + " at line " +
-                             std::to_string(peek().line));
+    meadows::SourceLocation loc("", peek().line, peek().column);
+    throw meadows::ParseException(code, message, loc);
   }
 }
 
@@ -264,8 +264,10 @@ std::unique_ptr<Expr> Parser::parseAssignment() {
   if (match(TokenType::EQUAL)) {
     auto varExpr = dynamic_cast<VarExpr *>(expr.get());
     if (!varExpr) {
-      throw std::runtime_error("Invalid assignment target at line " +
-                               std::to_string(peek().line));
+      meadows::SourceLocation loc("", peek().line, peek().column);
+      throw meadows::ParseException(
+          meadows::ErrorCode::PARSE_INVALID_ASSIGNMENT_TARGET,
+          "Invalid assignment target", loc);
     }
     auto value = parseAssignment();
     return std::make_unique<AssignExpr>(varExpr->name, std::move(value));
@@ -424,8 +426,9 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     consume(TokenType::RIGHT_PAREN, "Expect ')' after expression");
     return expr;
   }
-  throw std::runtime_error("Expect expression at line " +
-                           std::to_string(peek().line));
+  meadows::SourceLocation loc("", peek().line, peek().column);
+  throw meadows::ParseException(meadows::ErrorCode::PARSE_EXPECTED_EXPRESSION,
+                                "Expect expression", loc);
 }
 
 std::vector<std::unique_ptr<Expr>> Parser::parseArgs() {

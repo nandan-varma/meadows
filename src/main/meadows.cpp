@@ -9,6 +9,7 @@
 #include "../utils/WarningManager.h"
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -44,8 +45,9 @@ bool validateInputFile(const std::string &filepath, std::string &errorMsg) {
 
   std::string filename = p.filename().string();
 
-  if (filename.length() < 3 ||
-      filename.substr(filename.length() - 3) != ".ms") {
+  if (filename.length() < MAX_FILENAME_LENGTH ||
+      filename.substr(filename.length() - strlen(FILE_EXTENSION)) !=
+          FILE_EXTENSION) {
     errorMsg = "File must have .ms extension";
     return false;
   }

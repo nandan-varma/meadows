@@ -2,6 +2,7 @@
 #include "ast/AST.h"
 #include "catch_amalgamated.hpp"
 #include "lexer/Lexer.h"
+#include "utils/Exceptions.h"
 
 // Helper function to create parser from source
 std::unique_ptr<Parser> createParser(const std::string &source) {
@@ -221,22 +222,22 @@ TEST_CASE("Parser handles return statements", "[parser]") {
 TEST_CASE("Parser reports syntax errors", "[parser]") {
   SECTION("Missing semicolon") {
     auto parser = createParser("let x = 5");
-    REQUIRE_THROWS_AS(parser->parse(), std::runtime_error);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
   }
 
   SECTION("Missing expression") {
     auto parser = createParser("let x = ;");
-    REQUIRE_THROWS_AS(parser->parse(), std::runtime_error);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
   }
 
   SECTION("Missing closing brace") {
     auto parser = createParser("func test() { print 1;");
-    REQUIRE_THROWS_AS(parser->parse(), std::runtime_error);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
   }
 
   SECTION("Unexpected token") {
     auto parser = createParser("@#$");
-    REQUIRE_THROWS_AS(parser->parse(), std::runtime_error);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
   }
 }
 

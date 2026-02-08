@@ -1,5 +1,6 @@
 #include "lexer/Lexer.h"
 #include "catch_amalgamated.hpp"
+#include "utils/Exceptions.h"
 
 TEST_CASE("Lexer tokenizes keywords correctly", "[lexer]") {
   SECTION("All keywords are recognized") {
@@ -81,7 +82,7 @@ TEST_CASE("Lexer handles string literals", "[lexer]") {
 
 TEST_CASE("Lexer detects unterminated strings", "[lexer]") {
   Lexer lexer("\"unterminated string");
-  REQUIRE_THROWS_AS(lexer.tokenize(), std::runtime_error);
+  REQUIRE_THROWS_AS(lexer.tokenize(), meadows::LexicalException);
 }
 
 TEST_CASE("Lexer handles identifiers", "[lexer]") {

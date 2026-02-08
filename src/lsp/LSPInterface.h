@@ -9,13 +9,25 @@
 #include <vector>
 
 /**
+ * @brief LSP severity levels (LSP specification)
+ */
+enum class LSPSeverity { Error = 1, Warning = 2, Information = 3, Hint = 4 };
+
+/**
+ * @brief LSP position constants
+ */
+constexpr int LSP_LINE_OFFSET = 1;
+constexpr int LSP_COLUMN_OFFSET = 1;
+constexpr int LSP_DEFAULT_TOKEN_WIDTH = 1;
+
+/**
  * @brief Structure representing a diagnostic message for LSP
  */
 struct LSPDiagnostic {
   int line;
   int startColumn;
   int endColumn;
-  int severity; // 1=Error, 2=Warning, 3=Information, 4=Hint
+  int severity;
   std::string message;
   std::string source;
 };
