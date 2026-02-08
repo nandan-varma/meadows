@@ -1,0 +1,61 @@
+{
+  "name": "meadows-vscode",
+  "displayName": "Meadows Language",
+  "description": "Language support for Meadows programming language",
+  "version": "1.0.0",
+  "publisher": "meadows-lang",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "meadows",
+    "language",
+    "compiler"
+  ],
+  "activationEvents": [
+    "onLanguage:meadows"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "meadows",
+        "aliases": [
+          "Meadows",
+          "meadows"
+        ],
+        "extensions": [
+          ".ms"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/meadows-icon.svg",
+          "dark": "./icons/meadows-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "meadows",
+        "scopeName": "source.meadows",
+        "path": "./syntaxes/meadows.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

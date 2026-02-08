@@ -104,6 +104,7 @@ set(MEADOWS_SOURCES
   src/codegen/CodeGen.cpp
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
+  src/lsp/LSPInterface.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -113,6 +114,7 @@ set(MEADOWS_HEADERS
   src/ast/AST.h
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
+  src/lsp/LSPInterface.h
 )
 
 #==============================================================================

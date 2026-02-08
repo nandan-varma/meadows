@@ -1,0 +1,88 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Meadows",
+  "scopeName": "source.meadows",
+  "fileTypes": [".ms"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#functions" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.meadows",
+          "match": "#.*$"
+        },
+        {
+          "name": "comment.line.double-slash.meadows",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.meadows",
+          "match": "\\b(let|func|if|else|for|while|return|in|break|continue)\\b"
+        },
+        {
+          "name": "support.function.builtin.meadows",
+          "match": "\\b(print|range)\\b"
+        },
+        {
+          "name": "constant.language.meadows",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.meadows",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.meadows",
+          "match": "\\\\(n|t|r|0|b|f|\\\\|\"|')"
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.meadows",
+      "match": "\\b\\d+\\b"
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.meadows",
+          "match": "\\b(func)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.meadows" },
+            "2": { "name": "entity.name.function.meadows" }
+          }
+        },
+        {
+          "name": "meta.function-call.meadows",
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.meadows" },
+            "2": { "name": "punctuation.parenthesis.open.meadows" }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "name": "keyword.operator.meadows",
+      "match": "(\\+|-|\\*|/|==|!=|<=|>=|<|>|&&|\\|\\||!|=)"
+    },
+    "punctuation": {
+      "name": "punctuation.meadows",
+      "match": "([(){}\\[\\];:,.])"
+    }
+  }
+}

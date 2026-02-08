@@ -1,140 +1,156 @@
 # AGENTS.md - Guidelines for Coding Agents
 
-This document provides guidelines for AI agents working on the Meadows compiler codebase.
+Guidelines for AI agents working on the Meadows compiler codebase.
 
 ## Quick Reference Commands
 
 ### Building
 ```bash
-# Full build with tests
-./build.sh tests
-
-# Clean rebuild
-rm -rf build && ./build.sh tests
-
-# Debug build
-./build.sh
-
-# Release build
-cmake -B build-release -DCMAKE_BUILD_TYPE=Release && cmake --build build-release
+./build.sh tests          # Full build with tests
+./build.sh debug/release  # Specific build type
+./scripts/dev/build_lsp.sh # Build LSP extension
+code --install-extension lsp/meadows-vscode/meadows-vscode.vsix
 ```
 
 ### Testing
 ```bash
-# All tests
-./test.sh
-
-# Unit tests only
-./test.sh unit
-
-# Integration tests only
-./test.sh integration
-
-# Security tests only
-./test.sh security
-
-# Single test case (using test binary directly)
-./build/tests/meadows_tests "[lexer]"           # Run lexer tests
-./build/tests/meadows_tests "Lexer handles strings"  # Specific test
-./build/tests/meadows_tests "[parser]"           # Run parser tests
-
-# Run with Catch2 options
-./build/tests/meadows_tests --list-tests        # List all tests
-./build/tests/meadows_tests --reporter compact  # Compact output
-./build/tests/meadows_tests -d yes             # Show durations
+./test.sh                     # All tests
+./test.sh [unit|integration|security]
+./build/tests/meadows_tests "Test Name"  # Single test
+./build/tests/meadows_tests "[lexer]"    # By tag
 ```
 
-### Performance Benchmarks
+### Code Quality
 ```bash
-./scripts/test/run_benchmarks.sh
-```
-
-### Static Analysis
-```bash
+./scripts/dev/format.sh [--check]  # Format code
 ./scripts/dev/run_static_analysis.sh
-```
-
-### Code Formatting
-```bash
-./format.sh  # If available
-clang-format -i src/**/*.cpp src/**/*.h  # Manual formatting
+cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests
 ```
 
 ## Code Style Guidelines
 
-### Imports and Dependencies
-- Use standard C++17 libraries where possible
-- LLVM headers included via angle brackets: `#include <llvm/IR/...>`
-- Project headers use relative paths: `#include "../ast/AST.h"`
-- No external dependencies beyond LLVM and Catch2 (for tests)
+### Formatting (from .clang-format)
+- 2-space indentation
+- 80 character line limit
+- Braces on same line: `if (x) {`
+- Pointer alignment: right (`int* ptr`)
+- One declaration per line
 
-### Formatting
-- Follow `.clang-format` configuration if present
-- 2-space indentation for new code (matches existing style in meadows.cpp)
-- Maximum line length: 100 characters
-- Braces on same line for control structures: `if (...) {`
-
-### Types
-- Use `std::unique_ptr` for automatic memory management
-- Use `std::string` for string handling (no raw char*)
-- Use `std::vector` for collections
-- Use `std::map` for key-value mappings
-- Prefer `auto` for iterator types and lambda returns
-- Use `constexpr` for compile-time constants
+### Imports
+```cpp
+// Order: standard library → LLVM → project
+#include <string>
+#include <vector>
+#include <llvm/IR/Type.h>
+#include "../ast/AST.h"
+```
 
 ### Naming Conventions
-- **Classes**: PascalCase (`Lexer`, `Parser`, `CodeGen`)
-- **Functions**: camelCase (`tokenize()`, `parseExpr()`)
-- **Variables**: camelCase (`currentToken`, `sourceFile`)
-- **Constants**: UPPER_SNAKE_CASE (`MAX_FILE_SIZE`)
-- **Private Members**: trailing underscore allowed (`context_`, `module_`)
-- **Files**: PascalCase for class files (`Lexer.h`, `Parser.cpp`)
+| Type | Convention | Example |
+|------|-----------|---------|
+| Classes | PascalCase | `Lexer`, `Parser` |
+| Functions | camelCase | `tokenize()`, `parseExpr()` |
+| Variables | camelCase | `currentToken` |
+| Constants | UPPER_SNAKE_CASE | `MAX_FILE_SIZE` |
+| Private members | trailing underscore | `context_`, `module_` |
+| Files | PascalCase | `Lexer.h`, `Parser.cpp` |
+
+### Types and Memory
+- Use `std::unique_ptr` for AST nodes
+- Use `std::string` (no raw char*)
+- Use `std::vector` for collections
+- Use `std::unordered_map` for hash lookups
+- Never use raw `new`/`delete` - use smart pointers
+- Use `auto` for iterators and lambdas
+- Use `constexpr` for compile-time constants
 
 ### Error Handling
 - Use `std::runtime_error` for recoverable errors
-- Include line numbers in error messages
-- Always validate input parameters
-- Use exceptions for parse/compile errors
-- Clean up resources via RAII (no manual `delete`)
+- Include line numbers: `"Error at line " + std::to_string(line)`
+- Validate inputs and throw on invalid input
+- Use RAII (no manual `delete`)
+- Exit codes: 1 = usage error, 2 = critical error
 
 ### Class Design
-- Base classes define virtual destructor: `virtual ~Expr() = default;`
+- Virtual destructor for base classes: `virtual ~Expr() = default;`
 - Use visitor pattern for AST traversal
 - All AST nodes inherit from `Expr` or `Stmt`
-- Visitor classes implement both `ExprVisitor` and `StmtVisitor`
+- Use `override` for all overridden methods
+- Keep visitor methods const where possible
 
 ### Security
-- Never use `system()` or shell commands; use `fork()` + `execvp()`
-- Validate all file paths for path traversal (`..`, dangerous chars)
-- Check file sizes before processing (10MB max)
-- Reject dangerous characters in filenames: `;|&`$\(){}[]<>!\`
+- Never use `system()`; use `fork()` + `execvp()`
+- Validate paths for traversal (`..`, dangerous chars)
+- Check file sizes (10MB max via `MAX_FILE_SIZE`)
+- Reject dangerous chars in filenames: `;|&`$\(){}[]<>!\`
+- Use `std::string` for paths, not raw char arrays
 
-### Testing
+## Testing Guidelines
+
 - Use Catch2 v3.x for unit tests
-- Follow existing test patterns in `tests/unit/`
-- One test file per module (`Lexer.test.cpp`, `Parser.test.cpp`)
-- Include both positive and negative test cases
-- Test edge cases: empty input, large files, deeply nested structures
+- Place tests in `tests/unit/`
+- One test file per module: `Lexer.test.cpp`
+- Use tags: `[lexer]`, `[parser]`, `[property]`
+- Include positive and negative test cases
+- Test edge cases: empty input, large files, nesting
 
-### Module Structure
+## Module Structure
+
 ```
 src/
-  lexer/      - Tokenization
-  parser/     - Syntax analysis
-  ast/        - AST node definitions
-  codegen/    - LLVM IR generation
-  main/       - Entry point
+  lexer/          - Tokenization
+  parser/        - Syntax analysis
+  ast/           - AST node definitions
+  codegen/       - LLVM IR generation
+  lsp/           - Language Server Protocol support
+  main/          - Entry point
+
 tests/
-  unit/       - Unit tests
-  integration/- Integration tests
-  security/   - Security tests
+  unit/          - Unit tests by module
+  integration/   - Full program tests (.ms files)
+  security/      - Security and fuzz tests
+
 scripts/
-  dev/        - Development scripts
-  test/       - Test scripts
+  build/         - Build scripts
+  test/          - Test execution scripts
+  dev/           - Development tools
+
+lsp/
+  meadows-lsp/       - LSP server (TypeScript)
+  meadows-vscode/    - VS Code extension
 ```
 
-### Git Workflow
+## Common Patterns
+
+### Adding AST Nodes
+1. Define class in `src/ast/AST.h` inheriting from `Expr` or `Stmt`
+2. Add visitor methods to `ExprVisitor`/`StmtVisitor`
+3. Implement `accept()` in `src/ast/AST.cpp`
+4. Add visitor implementation in `src/codegen/CodeGen.cpp`
+5. Add parser support in `src/parser/Parser.cpp`
+6. Add lexer token in `src/lexer/Token.h` if needed
+
+### Adding Compiler Pass
+1. Add method declaration to appropriate class
+2. Implement in corresponding `.cpp` file
+3. Add unit tests in `tests/unit/`
+4. Update `CMakeLists.txt` if new source files
+
+### Adding LSP Features
+1. Extend compiler interface in `src/lsp/LSPInterface.cpp`
+2. Update LSP server in `lsp/meadows-lsp/src/`
+3. Rebuild with `./scripts/dev/build_lsp.sh`
+4. Reinstall extension to test
+
+## Git Workflow
 - Commit messages: imperative mood, 50-char summary
 - One logical change per commit
-- Run tests before committing: `./test.sh`
-- Don't commit build artifacts or temporary files
+- Run tests before committing: `./test.sh unit`
+- Don't commit build artifacts or `.vsix` files
+- Include test coverage for new features
+
+## Performance Tips
+- Profile before optimizing
+- Use `std::unordered_map` for O(1) lookups
+- Reserve vector capacity when size known
+- Avoid O(n²) string concatenation

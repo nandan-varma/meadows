@@ -1,5 +1,6 @@
 #include "../codegen/CodeGen.h"
 #include "../lexer/Lexer.h"
+#include "../lsp/LSPInterface.h"
 #include "../parser/Parser.h"
 #include <algorithm>
 #include <filesystem>
@@ -129,22 +130,54 @@ int compileWithClang(const std::string &inputFile,
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+  if (argc < 2) {
     std::cerr << "Usage: meadows <file.ms>" << std::endl;
+    std::cerr << "       meadows --lsp-diagnostics <file.ms>" << std::endl;
     return 1;
+  }
+
+  // Check for LSP mode
+  bool lspMode = false;
+  std::string filePath;
+
+  if (std::string(argv[1]) == "--lsp-diagnostics") {
+    if (argc < 3) {
+      std::cerr << "Error: --lsp-diagnostics requires a file path" << std::endl;
+      return 1;
+    }
+    lspMode = true;
+    filePath = argv[2];
+  } else {
+    filePath = argv[1];
   }
 
   // Validate input file
   std::string errorMsg;
-  if (!validateInputFile(argv[1], errorMsg)) {
+  if (!validateInputFile(filePath, errorMsg)) {
+    if (lspMode) {
+      // Output JSON error for LSP mode
+      std::vector<std::string> errors;
+      errors.push_back("Validation error: " + errorMsg);
+      LSPInterface lsp;
+      lsp.emitDiagnostics(filePath, {}, errors);
+      return 0;
+    }
     std::cerr << "Error: " << errorMsg << std::endl;
     return 1;
   }
 
   // Open file
-  std::ifstream file(argv[1]);
+  std::ifstream file(filePath);
   if (!file) {
-    std::cerr << "Error: Cannot open file " << argv[1] << std::endl;
+    std::string errorStr = "Cannot open file " + filePath;
+    if (lspMode) {
+      std::vector<std::string> errors;
+      errors.push_back(errorStr);
+      LSPInterface lsp;
+      lsp.emitDiagnostics(filePath, {}, errors);
+      return 0;
+    }
+    std::cerr << "Error: " << errorStr << std::endl;
     return 1;
   }
 
@@ -152,9 +185,34 @@ int main(int argc, char *argv[]) {
   std::string source((std::istreambuf_iterator<char>(file)),
                      std::istreambuf_iterator<char>());
 
+  // In LSP mode, we skip the normal compilation and just validate
+  if (lspMode) {
+    std::vector<std::string> errors;
+    std::vector<Token> tokens;
+
+    try {
+      // Lexical analysis
+      Lexer lexer(source);
+      tokens = lexer.tokenize();
+
+      // Parsing - we only care about syntax errors
+      Parser parser(tokens);
+      auto statements = parser.parse();
+
+    } catch (const std::exception &e) {
+      errors.push_back(std::string(e.what()));
+    }
+
+    // Output LSP diagnostics
+    LSPInterface lsp;
+    lsp.emitDiagnostics(filePath, tokens, errors);
+    return 0;
+  }
+
+  // Normal compilation mode
   // Validate output filenames
-  std::string outputFile = std::string(argv[1]) + ".ll";
-  std::string exeFile = std::string(argv[1]) + ".out";
+  std::string outputFile = filePath + ".ll";
+  std::string exeFile = filePath + ".out";
 
   if (!validateOutputFilename(outputFile, errorMsg) ||
       !validateOutputFilename(exeFile, errorMsg)) {
