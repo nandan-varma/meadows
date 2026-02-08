@@ -14,27 +14,38 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Detect LLVM
+source "$SCRIPT_DIR/../dev/detect_llvm.sh"
+LLVM_DIR="${LLVM_DIR:-$(get_llvm_dir)}"
+if [[ -z "$LLVM_DIR" ]]; then
+    echo -e "${RED}Error: LLVM 17 not found${NC}"
+    echo "Install with: brew install llvm@17 (macOS) or apt install llvm-17-dev (Linux)"
+    exit 1
+fi
+
 echo -e "${BLUE}Building Tests...${NC}"
+echo "LLVM_DIR: $LLVM_DIR"
 
 # Create build directory
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # Configure with CMake
-echo "  Configuring with CMake..."
+echo "Configuring with CMake..."
 cmake .. \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DLLVM_DIR=/opt/homebrew/opt/llvm@17/lib/cmake/llvm \
+    -DLLVM_DIR="$LLVM_DIR" \
     -DBUILD_TESTS=ON
 
 # Build
-echo "  Compiling tests..."
-make -j4 meadows_tests 2>&1 | tail -10
+NJOBS=$(get_cmake_jobs)
+echo "Compiling with $NJOBS jobs..."
+cmake --build . --parallel "$NJOBS" --target meadows_tests
 
 if [ ! -f "$BUILD_DIR/tests/meadows_tests" ]; then
     echo -e "${RED}Error: Test build failed${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Tests built successfully${NC}"
-echo -e "${GREEN}Test executable: $BUILD_DIR/tests/meadows_tests${NC}"
+echo -e "${GREEN}Tests built successfully${NC}"
+echo "Test executable: $BUILD_DIR/tests/meadows_tests"
