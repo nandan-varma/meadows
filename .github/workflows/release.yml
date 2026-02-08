@@ -78,8 +78,8 @@ jobs:
           VERSION=${{ needs.create-release.outputs.version }}
           mkdir -p release/meadows-${{ matrix.name }}
 
-          cp build/bin/Meadows release/meadows-${{ matrix.name }}/
-          cp build/tests/meadows_tests release/meadows-${{ matrix.name }}/
+          cp build-release/bin/Meadows release/meadows-${{ matrix.name }}/meadows
+          cp build-release/tests/meadows_tests release/meadows-${{ matrix.name }}/
           cp README.md release/meadows-${{ matrix.name }}/
           chmod +x release/meadows-${{ matrix.name }}/meadows
 
