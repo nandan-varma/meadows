@@ -3,12 +3,14 @@ import { tmpdir } from 'os';
 import { writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { Range } from 'vscode-languageserver/node';
+import { Logger } from './logger';
 
 export interface CompilerDiagnostic {
   range: Range;
   severity: 1 | 2 | 3 | 4; // Error, Warning, Info, Hint
   message: string;
   source: string;
+  code?: string;
 }
 
 interface LSPResponse {
@@ -21,14 +23,17 @@ interface LSPResponse {
     severity: number;
     message: string;
     source: string;
+    code?: string;
   }>;
 }
 
 export class CompilerBridge {
   private compilerPath: string;
+  private logger: Logger | undefined;
 
-  constructor(compilerPath: string = 'meadows') {
+  constructor(compilerPath: string = 'meadows', logger?: Logger) {
     this.compilerPath = compilerPath;
+    this.logger = logger;
   }
 
   async getDiagnostics(uri: string, content: string): Promise<CompilerDiagnostic[]> {
@@ -56,6 +61,8 @@ export class CompilerBridge {
 
   private runCompiler(filePath: string): Promise<string> {
     return new Promise((resolve, reject) => {
+      this.logger?.debug(`Running compiler: ${this.compilerPath} --lsp-diagnostics ${filePath}`);
+      
       const proc = spawn(this.compilerPath, ['--lsp-diagnostics', filePath], {
         stdio: ['ignore', 'pipe', 'pipe']
       });
@@ -72,12 +79,14 @@ export class CompilerBridge {
       });
 
       proc.on('close', (code: number | null) => {
+        this.logger?.debug(`Compiler exited with code ${code}`);
         // The compiler outputs JSON to stdout in LSP mode
         // Exit code 0 means success (even if there are diagnostics)
         resolve(stdout || stderr);
       });
 
       proc.on('error', (err: Error) => {
+        this.logger?.error(`Compiler error: ${err.message}`);
         reject(new Error(`Failed to run compiler: ${err.message}`));
       });
     });
@@ -88,6 +97,8 @@ export class CompilerBridge {
       // Try to parse the JSON output
       const response: LSPResponse = JSON.parse(jsonOutput);
       
+      this.logger?.debug(`Parsed ${response.diagnostics.length} diagnostics`);
+      
       return response.diagnostics.map(d => ({
         range: {
           start: d.range.start,
@@ -95,9 +106,11 @@ export class CompilerBridge {
         },
         severity: d.severity as 1 | 2 | 3 | 4,
         message: d.message,
-        source: d.source
+        source: d.source,
+        code: d.code
       }));
     } catch (error) {
+      this.logger?.error(`Failed to parse diagnostics: ${error}`);
       // If JSON parsing fails, create a generic error diagnostic
       return [{
         range: {

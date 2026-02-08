@@ -42,6 +42,11 @@ target_sources(meadows_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/codegen/CodeGen.cpp
     ${CMAKE_SOURCE_DIR}/src/codegen/StringUtils.cpp
     ${CMAKE_SOURCE_DIR}/src/codegen/SymbolTable.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/ErrorCodes.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/Exceptions.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/DiagnosticsCollector.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/ErrorFormatter.cpp
+    ${CMAKE_SOURCE_DIR}/src/utils/WarningManager.cpp
 )
 
 target_link_libraries(meadows_tests PRIVATE Catch2 ${LLVM_LIBS})
