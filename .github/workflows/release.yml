@@ -79,17 +79,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Cache LLVM
+      id: cache-llvm
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/llvm-cache
+          /usr/lib/llvm-17
+        key: llvm-17-${{ matrix.os }}-${{ hashFiles('CMakeLists.txt') }}
+
+    - name: Install LLVM
+      if: steps.cache-llvm.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        echo "Installing dependencies on ${{ matrix.os }}..."
+        echo "Installing LLVM 17 on ${{ matrix.os }}..."
 
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential llvm-17-dev
+          sudo apt-get install -y llvm-17-dev
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          brew install cmake llvm@17
+          brew install llvm@17
         fi
+
+    - name: Cache Build
+      uses: actions/cache@v4
+      with:
+        path: build-${{ matrix.os }}
+        key: build-${{ matrix.os }}-${{ github.sha }}
+        restore-keys: |
+          build-${{ matrix.os }}-
 
     - name: Build Debug
       shell: bash

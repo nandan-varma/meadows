@@ -1,0 +1,87 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: jsalmon11/action-cmake@v1
+        with:
+          build-dir: build
+          preset: release
+
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: ~/llvm-cache
+          key: llvm-17-macos-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Install LLVM 17
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          brew install llvm@17
+          mkdir -p ~/llvm-cache
+          cp -r $(brew --prefix llvm@17) ~/llvm-cache/
+
+      - name: Restore LLVM Cache
+        if: steps.cache-llvm.outputs.cache-hit == 'true'
+        run: |
+          cp -r ~/llvm-cache/llvm@17 $(brew --prefix)/
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j$(sysctl -n hw.ncpu)
+
+      - name: Run Unit Tests
+        run: |
+          ./build/tests/meadows_tests "[unit]" || true
+
+      - name: Run Integration Tests
+        run: |
+          ./scripts/test/run_integration_tests.sh || true
+
+      - name: Build Release
+        run: |
+          cmake -B build-release -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-release -j$(sysctl -n hw.ncpu)
+
+      - name: Run Security Tests
+        run: |
+          ./scripts/test/run_security_tests.sh || true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meadows-release
+          path: build-release/bin/Meadows
+          retention-days: 7
+
+  format:
+    name: Code Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Format
+        run: |
+          ./scripts/dev/format.sh --check || true

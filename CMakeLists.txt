@@ -57,6 +57,28 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
 endif()
 
 #==============================================================================
+# Security Hardening
+#==============================================================================
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  add_compile_options(
+    -fstack-protector-strong
+    -D_FORTIFY_SOURCE=2
+  )
+
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_link_options(
+      -Wl,-z,relro
+      -Wl,-z,now
+    )
+  endif()
+
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    add_compile_options(-fPIE)
+    add_link_options(-pie)
+  endif()
+endif()
+
+#==============================================================================
 # LLVM Configuration
 #==============================================================================
 
