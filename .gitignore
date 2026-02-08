@@ -1,13 +1,14 @@
 #==============================================================================
 # Build Artifacts
 #==============================================================================
-build/
-build-debug/
-build-release/
-build-coverage/
-build-*/
-out/
-cmake-build-*/
+# Root level build directories only (anchor to root)
+/build/
+/build-debug/
+/build-release/
+/build-coverage/
+/build-*/
+/out/
+/cmake-build-*/
 
 # CMake generated files
 CMakeFiles/
