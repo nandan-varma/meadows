@@ -1,7 +1,5 @@
 #!/bin/bash
-
-# Unit Test Runner for Meadows Compiler
-# Runs all unit tests and reports results
+# Run unit tests for Meadows Compiler
 
 set -e
 
@@ -22,20 +20,21 @@ echo -e "${BLUE}   Meadows Compiler Unit Tests${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo
 
-# Check if build directory exists
-if [ ! -d "$BUILD_DIR" ]; then
-    echo -e "${YELLOW}Build directory not found. Building...${NC}"
+# Detect LLVM
+source "$SCRIPT_DIR/../dev/detect_llvm.sh"
+LLVM_DIR="${LLVM_DIR:-$(get_llvm_dir)}"
+
+# Build if needed
+if [ ! -d "$BUILD_DIR" ] || [ ! -f "$TEST_EXECUTABLE" ]; then
+    echo -e "${YELLOW}Building tests...${NC}"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    cmake .. -DBUILD_TESTS=ON -DLLVM_DIR=/opt/homebrew/opt/llvm@17/lib/cmake/llvm
+    cmake .. -DBUILD_TESTS=ON ${LLVM_DIR:+-DLLVM_DIR="${LLVM_DIR}"}
+    NJOBS=$(get_cmake_jobs)
+    cmake --build . --parallel "$NJOBS" --target meadows_tests
 fi
 
-# Build tests
-echo -e "${YELLOW}Building tests...${NC}"
-cd "$BUILD_DIR"
-make -j4 meadows_tests 2>&1 | tail -5
-
-# Check if test executable exists
+# Check test executable
 if [ ! -f "$TEST_EXECUTABLE" ]; then
     echo -e "${RED}Error: Test executable not found at $TEST_EXECUTABLE${NC}"
     exit 1
