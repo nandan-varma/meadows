@@ -8,23 +8,36 @@ Guidelines for AI agents working on the Meadows compiler codebase.
 ```bash
 ./build.sh tests          # Full build with tests
 ./build.sh debug/release  # Specific build type
-./scripts/dev/build_lsp.sh # Build LSP extension
-code --install-extension lsp/meadows-vscode/meadows-vscode.vsix
+cmake -B build -DBUILD_TESTS=ON && cmake --build build -j$(nproc)
 ```
 
 ### Testing
 ```bash
-./test.sh                     # All tests
-./test.sh [unit|integration|security]
-./build/tests/meadows_tests "Test Name"  # Single test
-./build/tests/meadows_tests "[lexer]"    # By tag
+./test.sh                     # All tests (unit + integration + security)
+./test.sh unit                # Unit tests only
+./test.sh integration         # Integration tests only
+./test.sh security            # Security tests only
+
+# Single test case (exact name)
+./build/tests/meadows_tests "WarningManager setLevel OFF"
+
+# By tag
+./build/tests/meadows_tests "[lexer]"
+./build/tests/meadows_tests "[parser]"
+./build/tests/meadows_tests "[diagnostics]"
+./build/tests/meadows_tests "[warnings]"
+
+# Catch2 options
+./build/tests/meadows_tests -l                 # List all tests
+./build/tests/meadows_tests -s                 # Show stdout
+./build/tests/meadows_tests -r compact         # Compact output
 ```
 
 ### Code Quality
 ```bash
-./scripts/dev/format.sh [--check]  # Format code
-./scripts/dev/run_static_analysis.sh
-cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests
+./scripts/dev/format.sh [--check]       # Format code
+./scripts/dev/run_static_analysis.sh    # Static analysis
+cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 ```
 
 ## Code Style Guidelines
@@ -65,10 +78,12 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests
 - Use `constexpr` for compile-time constants
 
 ### Error Handling
-- Use `std::runtime_error` for recoverable errors
+- Custom exceptions in `src/utils/Exceptions.h`:
+  - `LexicalException` - lexer errors with `SourceLocation`
+  - `ParseException` - parser errors with `SourceLocation`
+  - `MeadowsException` - general errors with `ErrorCode`
 - Include line numbers: `"Error at line " + std::to_string(line)`
-- Validate inputs and throw on invalid input
-- Use RAII (no manual `delete`)
+- Use `DiagnosticsCollector` for non-fatal error collection
 - Exit codes: 1 = usage error, 2 = critical error
 
 ### Class Design
@@ -81,16 +96,16 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests
 ### Security
 - Never use `system()`; use `fork()` + `execvp()`
 - Validate paths for traversal (`..`, dangerous chars)
-- Check file sizes (10MB max via `MAX_FILE_SIZE`)
-- Reject dangerous chars in filenames: `;|&`$\(){}[]<>!\`
-- Use `std::string` for paths, not raw char arrays
+- Check file sizes (10MB max via `MAX_ALLOC_SIZE`)
+- Reject dangerous chars: `;|&`$\(){}[]<>!\`
+- Use `MemoryUtils.h` for safe allocation
 
 ## Testing Guidelines
 
 - Use Catch2 v3.x for unit tests
-- Place tests in `tests/unit/`
+- Place tests in `tests/unit/<module>/`
 - One test file per module: `Lexer.test.cpp`
-- Use tags: `[lexer]`, `[parser]`, `[property]`
+- Use tags: `[lexer]`, `[parser]`, `[exceptions]`, `[diagnostics]`
 - Include positive and negative test cases
 - Test edge cases: empty input, large files, nesting
 
@@ -99,25 +114,17 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests
 ```
 src/
   lexer/          - Tokenization
-  parser/        - Syntax analysis
-  ast/           - AST node definitions
-  codegen/       - LLVM IR generation
-  lsp/           - Language Server Protocol support
-  main/          - Entry point
+  parser/         - Syntax analysis
+  ast/            - AST node definitions
+  codegen/        - LLVM IR generation
+  lsp/            - Language Server Protocol support
+  utils/          - Utilities (exceptions, diagnostics, warnings, timer)
+  main/           - Entry point
 
 tests/
-  unit/          - Unit tests by module
-  integration/   - Full program tests (.ms files)
-  security/      - Security and fuzz tests
-
-scripts/
-  build/         - Build scripts
-  test/          - Test execution scripts
-  dev/           - Development tools
-
-lsp/
-  meadows-lsp/       - LSP server (TypeScript)
-  meadows-vscode/    - VS Code extension
+  unit/           - Unit tests by module
+  integration/    - Full program tests (.ms files)
+  security/       - Security and fuzz tests
 ```
 
 ## Common Patterns
@@ -133,14 +140,14 @@ lsp/
 ### Adding Compiler Pass
 1. Add method declaration to appropriate class
 2. Implement in corresponding `.cpp` file
-3. Add unit tests in `tests/unit/`
+3. Add unit tests in `tests/unit/<module>/`
 4. Update `CMakeLists.txt` if new source files
 
-### Adding LSP Features
-1. Extend compiler interface in `src/lsp/LSPInterface.cpp`
-2. Update LSP server in `lsp/meadows-lsp/src/`
-3. Rebuild with `./scripts/dev/build_lsp.sh`
-4. Reinstall extension to test
+### Adding Exceptions
+1. Define error code in `src/utils/ErrorCodes.h`
+2. Add exception class in `src/utils/Exceptions.h` if needed
+3. Use `DiagnosticsCollector::reportError()` for non-fatal errors
+4. Add tests in `tests/unit/utils/Exceptions.test.cpp`
 
 ## Git Workflow
 - Commit messages: imperative mood, 50-char summary
