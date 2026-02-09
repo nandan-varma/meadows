@@ -1,0 +1,67 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # Matrix build across platforms/LLVM versions
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            llvm-version: 17
+          - os: ubuntu-latest
+            llvm-version: 18  # Test latest LLVM
+          - os: macos-latest
+            llvm-version: 17
+          - os: windows-latest
+            llvm-version: 17
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hendrikmuhs/ccache-action@v1.2
+      - name: Setup LLVM ${{ matrix.llvm-version }}
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ matrix.llvm-version }}
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+      - name: Build and Test
+        run: ./scripts/ci/run_ci.sh --quick
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.os }}-llvm${{ matrix.llvm-version }}
+          path: build/
+
+  # Static analysis (only on Ubuntu)
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: 17
+      - run: ./scripts/dev/run_static_analysis.sh
+
+  # Security scanning
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+      - uses: github/codeql-action/analyze@v3
+
+  # Format check
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/dev/format.sh --check

@@ -1,103 +1,55 @@
 name: Release
-
 on:
   push:
-    tags:
-      - "v*.*.*"
+    tags: [v*.*.*]
 
 jobs:
-  create-release:
+  release:
     runs-on: ubuntu-latest
     outputs:
-      tag_name: ${{ steps.get_version.outputs.tag_name }}
-      version: ${{ steps.get_version.outputs.version }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version from tag
-        id: get_version
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG_NAME#v}
-          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: ncipollo/release-action@v1
+      - uses: actions/checkout@v4
+      - uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.get_version.outputs.tag_name }}
-          name: Meadows Compiler ${{ steps.get_version.outputs.version }}
-          body: |
-            ## Meadows Compiler ${{ steps.get_version.outputs.version }}
-
-            Pre-built binaries for Linux and macOS.
+          tag_name: ${{ github.ref }}
+          release_name: Meadows ${{ github.ref }}
           draft: false
           prerelease: false
 
-  build:
-    needs: create-release
-    runs-on: ${{ matrix.runs-on }}
+  build-release:
+    needs: release
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - runs-on: ubuntu-latest
-            name: Linux
-            llvm-dev: llvm-17-dev
-            llvm-runtime: llvm-17-runtime
-            install-cmd: |
-              sudo apt-get update && sudo apt-get install -y llvm-17-dev llvm-17-runtime
-              sudo ldconfig /usr/lib/llvm-17/lib
-          - runs-on: macos-latest
-            name: macOS
-            llvm-dev: llvm@17
-            llvm-runtime: ""
-            install-cmd: brew install llvm@17
+          - os: ubuntu-latest
+            artifact: linux
+          - os: macos-latest
+            artifact: macos
+          - os: windows-latest
+            artifact: windows
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v2
+      - uses: actions/checkout@v4
+      - uses: KyleMayes/install-llvm-action@v1
         with:
-          cmake-version: "3.28.x"
-
-      - name: Install Dependencies
-        run: ${{ matrix.install-cmd }}
-
-      - name: Run CI Pipeline
-        run: ./scripts/ci/run_ci.sh
-
-      - name: Package Artifacts
+          version: 17
+      - uses: jwlawson/actions-setup-cmake@v2
+      - name: Build Release
         run: |
-          VERSION=${{ needs.create-release.outputs.version }}
-          mkdir -p release/meadows-${{ matrix.name }}
-
-          cp build-release/bin/Meadows release/meadows-${{ matrix.name }}/meadows
-          cp build-release/tests/meadows_tests release/meadows-${{ matrix.name }}/
-          cp README.md release/meadows-${{ matrix.name }}/
-          chmod +x release/meadows-${{ matrix.name }}/meadows
-
-          cat > release/meadows-${{ matrix.name }}/VERSION << EOF
-          Meadows Compiler ${VERSION}
-          Platform: ${{ matrix.name }}
-          Commit: ${{ github.sha }}
-          EOF
-
-          cd release
-          ARCHIVE_NAME=meadows-${{ matrix.name }}-${VERSION}.tar.gz
-          tar -czf "${ARCHIVE_NAME}" meadows-${{ matrix.name }}/
-          echo "ARCHIVE=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
-
-      - name: Upload Release Asset
-        uses: ncipollo/release-action@v1
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+          cmake --build build --parallel
+      - name: Package
+        run: ./scripts/ci/package_release.sh
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ needs.create-release.outputs.tag_name }}
-          artifacts: release/meadows-${{ matrix.name }}-${{ needs.create-release.outputs.version }}.tar.gz
-          allowUpdates: true
-          omitBodyDuringUpdate: true
-          omitNameDuringUpdate: true
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: release/
+          asset_name: meadows-${{ matrix.artifact }}
+          asset_content_type: application/zip
