@@ -18,6 +18,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Cache LLVM
+        uses: actions/cache@v3
+        with:
+          path: llvm
+          key: llvm-17-${{ runner.os }}-v1
       - uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
