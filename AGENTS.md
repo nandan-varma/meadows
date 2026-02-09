@@ -161,3 +161,17 @@ tests/
 - Use `std::unordered_map` for O(1) lookups
 - Reserve vector capacity when size known
 - Avoid O(n²) string concatenation
+
+## Cursor and Copilot Rules
+
+No specific Cursor rules (.cursor/rules/ or .cursorrules) or Copilot instructions (.github/copilot-instructions.md) were found in this repository.
+
+## Additional Guidelines
+
+- Use meaningful commit messages with imperative mood (e.g., "Add lexer token validation", not "Added lexer token validation")
+- Run full test suite before pushing changes
+- For security-critical changes, run the security test suite specifically
+- Use the provided scripts for consistency across development environments
+- When adding new features, include corresponding unit tests
+- Follow LLVM coding standards for any LLVM-interfacing code
+- Use RAII principles extensively for resource management

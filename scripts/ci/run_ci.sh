@@ -92,11 +92,19 @@ cmake --build build-release --parallel "$NJOBS"
 
 # Copy release binary to common location for tests
 mkdir -p build
-cp build-release/bin/Meadows build/Meadows
+if [[ "$PLATFORM" == "Linux" ]] || [[ "$PLATFORM" == "Darwin" ]]; then
+    cp build-release/bin/Meadows build/Meadows
+elif [[ "$PLATFORM" == MINGW* ]] || [[ "$PLATFORM" == MSYS* ]]; then
+    cp build-release/bin/Meadows.exe build/Meadows.exe
+fi
 
 echo
 echo -e "${YELLOW}Running unit tests...${NC}"
-./build-release/tests/meadows_tests
+if [[ "$PLATFORM" == "Linux" ]] || [[ "$PLATFORM" == "Darwin" ]]; then
+    ./build-release/tests/meadows_tests
+elif [[ "$PLATFORM" == MINGW* ]] || [[ "$PLATFORM" == MSYS* ]]; then
+    ./build-release/tests/meadows_tests.exe
+fi
 
 if [[ $QUICK -eq 0 ]]; then
     echo
