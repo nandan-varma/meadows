@@ -86,6 +86,8 @@ echo
 echo -e "${YELLOW}Building Release...${NC}"
 cmake -B build-release \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
     -DLLVM_DIR="$LLVM_DIR" \
     -DBUILD_TESTS=ON
 cmake --build build-release --parallel "$NJOBS"
