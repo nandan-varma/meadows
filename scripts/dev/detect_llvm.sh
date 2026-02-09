@@ -7,6 +7,9 @@ get_llvm_dir() {
 
     if [[ -n "$LLVM_DIR" ]]; then
         llvm_dir="$LLVM_DIR"
+    elif [[ -d "${GITHUB_WORKSPACE}/llvm/lib/cmake/llvm" ]]; then
+        # KyleMayes action installs here
+        llvm_dir="${GITHUB_WORKSPACE}/llvm/lib/cmake/llvm"
     elif [[ "$(uname)" == "Darwin" ]]; then
         if command -v brew >/dev/null 2>&1; then
             if brew list llvm@17 >/dev/null 2>&1; then
@@ -29,7 +32,10 @@ get_llvm_dir() {
 get_llvm_runtime_dir() {
     local runtime_dir=""
 
-    if [[ "$(uname)" == "Darwin" ]]; then
+    if [[ -d "${GITHUB_WORKSPACE}/llvm/lib" ]]; then
+        # KyleMayes action installs here
+        runtime_dir="${GITHUB_WORKSPACE}/llvm/lib"
+    elif [[ "$(uname)" == "Darwin" ]]; then
         if command -v brew >/dev/null 2>&1; then
             if brew list llvm@17 >/dev/null 2>&1; then
                 runtime_dir="$(brew --prefix llvm@17)/lib"
