@@ -35,13 +35,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: KyleMayes/install-llvm-action@v1
+      - uses: ZhongRuoyu/setup-llvm@v0
         with:
-          version: 17
+          llvm-version: 17
       - uses: jwlawson/actions-setup-cmake@v2
       - name: Build Release
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTS=ON
           cmake --build build --parallel
       - name: Package
         run: ./scripts/ci/package_release.sh
