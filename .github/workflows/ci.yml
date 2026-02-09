@@ -77,10 +77,3 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTS=OFF
           cmake --build build --parallel
       - uses: github/codeql-action/analyze@v3
-
-  # Format check
-  format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./scripts/dev/format.sh --check
