@@ -18,9 +18,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: ZhongRuoyu/setup-llvm@v0
+      - uses: KyleMayes/install-llvm-action@v2
         with:
-          llvm-version: 17
+          version: "17"
       - uses: jwlawson/actions-setup-cmake@v2
       - name: Build Release
         run: |
