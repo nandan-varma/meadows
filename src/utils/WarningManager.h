@@ -1,11 +1,12 @@
 #ifndef WARNING_MANAGER_H
 #define WARNING_MANAGER_H
 
-#include "ErrorCodes.h"
-#include "Exceptions.h"
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+#include "ErrorCodes.h"
+#include "Exceptions.h"
 
 namespace meadows {
 

@@ -39,12 +39,7 @@ void CodeGen::validateDivision(llvm::Value *divisor) {
   builder->CreateCondBr(isZero, divErrorBB, continueBB);
   builder->SetInsertPoint(divErrorBB);
 
-  auto *errorMsg =
-      builder->CreateGlobalStringPtr("RuntimeError: Division by zero\n");
-  auto *format = builder->CreateGlobalString("%s");
-  builder->CreateCall(printfFunc, {format, errorMsg});
-  builder->CreateRet(
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+  generateRuntimeError("RuntimeError: Division by zero\n");
 
   builder->SetInsertPoint(continueBB);
 }
@@ -67,14 +62,17 @@ void CodeGen::validateArrayBounds(llvm::Value *array, llvm::Value *index) {
   builder->CreateCondBr(isInvalid, boundsErrorBB, continueBB);
   builder->SetInsertPoint(boundsErrorBB);
 
-  auto *errorMsg = builder->CreateGlobalStringPtr(
-      "RuntimeError: Array index out of bounds\n");
+  generateRuntimeError("RuntimeError: Array index out of bounds\n");
+
+  builder->SetInsertPoint(continueBB);
+}
+
+void CodeGen::generateRuntimeError(const std::string &message) {
+  auto *errorMsg = builder->CreateGlobalStringPtr(message);
   auto *format = builder->CreateGlobalString("%s");
   builder->CreateCall(printfFunc, {format, errorMsg});
   builder->CreateRet(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
-
-  builder->SetInsertPoint(continueBB);
 }
 
 CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
@@ -486,12 +484,7 @@ llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
   builder->CreateCondBr(mallocCheck, mallocContinueBB, mallocErrorBB);
   builder->SetInsertPoint(mallocErrorBB);
 
-  auto *errorMsg = builder->CreateGlobalStringPtr(
-      "RuntimeError: Memory allocation failed\n");
-  auto *format = builder->CreateGlobalString("%s");
-  builder->CreateCall(printfFunc, {format, errorMsg});
-  builder->CreateRet(
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+  generateRuntimeError("RuntimeError: Memory allocation failed\n");
 
   builder->SetInsertPoint(mallocContinueBB);
 

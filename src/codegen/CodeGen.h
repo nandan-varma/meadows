@@ -32,10 +32,10 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 /**
@@ -67,7 +67,7 @@ private:
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
   SymbolTable symbolTable;
-  std::map<std::string, llvm::Type *> variableTypes;
+  std::unordered_map<std::string, llvm::Type *> variableTypes;
   llvm::Function *printfFunc;
   llvm::Function *mallocFunc;
   llvm::Function *freeFunc;
@@ -76,12 +76,14 @@ private:
   llvm::Value *exprResult;
   llvm::BasicBlock *currentBlock;
 
-  std::vector<std::map<std::string, llvm::Value *>> variableScopeStack;
+  std::vector<std::unordered_map<std::string, llvm::Value *>>
+      variableScopeStack;
 
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
   void validateArrayBounds(llvm::Value *array, llvm::Value *index);
   void validateDivision(llvm::Value *divisor);
+  void generateRuntimeError(const std::string &message);
 
   void enterScope();
   void exitScope();
