@@ -18,6 +18,7 @@ endif()
 # Create Catch2 library
 add_library(Catch2 STATIC catch_amalgamated.cpp)
 target_include_directories(Catch2 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(Catch2 PRIVATE -Wno-sign-conversion)
 
 # Collect test source files
 set(TEST_SOURCES

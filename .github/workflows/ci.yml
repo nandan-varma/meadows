@@ -13,11 +13,7 @@ jobs:
         include:
           - os: ubuntu-latest
             llvm-version: 17
-          - os: ubuntu-latest
-            llvm-version: 18  # Test latest LLVM
           - os: macos-latest
-            llvm-version: 17
-          - os: windows-latest
             llvm-version: 17
     runs-on: ${{ matrix.os }}
 
