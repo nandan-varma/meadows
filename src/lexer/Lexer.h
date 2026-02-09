@@ -1,9 +1,10 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include "Token.h"
 #include <string>
 #include <vector>
+
+#include "Token.h"
 
 /**
  * @class Lexer
@@ -28,7 +29,7 @@ public:
    */
   Lexer(const std::string &source);
 
-  int getColumn() const { return column; }
+  int getColumn() const { return column_; }
 
   /**
    * @brief Tokenizes the entire source code.
@@ -38,16 +39,17 @@ public:
   std::vector<Token> tokenize();
 
 private:
-  std::string source;
-  size_t pos;
-  int line;
-  int column;
-  int currentLineStart;
+  std::string source_;
+  size_t pos_;
+  int line_;
+  int column_;
+  int currentLineStart_;
 
   char peek() const;
   char advance();
   bool isAtEnd() const;
   Token nextToken();
+  Token handleOperator(char c, int startColumn);
   Token identifier();
   Token number();
   Token string();

@@ -121,6 +121,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 set(MEADOWS_LIB_SOURCES
   src/lexer/Lexer.cpp
   src/parser/Parser.cpp
+  src/parser/ParserExpressions.cpp
   src/ast/AST.cpp
   src/codegen/CodeGen.cpp
   src/codegen/StringUtils.cpp
@@ -140,6 +141,9 @@ set(MEADOWS_HEADERS
   src/ast/AST.h
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
+  src/codegen/StringUtils.h
+  src/codegen/MemoryUtils.h
+  src/codegen/TypeUtils.h
   src/lsp/LSPInterface.h
   src/utils/ErrorCodes.h
   src/utils/Exceptions.h
@@ -148,6 +152,7 @@ set(MEADOWS_HEADERS
   src/utils/Timer.h
   src/utils/ASTPrinter.h
   src/utils/WarningManager.h
+  src/utils/MemoryUtils.h
 )
 
 #==============================================================================

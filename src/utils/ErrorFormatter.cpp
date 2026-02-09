@@ -1,6 +1,8 @@
 #include "ErrorFormatter.h"
+#include "../utils/MemoryUtils.h"
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -51,6 +53,18 @@ ErrorFormatter::loadFile(const std::string &filepath) {
   auto it = fileCache_.find(filepath);
   if (it != fileCache_.end()) {
     return it->second;
+  }
+
+  // Check file size before loading
+  try {
+    auto size = std::filesystem::file_size(filepath);
+    if (size > MAX_ALLOC_SIZE) {
+      // Return empty vector for oversized files to avoid DoS
+      static const std::vector<std::string> emptyVec;
+      return emptyVec;
+    }
+  } catch (const std::filesystem::filesystem_error &) {
+    // File size check failed, proceed (file might not exist)
   }
 
   // Load file
@@ -105,13 +119,14 @@ std::string ErrorFormatter::createUnderline(int startCol, int endCol,
 
   std::string underline;
 
+  // Reserve capacity to avoid reallocations
+  int length = std::max(1, endCol - startCol);
+  underline.reserve(startCol + length + 20);
+
   // Add spaces up to start column
   for (int i = 0; i < startCol - 1; i++) {
     underline += " ";
   }
-
-  // Add underline
-  int length = std::max(1, endCol - startCol);
   if (options_.useColors) {
     underline += COLOR_RED;
   }

@@ -18,6 +18,12 @@ get_llvm_dir() {
                 llvm_dir="$(brew --prefix llvm)/lib/cmake/llvm"
             fi
         fi
+    elif [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == CYGWIN* ]]; then
+        if [[ -f "/c/Program Files/LLVM/lib/cmake/llvm/LLVMConfig.cmake" ]]; then
+            llvm_dir="/c/Program Files/LLVM/lib/cmake/llvm"
+        elif [[ -f "/c/Program Files (x86)/LLVM/lib/cmake/llvm/LLVMConfig.cmake" ]]; then
+            llvm_dir="/c/Program Files (x86)/LLVM/lib/cmake/llvm"
+        fi
     elif [[ -f "/usr/lib/llvm-17/lib/cmake/llvm/LLVMConfig.cmake" ]]; then
         llvm_dir="/usr/lib/llvm-17/lib/cmake/llvm"
     elif [[ -f "/usr/lib/llvm-16/lib/cmake/llvm/LLVMConfig.cmake" ]]; then

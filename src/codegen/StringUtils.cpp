@@ -5,6 +5,7 @@ namespace StringUtils {
 
 std::string EscapeHandler::process(const std::string &input) {
   std::string result;
+  result.reserve(input.length() * 2);
   for (size_t i = 0; i < input.length(); ++i) {
     char c = input[i];
     if (c == '\\' && i + 1 < input.length()) {
@@ -46,6 +47,7 @@ std::string EscapeHandler::process(const std::string &input) {
 
 std::string EscapeHandler::escape(const std::string &input) {
   std::string result;
+  result.reserve(input.length() * 2);
   for (char c : input) {
     switch (c) {
     case '\n':

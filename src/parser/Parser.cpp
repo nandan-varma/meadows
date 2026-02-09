@@ -1,12 +1,15 @@
+#include <stdexcept>
+
+#include "../utils/MemoryUtils.h"
 #include "Parser.h"
 #include <stdexcept>
 
 Parser::Parser(std::vector<Token> t)
-    : tokens(std::move(t)), current(0), diagnostics_(nullptr),
+    : tokens_(std::move(t)), current_(0), diagnostics_(nullptr),
       inErrorRecovery_(false), consecutiveErrors_(0) {}
 
 Parser::Parser(std::vector<Token> t, meadows::DiagnosticsCollector &diagnostics)
-    : tokens(std::move(t)), current(0), diagnostics_(&diagnostics),
+    : tokens_(std::move(t)), current_(0), diagnostics_(&diagnostics),
       inErrorRecovery_(false), consecutiveErrors_(0) {}
 
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
@@ -44,13 +47,13 @@ bool Parser::hasErrors() const {
 
 bool Parser::isAtEnd() const { return peek().type == TokenType::EOF_TOKEN; }
 
-const Token &Parser::peek() const { return tokens[current]; }
+const Token &Parser::peek() const { return tokens_[current_]; }
 
-const Token &Parser::previous() const { return tokens[current - 1]; }
+const Token &Parser::previous() const { return tokens_[current_ - 1]; }
 
 const Token &Parser::advance() {
   if (!isAtEnd())
-    current++;
+    current_++;
   return previous();
 }
 
@@ -74,7 +77,7 @@ const Token &Parser::consume(TokenType type, meadows::ErrorCode code,
     return advance();
   }
   error(code, message);
-  // Return current token anyway to allow parsing to continue
+  // Return current_ token anyway to allow parsing to continue
   return peek();
 }
 
@@ -258,188 +261,6 @@ std::unique_ptr<Stmt> Parser::parseBlockStmt() {
 }
 
 std::unique_ptr<Expr> Parser::parseExpr() { return parseAssignment(); }
-
-std::unique_ptr<Expr> Parser::parseAssignment() {
-  auto expr = parseOr();
-  if (match(TokenType::EQUAL)) {
-    auto varExpr = dynamic_cast<VarExpr *>(expr.get());
-    if (!varExpr) {
-      meadows::SourceLocation loc("", peek().line, peek().column);
-      throw meadows::ParseException(
-          meadows::ErrorCode::PARSE_INVALID_ASSIGNMENT_TARGET,
-          "Invalid assignment target", loc);
-    }
-    auto value = parseAssignment();
-    return std::make_unique<AssignExpr>(varExpr->name, std::move(value));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseOr() {
-  auto expr = parseAnd();
-  while (match(TokenType::OR)) {
-    Token op = previous();
-    auto right = parseAnd();
-    expr = std::make_unique<LogicalExpr>(std::move(expr), LogicalOperator::OR,
-                                         std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseAnd() {
-  auto expr = parseEquality();
-  while (match(TokenType::AND)) {
-    Token op = previous();
-    auto right = parseEquality();
-    expr = std::make_unique<LogicalExpr>(std::move(expr), LogicalOperator::AND,
-                                         std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseEquality() {
-  auto expr = parseComparison();
-  while (match(TokenType::EQUAL_EQUAL) || match(TokenType::BANG_EQUAL)) {
-    std::string op = previous().value;
-    auto right = parseComparison();
-    expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseComparison() {
-  auto expr = parseTerm();
-  while (match(TokenType::GREATER) || match(TokenType::GREATER_EQUAL) ||
-         match(TokenType::LESS) || match(TokenType::LESS_EQUAL)) {
-    std::string op = previous().value;
-    auto right = parseTerm();
-    expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseTerm() {
-  auto expr = parseFactor();
-  while (match(TokenType::PLUS) || match(TokenType::MINUS)) {
-    std::string op = previous().value;
-    auto right = parseFactor();
-    expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseFactor() {
-  auto expr = parseUnary();
-  while (match(TokenType::STAR) || match(TokenType::SLASH)) {
-    std::string op = previous().value;
-    auto right = parseUnary();
-    expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseUnary() {
-  if (match(TokenType::MINUS)) {
-    std::string op = previous().value;
-    auto operand = parseUnary();
-    return std::make_unique<UnaryExpr>(op, std::move(operand));
-  }
-  if (match(TokenType::BANG)) {
-    std::string op = previous().value;
-    auto operand = parseUnary();
-    return std::make_unique<UnaryExpr>(op, std::move(operand));
-  }
-  return parseCall();
-}
-
-std::unique_ptr<Expr> Parser::parseCall() {
-  auto expr = parseIndex();
-  if (match(TokenType::LEFT_PAREN)) {
-    auto args = parseArgs();
-    consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments");
-    expr = std::make_unique<CallExpr>(std::move(expr), std::move(args));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseIndex() {
-  auto expr = parseFieldAccess();
-  while (match(TokenType::LEFT_BRACKET)) {
-    auto index = parseExpr();
-    consume(TokenType::RIGHT_BRACKET, "Expect ']' after index");
-    expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index));
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parseFieldAccess() {
-  auto expr = parsePrimary();
-  while (match(TokenType::DOT)) {
-    Token fieldName =
-        consume(TokenType::IDENTIFIER, "Expect field name after '.'");
-    expr = std::make_unique<FieldAccessExpr>(std::move(expr), fieldName.value);
-  }
-  return expr;
-}
-
-std::unique_ptr<Expr> Parser::parsePrimary() {
-  if (match(TokenType::STRING)) {
-    return std::make_unique<LiteralExpr>(previous().value);
-  }
-  if (match(TokenType::NUMBER)) {
-    return std::make_unique<LiteralExpr>(previous().value);
-  }
-  if (match(TokenType::TRUE)) {
-    return std::make_unique<LiteralExpr>("1");
-  }
-  if (match(TokenType::FALSE)) {
-    return std::make_unique<LiteralExpr>("0");
-  }
-  if (match(TokenType::IDENTIFIER)) {
-    return std::make_unique<VarExpr>(previous().value);
-  }
-  if (match(TokenType::LEFT_BRACKET)) {
-    std::vector<std::unique_ptr<Expr>> elements;
-    if (!check(TokenType::RIGHT_BRACKET)) {
-      do {
-        elements.push_back(parseExpr());
-      } while (match(TokenType::COMMA));
-    }
-    consume(TokenType::RIGHT_BRACKET, "Expect ']' after array elements");
-    return std::make_unique<ArrayExpr>(std::move(elements));
-  }
-  if (match(TokenType::LEFT_BRACE)) {
-    std::unordered_map<std::string, std::unique_ptr<Expr>> pairs;
-    if (!check(TokenType::RIGHT_BRACE)) {
-      do {
-        const Token &key = consume(TokenType::IDENTIFIER, "Expect key");
-        consume(TokenType::COLON, "Expect ':' after key");
-        auto value = parseExpr();
-        pairs[key.value] = std::move(value);
-      } while (match(TokenType::COMMA));
-    }
-    consume(TokenType::RIGHT_BRACE, "Expect '}' after object");
-    return std::make_unique<ObjectExpr>(std::move(pairs));
-  }
-  if (match(TokenType::LEFT_PAREN)) {
-    auto expr = parseExpr();
-    consume(TokenType::RIGHT_PAREN, "Expect ')' after expression");
-    return expr;
-  }
-  meadows::SourceLocation loc("", peek().line, peek().column);
-  throw meadows::ParseException(meadows::ErrorCode::PARSE_EXPECTED_EXPRESSION,
-                                "Expect expression", loc);
-}
-
-std::vector<std::unique_ptr<Expr>> Parser::parseArgs() {
-  std::vector<std::unique_ptr<Expr>> args;
-  if (!check(TokenType::RIGHT_PAREN)) {
-    do {
-      args.push_back(parseExpr());
-    } while (match(TokenType::COMMA));
-  }
-  return args;
-}
 
 std::unique_ptr<Stmt> Parser::parseBreakStmt() {
   consume(TokenType::SEMICOLON, "Expect ';' after break");

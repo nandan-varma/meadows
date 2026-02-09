@@ -1,11 +1,12 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include <memory>
+#include <vector>
+
 #include "../ast/AST.h"
 #include "../lexer/Token.h"
 #include "../utils/DiagnosticsCollector.h"
-#include <memory>
-#include <vector>
 
 /**
  * @class Parser
@@ -51,8 +52,8 @@ public:
   meadows::DiagnosticsCollector *diagnostics() { return diagnostics_; }
 
 private:
-  std::vector<Token> tokens;
-  size_t current;
+  std::vector<Token> tokens_;
+  size_t current_;
   meadows::DiagnosticsCollector *diagnostics_;
   bool inErrorRecovery_;
   int consecutiveErrors_;
@@ -102,18 +103,18 @@ private:
   std::unique_ptr<Stmt> parseContinueStmt();
 
   std::unique_ptr<Expr> parseExpr();
-  std::unique_ptr<Expr> parseAssignment();
-  std::unique_ptr<Expr> parseOr();
-  std::unique_ptr<Expr> parseAnd();
-  std::unique_ptr<Expr> parseEquality();
-  std::unique_ptr<Expr> parseComparison();
-  std::unique_ptr<Expr> parseTerm();
-  std::unique_ptr<Expr> parseFactor();
-  std::unique_ptr<Expr> parseUnary();
-  std::unique_ptr<Expr> parseCall();
-  std::unique_ptr<Expr> parseIndex();
-  std::unique_ptr<Expr> parseFieldAccess();
-  std::unique_ptr<Expr> parsePrimary();
+  std::unique_ptr<Expr> parseAssignment(int depth = 0);
+  std::unique_ptr<Expr> parseOr(int depth = 0);
+  std::unique_ptr<Expr> parseAnd(int depth = 0);
+  std::unique_ptr<Expr> parseEquality(int depth = 0);
+  std::unique_ptr<Expr> parseComparison(int depth = 0);
+  std::unique_ptr<Expr> parseTerm(int depth = 0);
+  std::unique_ptr<Expr> parseFactor(int depth = 0);
+  std::unique_ptr<Expr> parseUnary(int depth = 0);
+  std::unique_ptr<Expr> parseCall(int depth = 0);
+  std::unique_ptr<Expr> parseIndex(int depth = 0);
+  std::unique_ptr<Expr> parseFieldAccess(int depth = 0);
+  std::unique_ptr<Expr> parsePrimary(int depth = 0);
 
   std::vector<std::unique_ptr<Expr>> parseArgs();
   std::vector<std::unique_ptr<Stmt>> parseBlock();

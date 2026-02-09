@@ -1,11 +1,12 @@
 #ifndef EXCEPTIONS_H
 #define EXCEPTIONS_H
 
-#include "ErrorCodes.h"
 #include <exception>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "ErrorCodes.h"
 
 namespace meadows {
 
