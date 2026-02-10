@@ -31,6 +31,7 @@ set(TEST_SOURCES
     unit/utils/Timer.test.cpp
     unit/utils/WarningManager.test.cpp
     unit/config/Config.test.cpp
+    unit/modules/ModuleCompiler.test.cpp
 )
 
 # Create test executable

@@ -752,3 +752,83 @@ TEST_CASE("Parser property-based tests", "[parser][property]") {
     }
   }
 }
+
+TEST_CASE("Parser handles module declarations", "[parser][module]") {
+  SECTION("Simple module declaration") {
+    auto parser = createParser("module math.utils;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto moduleStmt = dynamic_cast<ModuleStmt *>(stmts[0].get());
+    REQUIRE(moduleStmt != nullptr);
+    CHECK(moduleStmt->moduleName == "math.utils");
+  }
+
+  SECTION("Nested module declaration") {
+    auto parser = createParser("module std.io.file;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto moduleStmt = dynamic_cast<ModuleStmt *>(stmts[0].get());
+    REQUIRE(moduleStmt != nullptr);
+    CHECK(moduleStmt->moduleName == "std.io.file");
+  }
+
+  SECTION("Simple import statement") {
+    auto parser = createParser("import math.utils;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto importStmt = dynamic_cast<ImportStmt *>(stmts[0].get());
+    REQUIRE(importStmt != nullptr);
+    CHECK(importStmt->modulePath == "math.utils");
+    CHECK(importStmt->specificImports.empty());
+    CHECK(importStmt->alias.empty());
+  }
+
+  SECTION("Import with specific imports") {
+    auto parser = createParser("import math.utils.{factorial, fibonacci};");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto importStmt = dynamic_cast<ImportStmt *>(stmts[0].get());
+    REQUIRE(importStmt != nullptr);
+    CHECK(importStmt->modulePath == "math.utils");
+    REQUIRE(importStmt->specificImports.size() == 2);
+    CHECK(importStmt->specificImports[0] == "factorial");
+    CHECK(importStmt->specificImports[1] == "fibonacci");
+  }
+
+  SECTION("Import with alias") {
+    auto parser = createParser("import math.utils as m;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto importStmt = dynamic_cast<ImportStmt *>(stmts[0].get());
+    REQUIRE(importStmt != nullptr);
+    CHECK(importStmt->modulePath == "math.utils");
+    CHECK(importStmt->alias == "m");
+  }
+
+  SECTION("Export statement") {
+    auto parser = createParser("export factorial;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto exportStmt = dynamic_cast<ExportStmt *>(stmts[0].get());
+    REQUIRE(exportStmt != nullptr);
+    CHECK(exportStmt->name == "factorial");
+    CHECK(exportStmt->typeInfo.empty());
+  }
+
+  SECTION("Export with type info") {
+    auto parser = createParser("export factorial: i32 -> i32;");
+    auto stmts = parser->parse();
+
+    REQUIRE(stmts.size() == 1);
+    auto exportStmt = dynamic_cast<ExportStmt *>(stmts[0].get());
+    REQUIRE(exportStmt != nullptr);
+    CHECK(exportStmt->name == "factorial");
+    CHECK(exportStmt->typeInfo == "i32 -> i32");
+  }
+}

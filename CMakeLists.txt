@@ -134,6 +134,9 @@ set(MEADOWS_LIB_SOURCES
   src/utils/WarningManager.cpp
   src/config/Config.cpp
   src/config/TOMLParser.cpp
+  src/modules/Modules.cpp
+  src/modules/ModuleResolver.cpp
+  src/modules/ModuleCompiler.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -157,6 +160,9 @@ set(MEADOWS_HEADERS
   src/utils/MemoryUtils.h
   src/config/Config.h
   src/config/TOMLParser.h
+  src/modules/Modules.h
+  src/modules/ModuleResolver.h
+  src/modules/ModuleCompiler.h
 )
 
 #==============================================================================

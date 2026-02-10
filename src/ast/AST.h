@@ -164,19 +164,37 @@ class LetStmt : public Stmt {
 public:
   std::string name;
   std::unique_ptr<Expr> initializer;
-  LetStmt(const std::string &n, std::unique_ptr<Expr> i)
-      : name(n), initializer(std::move(i)) {}
+  std::string typeAnnotation; // Empty if no annotation
+  LetStmt(const std::string &n, std::unique_ptr<Expr> i,
+          const std::string &type = "")
+      : name(n), initializer(std::move(i)), typeAnnotation(type) {}
   void accept(StmtVisitor &visitor) override;
+};
+
+class FuncParam {
+public:
+  std::string name;
+  std::string typeAnnotation;
+  FuncParam(const std::string &n, const std::string &type = "")
+      : name(n), typeAnnotation(type) {}
+
+  bool operator==(const std::string &other) const { return name == other; }
+  bool operator==(const FuncParam &other) const {
+    return name == other.name && typeAnnotation == other.typeAnnotation;
+  }
 };
 
 class FuncStmt : public Stmt {
 public:
   std::string name;
-  std::vector<std::string> params;
+  std::vector<FuncParam> params;
+  std::string returnTypeAnnotation;
   std::vector<std::unique_ptr<Stmt>> body;
-  FuncStmt(const std::string &n, std::vector<std::string> p,
-           std::vector<std::unique_ptr<Stmt>> b)
-      : name(n), params(std::move(p)), body(std::move(b)) {}
+  FuncStmt(const std::string &n, std::vector<FuncParam> p,
+           std::vector<std::unique_ptr<Stmt>> b,
+           const std::string &retType = "")
+      : name(n), params(std::move(p)), returnTypeAnnotation(retType),
+        body(std::move(b)) {}
   void accept(StmtVisitor &visitor) override;
 };
 
@@ -245,6 +263,51 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
+class TypeDefStmt : public Stmt {
+public:
+  std::string name;
+  std::vector<std::string> typeParams; // For generic types
+  // For struct types
+  std::unordered_map<std::string, std::string>
+      fields; // field name -> type annotation
+  // For enum types
+  std::vector<std::pair<std::string, std::vector<std::string>>> variants;
+  bool isEnum;
+
+  TypeDefStmt(const std::string &n, bool enum_) : name(n), isEnum(enum_) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
+class ModuleStmt : public Stmt {
+public:
+  std::string moduleName;
+
+  explicit ModuleStmt(const std::string &name) : moduleName(name) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
+class ImportStmt : public Stmt {
+public:
+  std::string modulePath;
+  std::vector<std::string> specificImports;
+  std::string alias;
+
+  ImportStmt(const std::string &path, std::vector<std::string> imports,
+             const std::string &alias = "")
+      : modulePath(path), specificImports(std::move(imports)), alias(alias) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
+class ExportStmt : public Stmt {
+public:
+  std::string name;
+  std::string typeInfo;
+
+  explicit ExportStmt(const std::string &n, const std::string &type = "")
+      : name(n), typeInfo(type) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
 class ExprVisitor {
 public:
   virtual ~ExprVisitor() = default;
@@ -275,6 +338,10 @@ public:
   virtual void visitContinueStmt(ContinueStmt &stmt) = 0;
   virtual void visitBlockStmt(BlockStmt &stmt) = 0;
   virtual void visitPrintStmt(PrintStmt &stmt) = 0;
+  virtual void visitTypeDefStmt(TypeDefStmt &stmt) = 0;
+  virtual void visitModuleStmt(ModuleStmt &stmt) = 0;
+  virtual void visitImportStmt(ImportStmt &stmt) = 0;
+  virtual void visitExportStmt(ExportStmt &stmt) = 0;
 };
 
 #endif

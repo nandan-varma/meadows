@@ -570,7 +570,7 @@ void CodeGen::visitFuncStmt(FuncStmt &stmt) {
   for (auto &param : stmt.params) {
     auto alloca = builder->CreateAlloca(llvm::Type::getInt32Ty(*context));
     builder->CreateStore(&*it, alloca);
-    declareVariable(param, alloca);
+    declareVariable(param.name, alloca);
     ++it;
   }
   currentFunction = func;
@@ -591,10 +591,21 @@ void CodeGen::visitFuncStmt(FuncStmt &stmt) {
 void CodeGen::visitIfStmt(IfStmt &stmt) {
   stmt.condition->accept(*this);
   auto cond = exprResult;
+
+  // Convert condition to boolean if needed
+  llvm::Value *boolCond = nullptr;
+  if (cond->getType()->isIntegerTy()) {
+    // Convert integer to i1 for branch
+    boolCond = builder->CreateICmpNE(
+        cond, llvm::ConstantInt::get(cond->getType(), 0), "boolCond");
+  } else {
+    boolCond = cond;
+  }
+
   auto thenBB = llvm::BasicBlock::Create(*context, "then", currentFunction);
   auto elseBB = llvm::BasicBlock::Create(*context, "else", currentFunction);
   auto endBB = llvm::BasicBlock::Create(*context, "endif", currentFunction);
-  builder->CreateCondBr(cond, thenBB, elseBB);
+  builder->CreateCondBr(boolCond, thenBB, elseBB);
   builder->SetInsertPoint(thenBB);
   for (auto &s : stmt.thenBranch)
     s->accept(*this);
@@ -710,4 +721,24 @@ void CodeGen::visitContinueStmt(ContinueStmt &stmt) {
   if (continueBlock) {
     builder->CreateBr(continueBlock);
   }
+}
+
+void CodeGen::visitTypeDefStmt(TypeDefStmt &stmt) {
+  // Type definitions don't generate LLVM IR directly
+  // They're used for type checking only
+}
+
+void CodeGen::visitModuleStmt(ModuleStmt &stmt) {
+  // Module statements are handled at the compilation unit level
+  // They don't generate LLVM IR directly
+}
+
+void CodeGen::visitImportStmt(ImportStmt &stmt) {
+  // Import statements are resolved before code generation
+  // They don't generate LLVM IR directly
+}
+
+void CodeGen::visitExportStmt(ExportStmt &stmt) {
+  // Export statements are handled at the module level
+  // They don't generate LLVM IR directly
 }

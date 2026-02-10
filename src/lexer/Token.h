@@ -27,6 +27,15 @@ enum class TokenType {
   AS,
   FROM,
 
+  // Type system
+  TYPE,
+  I32,
+  I64,
+  F32,
+  F64,
+  BOOL,
+  ARROW,
+
   // Literals
   IDENTIFIER,
   STRING,

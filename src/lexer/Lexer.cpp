@@ -8,16 +8,32 @@
 #include "Lexer.h"
 
 static std::unordered_map<std::string, TokenType> keywords = {
-    {"let", TokenType::LET},       {"func", TokenType::FUNC},
-    {"if", TokenType::IF},         {"else", TokenType::ELSE},
-    {"for", TokenType::FOR},       {"while", TokenType::WHILE},
-    {"print", TokenType::PRINT},   {"return", TokenType::RETURN},
-    {"in", TokenType::IN},         {"range", TokenType::RANGE},
-    {"true", TokenType::TRUE},     {"false", TokenType::FALSE},
-    {"break", TokenType::BREAK},   {"continue", TokenType::CONTINUE},
-    {"module", TokenType::MODULE}, {"import", TokenType::IMPORT},
-    {"export", TokenType::EXPORT}, {"as", TokenType::AS},
-    {"from", TokenType::FROM}};
+    {"let", TokenType::LET},
+    {"func", TokenType::FUNC},
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},
+    {"while", TokenType::WHILE},
+    {"print", TokenType::PRINT},
+    {"return", TokenType::RETURN},
+    {"in", TokenType::IN},
+    {"range", TokenType::RANGE},
+    {"true", TokenType::TRUE},
+    {"false", TokenType::FALSE},
+    {"break", TokenType::BREAK},
+    {"continue", TokenType::CONTINUE},
+    {"module", TokenType::MODULE},
+    {"import", TokenType::IMPORT},
+    {"export", TokenType::EXPORT},
+    {"as", TokenType::AS},
+    {"from", TokenType::FROM},
+    // Type system
+    {"type", TokenType::TYPE},
+    {"i32", TokenType::I32},
+    {"i64", TokenType::I64},
+    {"f32", TokenType::F32},
+    {"f64", TokenType::F64},
+    {"bool", TokenType::BOOL}};
 
 Lexer::Lexer(const std::string &source)
     : source_(source), pos_(0), line_(1), column_(1), currentLineStart_(0) {}
@@ -78,6 +94,10 @@ Token Lexer::handleOperator(char c, int startColumn) {
     return Token(TokenType::PLUS, "+", line_, startColumn);
   case '-':
     advance();
+    if (peek() == '>') {
+      advance();
+      return Token(TokenType::ARROW, "->", line_, startColumn);
+    }
     return Token(TokenType::MINUS, "-", line_, startColumn);
   case '*':
     advance();
@@ -182,9 +202,36 @@ Token Lexer::identifier() {
 Token Lexer::number() {
   int startColumn = column_;
   size_t start = pos_;
+  bool hasDecimal = false;
+  bool hasExponent = false;
+
+  // Parse integer part
   while (isdigit(peek())) {
     advance();
   }
+
+  // Check for decimal point
+  if (peek() == '.') {
+    hasDecimal = true;
+    advance();
+    // Parse fractional part
+    while (isdigit(peek())) {
+      advance();
+    }
+  }
+
+  // Check for exponent
+  if (peek() == 'e' || peek() == 'E') {
+    hasExponent = true;
+    advance();
+    if (peek() == '+' || peek() == '-') {
+      advance();
+    }
+    while (isdigit(peek())) {
+      advance();
+    }
+  }
+
   std::string value = source_.substr(start, pos_ - start);
   return Token(TokenType::NUMBER, value, line_, startColumn);
 }

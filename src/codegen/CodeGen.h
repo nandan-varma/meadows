@@ -120,6 +120,10 @@ private:
   void visitPrintStmt(PrintStmt &stmt) override;
   void visitBreakStmt(BreakStmt &stmt) override;
   void visitContinueStmt(ContinueStmt &stmt) override;
+  void visitTypeDefStmt(TypeDefStmt &stmt) override;
+  void visitModuleStmt(ModuleStmt &stmt) override;
+  void visitImportStmt(ImportStmt &stmt) override;
+  void visitExportStmt(ExportStmt &stmt) override;
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;

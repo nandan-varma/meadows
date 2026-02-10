@@ -39,3 +39,15 @@ void ContinueStmt::accept(StmtVisitor &visitor) {
 }
 void BlockStmt::accept(StmtVisitor &visitor) { visitor.visitBlockStmt(*this); }
 void PrintStmt::accept(StmtVisitor &visitor) { visitor.visitPrintStmt(*this); }
+void TypeDefStmt::accept(StmtVisitor &visitor) {
+  visitor.visitTypeDefStmt(*this);
+}
+void ModuleStmt::accept(StmtVisitor &visitor) {
+  visitor.visitModuleStmt(*this);
+}
+void ImportStmt::accept(StmtVisitor &visitor) {
+  visitor.visitImportStmt(*this);
+}
+void ExportStmt::accept(StmtVisitor &visitor) {
+  visitor.visitExportStmt(*this);
+}

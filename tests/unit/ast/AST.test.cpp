@@ -142,3 +142,40 @@ TEST_CASE("Loop constructs", "[ast]") {
     CHECK(whileStmt->body.size() == 1);
   }
 }
+
+TEST_CASE("Module system AST nodes", "[ast][module]") {
+  SECTION("ModuleStmt stores module name") {
+    auto moduleStmt = std::make_unique<ModuleStmt>("math.utils");
+    CHECK(moduleStmt->moduleName == "math.utils");
+  }
+
+  SECTION("ImportStmt with specific imports") {
+    std::vector<std::string> imports = {"factorial", "fibonacci"};
+    auto importStmt =
+        std::make_unique<ImportStmt>("math.utils", std::move(imports));
+    CHECK(importStmt->modulePath == "math.utils");
+    CHECK(importStmt->specificImports.size() == 2);
+    CHECK(importStmt->specificImports[0] == "factorial");
+    CHECK(importStmt->alias.empty());
+  }
+
+  SECTION("ImportStmt with alias") {
+    std::vector<std::string> emptyImports;
+    auto importStmt = std::make_unique<ImportStmt>(
+        "math.utils", std::move(emptyImports), "m");
+    CHECK(importStmt->modulePath == "math.utils");
+    CHECK(importStmt->alias == "m");
+  }
+
+  SECTION("ExportStmt stores name") {
+    auto exportStmt = std::make_unique<ExportStmt>("factorial");
+    CHECK(exportStmt->name == "factorial");
+    CHECK(exportStmt->typeInfo.empty());
+  }
+
+  SECTION("ExportStmt with type info") {
+    auto exportStmt = std::make_unique<ExportStmt>("factorial", "i32 -> i32");
+    CHECK(exportStmt->name == "factorial");
+    CHECK(exportStmt->typeInfo == "i32 -> i32");
+  }
+}

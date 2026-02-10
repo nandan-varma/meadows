@@ -156,7 +156,11 @@ public:
     indentLevel_++;
     for (const auto &param : stmt.params) {
       indent();
-      output_ << "Param(" << param << ")\n";
+      output_ << "Param(" << param.name;
+      if (!param.typeAnnotation.empty()) {
+        output_ << ": " << param.typeAnnotation;
+      }
+      output_ << ")\n";
     }
     for (const auto &bodyStmt : stmt.body) {
       bodyStmt->accept(*this);
@@ -267,6 +271,53 @@ public:
   void visitContinueStmt(ContinueStmt &stmt) override {
     indent();
     output_ << "ContinueStmt\n";
+  }
+
+  void visitTypeDefStmt(TypeDefStmt &stmt) override {
+    indent();
+    output_ << "TypeDefStmt(" << stmt.name << ")\n";
+    indentLevel_++;
+    if (!stmt.isEnum) {
+      indent();
+      output_ << "Fields:\n";
+      indentLevel_++;
+      for (const auto &field : stmt.fields) {
+        indent();
+        output_ << field.first << ": " << field.second << "\n";
+      }
+      indentLevel_--;
+    }
+    indentLevel_--;
+  }
+
+  void visitModuleStmt(ModuleStmt &stmt) override {
+    indent();
+    output_ << "ModuleStmt(" << stmt.moduleName << ")\n";
+  }
+
+  void visitImportStmt(ImportStmt &stmt) override {
+    indent();
+    output_ << "ImportStmt(" << stmt.modulePath;
+    if (!stmt.specificImports.empty()) {
+      output_ << ".{" << stmt.specificImports[0];
+      for (size_t i = 1; i < stmt.specificImports.size(); i++) {
+        output_ << ", " << stmt.specificImports[i];
+      }
+      output_ << "}";
+    }
+    if (!stmt.alias.empty()) {
+      output_ << " as " << stmt.alias;
+    }
+    output_ << ")\n";
+  }
+
+  void visitExportStmt(ExportStmt &stmt) override {
+    indent();
+    output_ << "ExportStmt(" << stmt.name;
+    if (!stmt.typeInfo.empty()) {
+      output_ << ": " << stmt.typeInfo;
+    }
+    output_ << ")\n";
   }
 };
 

@@ -101,6 +101,9 @@ private:
   std::unique_ptr<Stmt> parseExprStmt();
   std::unique_ptr<Stmt> parseBreakStmt();
   std::unique_ptr<Stmt> parseContinueStmt();
+  std::unique_ptr<Stmt> parseModuleStmt();
+  std::unique_ptr<Stmt> parseImportStmt();
+  std::unique_ptr<Stmt> parseExportStmt();
 
   std::unique_ptr<Expr> parseExpr();
   std::unique_ptr<Expr> parseAssignment(int depth = 0);
