@@ -1,4 +1,5 @@
 #include "../codegen/CodeGen.h"
+#include "../config/Config.h"
 #include "../lexer/Lexer.h"
 #include "../lsp/LSPInterface.h"
 #include "../parser/Parser.h"
@@ -21,6 +22,10 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+using meadows::config::BuildProfile;
+using meadows::config::Config;
+using meadows::config::LockFile;
 
 bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg);
 
@@ -139,100 +144,282 @@ int compileWithClang(const std::string &inputFile,
 
 void printHelp() {
   std::cout << "Meadows Compiler v1.0.0\n\n";
-  std::cout << "Usage: meadows [OPTIONS] <file.ms>\n\n";
-  std::cout << "Options:\n";
-  std::cout << "  -h, --help                Show this help message\n";
+  std::cout << "USAGE:\n";
+  std::cout << "  meadows [COMMAND] [OPTIONS] [ARGS...]\n\n";
+  std::cout << "COMMANDS:\n";
   std::cout
-      << "  -v, --verbose             Show compilation phases and timing\n";
-  std::cout << "  --dump-ast                Print AST and exit\n";
-  std::cout << "  --dump-ir                 Print LLVM IR and exit\n";
+      << "  build              Build the project (requires meadows.toml)\n";
+  std::cout << "  run                Build and run the project\n";
+  std::cout << "  test               Run tests\n";
+  std::cout
+      << "  init               Create a new project in current directory\n";
+  std::cout << "  <file.ms>          Compile a single file (legacy mode)\n\n";
+  std::cout << "OPTIONS:\n";
+  std::cout << "  -h, --help         Show this help message\n";
+  std::cout << "  -v, --verbose      Show compilation phases and timing\n";
+  std::cout << "  --release          Build in release mode\n";
+  std::cout << "  --debug            Build in debug mode (default)\n";
+  std::cout << "  --dump-ast         Print AST and exit\n";
+  std::cout << "  --dump-ir          Print LLVM IR and exit\n";
   std::cout << "  --lsp-diagnostics <file>  Output LSP diagnostics as JSON\n";
-  std::cout << "\nWarning Options:\n";
-  std::cout << "  -Wall                     Enable all common warnings\n";
-  std::cout << "  -Wextra                   Enable extra warnings\n";
-  std::cout << "  -Werror                   Treat warnings as errors\n";
-  std::cout << "  -Wno-<warning>            Disable specific warning\n";
-  std::cout << "\nExamples:\n";
-  std::cout << "  meadows program.ms              Compile program.ms\n";
+  std::cout << "\nWARNING OPTIONS:\n";
+  std::cout << "  -Wall              Enable all common warnings\n";
+  std::cout << "  -Wextra            Enable extra warnings\n";
+  std::cout << "  -Werror            Treat warnings as errors\n";
+  std::cout << "  -Wno-<warning>     Disable specific warning\n";
+  std::cout << "\nEXAMPLES:\n";
+  std::cout << "  meadows build                    Build project in current "
+               "directory\n";
+  std::cout << "  meadows build --release          Build in release mode\n";
+  std::cout << "  meadows run                      Build and run the project\n";
+  std::cout << "  meadows test                     Run all tests\n";
+  std::cout << "  meadows init                     Initialize new project\n";
   std::cout
-      << "  meadows -v program.ms           Compile with verbose output\n";
-  std::cout << "  meadows --dump-ast program.ms   Print AST tree\n";
-  std::cout << "  meadows --dump-ir program.ms    Print LLVM IR\n";
-  std::cout << "  meadows -Wall program.ms        Enable all warnings\n";
-  std::cout << "  meadows -Wall -Werror prog.ms   Treat warnings as errors\n";
+      << "  meadows program.ms               Compile single file (legacy)\n";
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    printHelp();
+int cmdInit(bool verbose) {
+  std::string configPath = "./meadows.toml";
+
+  // Check if already initialized
+  std::ifstream checkFile(configPath);
+  if (checkFile.good()) {
+    std::cerr << "Error: Project already initialized (meadows.toml exists)"
+              << std::endl;
     return 1;
   }
+  checkFile.close();
 
-  // Parse command-line options
-  bool lspMode = false;
-  bool verbose = false;
-  bool dumpAst = false;
-  bool dumpIr = false;
-  std::string filePath;
-  meadows::WarningManager warningManager;
-
-  for (int i = 1; i < argc; i++) {
-    std::string arg = argv[i];
-
-    if (arg == "-h" || arg == "--help") {
-      printHelp();
-      return 0;
-    } else if (arg == "-v" || arg == "--verbose") {
-      verbose = true;
-    } else if (arg == "--dump-ast") {
-      dumpAst = true;
-    } else if (arg == "--dump-ir") {
-      dumpIr = true;
-    } else if (arg == "--lsp-diagnostics") {
-      if (i + 1 >= argc) {
-        std::cerr << "Error: --lsp-diagnostics requires a file path"
-                  << std::endl;
-        return 1;
-      }
-      lspMode = true;
-      filePath = argv[++i];
-    } else if (arg == "-Wall") {
-      warningManager.setLevel(meadows::WarningManager::Level::ALL);
-    } else if (arg == "-Wextra") {
-      warningManager.setLevel(meadows::WarningManager::Level::EXTRA);
-    } else if (arg == "-Werror") {
-      warningManager.setTreatAsErrors(true);
-    } else if (arg.substr(0, 5) == "-Wno-") {
-      // Disable specific warning
-      std::string warningName = arg.substr(5);
-      // Map warning names to codes
-      if (warningName == "unused-variable") {
-        warningManager.disableWarning(meadows::ErrorCode::WARN_UNUSED_VARIABLE);
-      } else if (warningName == "unreachable-code") {
-        warningManager.disableWarning(
-            meadows::ErrorCode::WARN_UNREACHABLE_CODE);
-      }
-    } else if (arg[0] != '-') {
-      // This is the input file
-      filePath = arg;
-    } else {
-      std::cerr << "Error: Unknown option " << arg << std::endl;
-      std::cerr << "Use -h or --help for usage information" << std::endl;
-      return 1;
+  // Get current directory name as default project name
+  char cwdBuf[1024];
+  std::string projectName = "my-project";
+  if (getcwd(cwdBuf, sizeof(cwdBuf)) != nullptr) {
+    std::string cwd(cwdBuf);
+    size_t pos = cwd.find_last_of("/\\");
+    if (pos != std::string::npos && pos + 1 < cwd.length()) {
+      projectName = cwd.substr(pos + 1);
     }
   }
 
-  if (filePath.empty()) {
-    std::cerr << "Error: No input file specified" << std::endl;
-    std::cerr << "Use -h or --help for usage information" << std::endl;
+  // Create meadows.toml
+  std::ofstream configFile(configPath);
+  if (!configFile.is_open()) {
+    std::cerr << "Error: Cannot create meadows.toml" << std::endl;
     return 1;
   }
 
+  configFile << "[project]\n";
+  configFile << "name = \"" << projectName << "\"\n";
+  configFile << "version = \"0.1.0\"\n";
+  configFile << "edition = \"2024\"\n";
+  configFile << "\n";
+  configFile << "[build]\n";
+  configFile << "target = \"native\"\n";
+  configFile << "opt-level = 2\n";
+  configFile << "debug = true\n";
+  configFile << "entry-point = \"src/main.ms\"\n";
+  configFile << "output-dir = \"build\"\n";
+  configFile << "\n";
+  configFile << "[dependencies]\n";
+  configFile << "# Add dependencies here\n";
+  configFile << "# example = \"1.0.0\"\n";
+
+  configFile.close();
+
+  // Create src directory and main.ms
+  if (system("mkdir -p src") != 0) {
+    std::cerr << "Warning: Could not create src directory" << std::endl;
+  } else {
+    std::ofstream mainFile("src/main.ms");
+    if (mainFile.is_open()) {
+      mainFile << "# " << projectName << " main entry point\n";
+      mainFile << "\n";
+      mainFile << "func main() {\n";
+      mainFile << "    print \"Hello from " << projectName << "!\";\n";
+      mainFile << "}\n";
+      mainFile.close();
+    }
+  }
+
+  std::cout << "Initialized new Meadows project: " << projectName << std::endl;
+  std::cout << "Created: meadows.toml, src/main.ms" << std::endl;
+
+  return 0;
+}
+
+int cmdBuild(bool verbose, bool releaseMode) {
+  Config config;
+
+  if (!config.loadFromCurrentDirectory()) {
+    std::cerr << "Error: No meadows.toml found in current directory or parents"
+              << std::endl;
+    std::cerr << "Run 'meadows init' to create a new project" << std::endl;
+    return 1;
+  }
+
+  std::string validationError = config.validate();
+  if (!validationError.empty()) {
+    std::cerr << "Error: Invalid configuration: " << validationError
+              << std::endl;
+    return 1;
+  }
+
+  if (verbose) {
+    std::cout << "Building project: " << config.project.name << " v"
+              << config.project.version << std::endl;
+    std::cout << "Profile: " << (releaseMode ? "release" : "debug")
+              << std::endl;
+  }
+
+  std::string projectRoot = config.getProjectRoot();
+  std::string entryPoint = projectRoot + "/" + config.build.entryPoint;
+  std::string outputDir = projectRoot + "/" + config.build.outputDir;
+  std::string outputFile = outputDir + "/" + config.project.name + ".ll";
+  std::string exeFile = outputDir + "/" + config.project.name;
+
+  // Create output directory
+  std::string mkdirCmd = "mkdir -p " + outputDir;
+  if (system(mkdirCmd.c_str()) != 0) {
+    std::cerr << "Error: Cannot create output directory: " << outputDir
+              << std::endl;
+    return 1;
+  }
+
+  // Check if entry point exists
+  std::ifstream entryFile(entryPoint);
+  if (!entryFile.is_open()) {
+    std::cerr << "Error: Entry point not found: " << entryPoint << std::endl;
+    return 1;
+  }
+
+  // Read source
+  std::string source((std::istreambuf_iterator<char>(entryFile)),
+                     std::istreambuf_iterator<char>());
+  entryFile.close();
+
+  // Compile using the existing logic
+  meadows::DiagnosticsCollector diagnostics;
+
+  try {
+    // Lexical analysis
+    if (verbose) {
+      std::cerr << "[lex] Tokenizing..." << std::endl;
+    }
+
+    Lexer lexer(source);
+    std::vector<Token> tokens;
+    try {
+      tokens = lexer.tokenize();
+    } catch (const std::exception &e) {
+      std::cerr << "Lexical error: " << e.what() << std::endl;
+      return 1;
+    }
+
+    // Parsing
+    if (verbose) {
+      std::cerr << "[parse] Parsing..." << std::endl;
+    }
+
+    Parser parser(tokens);
+    auto statements = parser.parse();
+
+    if (diagnostics.hasErrors()) {
+      std::cerr << "Parse errors found" << std::endl;
+      return 1;
+    }
+
+    // Code generation
+    if (verbose) {
+      std::cerr << "[codegen] Generating LLVM IR..." << std::endl;
+    }
+
+    CodeGen codegen;
+    try {
+      codegen.generate(statements);
+    } catch (const std::runtime_error &e) {
+      std::cerr << "Code generation error: " << e.what() << std::endl;
+      return 1;
+    }
+
+    auto module = codegen.getModule();
+    if (!module) {
+      std::cerr << "Error: Failed to generate LLVM module" << std::endl;
+      return 1;
+    }
+
+    // Verify and write LLVM IR
+    std::string verifyError;
+    llvm::raw_string_ostream verifyStream(verifyError);
+    if (llvm::verifyModule(*module, &verifyStream)) {
+      std::cerr << "LLVM module verification failed: " << verifyError
+                << std::endl;
+      return 1;
+    }
+
+    std::error_code EC;
+    llvm::raw_fd_ostream out(outputFile, EC);
+    if (EC) {
+      std::cerr << "Error: Cannot write to " << outputFile << std::endl;
+      return 1;
+    }
+    module->print(out, nullptr);
+    out.close();
+
+    // Compile to executable
+    int ret = compileWithClang(outputFile, exeFile);
+    if (ret != 0) {
+      std::cerr << "Error: clang++ compilation failed" << std::endl;
+      return 1;
+    }
+
+    if (verbose) {
+      std::cout << "Built successfully: " << exeFile << std::endl;
+    } else {
+      std::cout << "   Compiling " << config.project.name << " v"
+                << config.project.version << std::endl;
+    }
+
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+  }
+
+  return 0;
+}
+
+int cmdRun(bool verbose, bool releaseMode) {
+  int buildResult = cmdBuild(verbose, releaseMode);
+  if (buildResult != 0) {
+    return buildResult;
+  }
+
+  Config config;
+  config.loadFromCurrentDirectory();
+
+  std::string projectRoot = config.getProjectRoot();
+  std::string exeFile =
+      projectRoot + "/" + config.build.outputDir + "/" + config.project.name;
+
+  if (verbose) {
+    std::cout << "Running: " << exeFile << std::endl;
+  }
+
+  return system(exeFile.c_str());
+}
+
+int cmdTest(bool verbose) {
+  std::cout << "Running tests..." << std::endl;
+  std::cout << "Note: Test runner not yet fully implemented" << std::endl;
+  return 0;
+}
+
+int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
+                      bool dumpIr, bool lspMode,
+                      meadows::WarningManager &warningManager) {
   // Validate input file
   std::string errorMsg;
   if (!validateInputFile(filePath, errorMsg)) {
     if (lspMode) {
-      // Output JSON error for LSP mode
       std::vector<std::string> errors;
       errors.push_back("Validation error: " + errorMsg);
       LSPInterface lsp;
@@ -268,29 +455,22 @@ int main(int argc, char *argv[]) {
     std::vector<Token> tokens;
 
     try {
-      // Lexical analysis
       Lexer lexer(source);
       tokens = lexer.tokenize();
-
-      // Parsing with error recovery - collect multiple errors
       Parser parser(tokens, diagnostics);
       auto statements = parser.parse();
-
     } catch (const std::exception &e) {
-      // Handle any unexpected errors
       meadows::SourceLocation loc(filePath, 1, 1);
       diagnostics.reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
                               std::string(e.what()), loc);
     }
 
-    // Output LSP diagnostics
     LSPInterface lsp;
     lsp.emitDiagnostics(filePath, diagnostics.diagnostics());
     return 0;
   }
 
   // Normal compilation mode
-  // Validate output filenames
   std::string outputFile = filePath + ".ll";
   std::string exeFile = filePath + ".out";
 
@@ -302,14 +482,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // Use diagnostics collector for better error reporting
   meadows::DiagnosticsCollector diagnostics;
 
   try {
-    // Track timing if verbose mode
     meadows::Timer lexTimer, parseTimer, codegenTimer;
 
-    // Lexical analysis
     if (verbose) {
       std::cerr << "[lex] Starting lexical analysis..." << std::endl;
       lexTimer.start();
@@ -323,7 +500,6 @@ int main(int argc, char *argv[]) {
       meadows::SourceLocation loc(filePath, 1, 1);
       diagnostics.reportError(meadows::ErrorCode::LEX_INVALID_CHARACTER,
                               std::string(e.what()), loc);
-      // Format and display error
       meadows::ErrorFormatter formatter;
       std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
                                             filePath);
@@ -331,22 +507,18 @@ int main(int argc, char *argv[]) {
     }
 
     if (verbose) {
-      double elapsed = lexTimer.elapsed();
-      std::cerr << "[lex] Tokenized " << tokens.size() << " tokens (" << elapsed
-                << "ms)" << std::endl;
+      std::cerr << "[lex] Tokenized " << tokens.size() << " tokens"
+                << std::endl;
     }
 
-    // Parsing with error recovery
     if (verbose) {
       std::cerr << "[parse] Starting parsing..." << std::endl;
       parseTimer.start();
     }
 
     Parser parser(tokens, diagnostics);
-    std::vector<std::unique_ptr<Stmt>> statements;
-    statements = parser.parse();
+    auto statements = parser.parse();
 
-    // Check for parse errors
     if (diagnostics.hasErrors()) {
       meadows::ErrorFormatter formatter;
       std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
@@ -355,19 +527,16 @@ int main(int argc, char *argv[]) {
     }
 
     if (verbose) {
-      double elapsed = parseTimer.elapsed();
-      std::cerr << "[parse] Parsed " << statements.size() << " statements ("
-                << elapsed << "ms)" << std::endl;
+      std::cerr << "[parse] Parsed " << statements.size() << " statements"
+                << std::endl;
     }
 
-    // Dump AST if requested
     if (dumpAst) {
       ASTPrinter printer;
       std::cout << printer.print(statements);
       return 0;
     }
 
-    // Code generation
     if (verbose) {
       std::cerr << "[codegen] Starting code generation..." << std::endl;
       codegenTimer.start();
@@ -388,18 +557,14 @@ int main(int argc, char *argv[]) {
     }
 
     if (verbose) {
-      double elapsed = codegenTimer.elapsed();
-      std::cerr << "[codegen] Generated LLVM module (" << elapsed << "ms)"
-                << std::endl;
+      std::cerr << "[codegen] Generated LLVM module" << std::endl;
     }
 
-    // Dump IR if requested
     if (dumpIr) {
       module->print(llvm::outs(), nullptr);
       return 0;
     }
 
-    // Verify module before writing
     std::string verifyError;
     llvm::raw_string_ostream verifyStream(verifyError);
     if (llvm::verifyModule(*module, &verifyStream)) {
@@ -408,7 +573,6 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    // Write LLVM IR
     std::error_code EC;
     llvm::raw_fd_ostream out(outputFile, EC);
     if (EC) {
@@ -418,7 +582,6 @@ int main(int argc, char *argv[]) {
     module->print(out, nullptr);
     out.close();
 
-    // Compile to executable using secure method
     int ret = compileWithClang(outputFile, exeFile);
     if (ret == 0) {
       std::cout << "Compiled successfully to " << exeFile << std::endl;
@@ -440,4 +603,117 @@ int main(int argc, char *argv[]) {
   }
 
   return 0;
+}
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    printHelp();
+    return 1;
+  }
+
+  std::string firstArg = argv[1];
+
+  // Check for commands first
+  if (firstArg == "init") {
+    bool verbose = (argc > 2 && (std::string(argv[2]) == "-v" ||
+                                 std::string(argv[2]) == "--verbose"));
+    return cmdInit(verbose);
+  }
+
+  if (firstArg == "build") {
+    bool verbose = false;
+    bool releaseMode = false;
+    for (int i = 2; i < argc; i++) {
+      std::string arg = argv[i];
+      if (arg == "-v" || arg == "--verbose")
+        verbose = true;
+      if (arg == "--release")
+        releaseMode = true;
+      if (arg == "--debug")
+        releaseMode = false;
+    }
+    return cmdBuild(verbose, releaseMode);
+  }
+
+  if (firstArg == "run") {
+    bool verbose = false;
+    bool releaseMode = false;
+    for (int i = 2; i < argc; i++) {
+      std::string arg = argv[i];
+      if (arg == "-v" || arg == "--verbose")
+        verbose = true;
+      if (arg == "--release")
+        releaseMode = true;
+    }
+    return cmdRun(verbose, releaseMode);
+  }
+
+  if (firstArg == "test") {
+    bool verbose = false;
+    for (int i = 2; i < argc; i++) {
+      if (std::string(argv[i]) == "-v" || std::string(argv[i]) == "--verbose")
+        verbose = true;
+    }
+    return cmdTest(verbose);
+  }
+
+  // Handle legacy single-file compilation
+  bool lspMode = false;
+  bool verbose = false;
+  bool dumpAst = false;
+  bool dumpIr = false;
+  std::string filePath;
+  meadows::WarningManager warningManager;
+
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+
+    if (arg == "-h" || arg == "--help") {
+      printHelp();
+      return 0;
+    } else if (arg == "-v" || arg == "--verbose") {
+      verbose = true;
+    } else if (arg == "--dump-ast") {
+      dumpAst = true;
+    } else if (arg == "--dump-ir") {
+      dumpIr = true;
+    } else if (arg == "--lsp-diagnostics") {
+      if (i + 1 >= argc) {
+        std::cerr << "Error: --lsp-diagnostics requires a file path"
+                  << std::endl;
+        return 1;
+      }
+      lspMode = true;
+      filePath = argv[++i];
+    } else if (arg == "-Wall") {
+      warningManager.setLevel(meadows::WarningManager::Level::ALL);
+    } else if (arg == "-Wextra") {
+      warningManager.setLevel(meadows::WarningManager::Level::EXTRA);
+    } else if (arg == "-Werror") {
+      warningManager.setTreatAsErrors(true);
+    } else if (arg.substr(0, 5) == "-Wno-") {
+      std::string warningName = arg.substr(5);
+      if (warningName == "unused-variable") {
+        warningManager.disableWarning(meadows::ErrorCode::WARN_UNUSED_VARIABLE);
+      } else if (warningName == "unreachable-code") {
+        warningManager.disableWarning(
+            meadows::ErrorCode::WARN_UNREACHABLE_CODE);
+      }
+    } else if (arg[0] != '-') {
+      filePath = arg;
+    } else {
+      std::cerr << "Error: Unknown option " << arg << std::endl;
+      std::cerr << "Use -h or --help for usage information" << std::endl;
+      return 1;
+    }
+  }
+
+  if (filePath.empty()) {
+    std::cerr << "Error: No input file specified" << std::endl;
+    std::cerr << "Use -h or --help for usage information" << std::endl;
+    return 1;
+  }
+
+  return compileSingleFile(filePath, verbose, dumpAst, dumpIr, lspMode,
+                           warningManager);
 }

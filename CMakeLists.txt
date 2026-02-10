@@ -132,6 +132,8 @@ set(MEADOWS_LIB_SOURCES
   src/utils/DiagnosticsCollector.cpp
   src/utils/ErrorFormatter.cpp
   src/utils/WarningManager.cpp
+  src/config/Config.cpp
+  src/config/TOMLParser.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -153,6 +155,8 @@ set(MEADOWS_HEADERS
   src/utils/ASTPrinter.h
   src/utils/WarningManager.h
   src/utils/MemoryUtils.h
+  src/config/Config.h
+  src/config/TOMLParser.h
 )
 
 #==============================================================================

@@ -30,6 +30,7 @@ set(TEST_SOURCES
     unit/utils/ErrorCodes.test.cpp
     unit/utils/Timer.test.cpp
     unit/utils/WarningManager.test.cpp
+    unit/config/Config.test.cpp
 )
 
 # Create test executable

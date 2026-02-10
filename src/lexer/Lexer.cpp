@@ -8,13 +8,16 @@
 #include "Lexer.h"
 
 static std::unordered_map<std::string, TokenType> keywords = {
-    {"let", TokenType::LET},     {"func", TokenType::FUNC},
-    {"if", TokenType::IF},       {"else", TokenType::ELSE},
-    {"for", TokenType::FOR},     {"while", TokenType::WHILE},
-    {"print", TokenType::PRINT}, {"return", TokenType::RETURN},
-    {"in", TokenType::IN},       {"range", TokenType::RANGE},
-    {"true", TokenType::TRUE},   {"false", TokenType::FALSE},
-    {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}};
+    {"let", TokenType::LET},       {"func", TokenType::FUNC},
+    {"if", TokenType::IF},         {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},       {"while", TokenType::WHILE},
+    {"print", TokenType::PRINT},   {"return", TokenType::RETURN},
+    {"in", TokenType::IN},         {"range", TokenType::RANGE},
+    {"true", TokenType::TRUE},     {"false", TokenType::FALSE},
+    {"break", TokenType::BREAK},   {"continue", TokenType::CONTINUE},
+    {"module", TokenType::MODULE}, {"import", TokenType::IMPORT},
+    {"export", TokenType::EXPORT}, {"as", TokenType::AS},
+    {"from", TokenType::FROM}};
 
 Lexer::Lexer(const std::string &source)
     : source_(source), pos_(0), line_(1), column_(1), currentLineStart_(0) {}

@@ -20,6 +20,13 @@ enum class TokenType {
   BREAK,
   CONTINUE,
 
+  // Module system
+  MODULE,
+  IMPORT,
+  EXPORT,
+  AS,
+  FROM,
+
   // Literals
   IDENTIFIER,
   STRING,
