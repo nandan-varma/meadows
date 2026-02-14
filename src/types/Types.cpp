@@ -346,7 +346,11 @@ Substitution::apply(const std::shared_ptr<Type> &type) const {
   if (var) {
     auto it = mapping.find(var->name);
     if (it != mapping.end()) {
-      return apply(it->second);
+      // Avoid infinite recursion: don't substitute with self
+      if (it->second.get() != type.get()) {
+        return apply(it->second);
+      }
+      return type;
     }
     // Check for instance in type variable
     if (var->instance) {

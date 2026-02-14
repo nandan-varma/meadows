@@ -9,6 +9,7 @@
 #include "../ast/AST.h"
 #include "../utils/DiagnosticsCollector.h"
 #include "Types.h"
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 
@@ -60,6 +61,10 @@ public:
   void visitBlockStmt(BlockStmt &stmt) override;
   void visitPrintStmt(PrintStmt &stmt) override;
   void visitTypeDefStmt(TypeDefStmt &stmt) override;
+  void visitModuleStmt(ModuleStmt &stmt) override;
+  void visitImportStmt(ImportStmt &stmt) override;
+  void visitExportStmt(ExportStmt &stmt) override;
+  void visitExternStmt(ExternStmt &stmt) override;
 
 private:
   struct TypeScheme {

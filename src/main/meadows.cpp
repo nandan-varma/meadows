@@ -3,6 +3,7 @@
 #include "../lexer/Lexer.h"
 #include "../lsp/LSPInterface.h"
 #include "../parser/Parser.h"
+#include "../types/TypeChecker.h"
 #include "../utils/ASTPrinter.h"
 #include "../utils/DiagnosticsCollector.h"
 #include "../utils/ErrorFormatter.h"
@@ -531,6 +532,29 @@ int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
     if (verbose) {
       std::cerr << "[parse] Parsed " << statements.size() << " statements"
                 << std::endl;
+    }
+
+    if (verbose) {
+      std::cerr << "[typecheck] Starting type checking..." << std::endl;
+    }
+
+    try {
+      meadows::types::TypeChecker typeChecker;
+      if (!typeChecker.check(statements)) {
+        std::cerr << "Type checking failed:" << std::endl;
+        for (const auto &err : typeChecker.getErrors()) {
+          std::cerr << "  - " << err << std::endl;
+        }
+        return 1;
+      }
+      if (verbose) {
+        std::cerr << "[typecheck] Type checking passed" << std::endl;
+      }
+    } catch (const std::exception &e) {
+      if (verbose) {
+        std::cerr << "[typecheck] Skipped (exception: " << e.what() << ")"
+                  << std::endl;
+      }
     }
 
     if (dumpAst) {

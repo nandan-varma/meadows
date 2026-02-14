@@ -126,6 +126,8 @@ set(MEADOWS_LIB_SOURCES
   src/codegen/CodeGen.cpp
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
+  src/types/TypeChecker.cpp
+  src/types/Types.cpp
   src/lsp/LSPInterface.cpp
   src/utils/ErrorCodes.cpp
   src/utils/Exceptions.cpp
@@ -149,6 +151,8 @@ set(MEADOWS_HEADERS
   src/codegen/StringUtils.h
   src/codegen/MemoryUtils.h
   src/codegen/TypeUtils.h
+  src/types/TypeChecker.h
+  src/types/Types.h
   src/lsp/LSPInterface.h
   src/utils/ErrorCodes.h
   src/utils/Exceptions.h

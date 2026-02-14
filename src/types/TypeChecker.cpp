@@ -20,12 +20,10 @@ void TypeChecker::initBuiltins() {
   string_ = std::make_shared<PrimitiveType>(PrimitiveKind::STRING);
   unit_ = std::make_shared<PrimitiveType>(PrimitiveKind::UNIT);
 
-  auto fnPrintI32 = std::make_shared<FunctionType>(
-      std::vector<std::shared_ptr<Type>>{i32_}, unit_);
+  auto fnPrintI32 = FunctionType::make({i32_}, unit_);
   bind("print_i32", fnPrintI32);
 
-  auto fnPrintString = std::make_shared<FunctionType>(
-      std::vector<std::shared_ptr<Type>>{string_}, unit_);
+  auto fnPrintString = FunctionType::make({string_}, unit_);
   bind("print_string", fnPrintString);
 }
 
@@ -66,13 +64,21 @@ void TypeChecker::reset() {
 }
 
 bool TypeChecker::check(const std::vector<std::unique_ptr<Stmt>> &statements) {
-  reset();
+  try {
+    reset();
 
-  for (const auto &stmt : statements) {
-    inferStmt(stmt.get());
+    for (const auto &stmt : statements) {
+      inferStmt(stmt.get());
+    }
+
+    return unify();
+  } catch (const std::exception &e) {
+    errors_.push_back(std::string("Type checker error: ") + e.what());
+    return false;
+  } catch (...) {
+    errors_.push_back("Type checker error: unknown exception");
+    return false;
   }
-
-  return unify();
 }
 
 std::shared_ptr<Type> TypeChecker::getInferredType(const Expr *expr) const {
@@ -150,6 +156,9 @@ std::shared_ptr<TypeChecker::ScopedEnv> TypeChecker::extendEnv() const {
 }
 
 std::shared_ptr<Type> TypeChecker::inferExpr(Expr *expr) {
+  if (!expr) {
+    return freshTypeVar();
+  }
   expr->accept(*this);
   auto it = exprTypes_.find(expr);
   if (it != exprTypes_.end()) {
@@ -195,6 +204,11 @@ void TypeChecker::visitBinaryExpr(BinaryExpr &expr) {
   auto leftType = inferExpr(expr.left.get());
   auto rightType = inferExpr(expr.right.get());
 
+  if (!leftType || !rightType) {
+    exprTypes_[&expr] = freshTypeVar();
+    return;
+  }
+
   exprTypes_[&expr] = leftType;
 
   if (expr.op == "+" || expr.op == "-" || expr.op == "*" || expr.op == "/") {
@@ -235,7 +249,7 @@ void TypeChecker::visitIndexExpr(IndexExpr &expr) {
   addConstraint(indexType, i32_, "Array index must be integer");
 
   auto elemType = freshTypeVar();
-  auto expectedArray = std::make_shared<ArrayType>(elemType->clone());
+  auto expectedArray = ArrayType::make(elemType);
   addConstraint(arrayType, expectedArray, "Index operation on non-array");
 
   exprTypes_[&expr] = elemType;
@@ -247,10 +261,17 @@ void TypeChecker::visitFieldAccessExpr(FieldAccessExpr &expr) {
 }
 
 void TypeChecker::visitCallExpr(CallExpr &expr) {
-  auto calleeType = lookup(expr.callee->name);
+  std::string funcName;
+  if (auto *varExpr = dynamic_cast<VarExpr *>(expr.callee.get())) {
+    funcName = varExpr->name;
+  }
+
+  auto calleeType = funcName.empty() ? nullptr : lookup(funcName);
 
   if (!calleeType) {
-    reportError("Undefined function: " + expr.callee->name);
+    if (!funcName.empty()) {
+      reportError("Undefined function: " + funcName);
+    }
     exprTypes_[&expr] = i32_;
     return;
   }
@@ -267,11 +288,14 @@ void TypeChecker::visitCallExpr(CallExpr &expr) {
     size_t count = std::min(fnType->paramTypes.size(), expr.args.size());
     for (size_t i = 0; i < count; ++i) {
       auto argType = inferExpr(expr.args[i].get());
-      addConstraint(fnType->paramTypes[i], argType,
-                    "Function argument type mismatch");
+      auto paramType = fnType->getParamType(i);
+      if (paramType && argType) {
+        addConstraint(paramType, argType, "Function argument type mismatch");
+      }
     }
 
-    exprTypes_[&expr] = fnType->returnType;
+    auto retType = fnType->getReturnType();
+    exprTypes_[&expr] = retType ? retType : freshTypeVar();
   } else {
     exprTypes_[&expr] = freshTypeVar();
   }
@@ -279,7 +303,7 @@ void TypeChecker::visitCallExpr(CallExpr &expr) {
 
 void TypeChecker::visitArrayExpr(ArrayExpr &expr) {
   if (expr.elements.empty()) {
-    exprTypes_[&expr] = std::make_shared<ArrayType>(freshTypeVar());
+    exprTypes_[&expr] = ArrayType::make(freshTypeVar());
     return;
   }
 
@@ -289,7 +313,7 @@ void TypeChecker::visitArrayExpr(ArrayExpr &expr) {
     addConstraint(firstType, elemType, "Array element type mismatch");
   }
 
-  exprTypes_[&expr] = std::make_shared<ArrayType>(firstType);
+  exprTypes_[&expr] = ArrayType::make(firstType);
 }
 
 void TypeChecker::visitObjectExpr(ObjectExpr &expr) {
@@ -335,7 +359,7 @@ void TypeChecker::visitFuncStmt(FuncStmt &stmt) {
                         ? freshTypeVar()
                         : getPrimitiveType(stmt.returnTypeAnnotation);
 
-  auto fnType = std::make_shared<FunctionType>(paramTypes, returnType);
+  auto fnType = FunctionType::make(paramTypes, returnType);
   bind(stmt.name, fnType);
 
   auto prevEnv = env_;
@@ -432,6 +456,10 @@ bool TypeChecker::unify() {
     auto t1 = subst_.apply(constraint.t1);
     auto t2 = subst_.apply(constraint.t2);
 
+    if (!t1 || !t2) {
+      continue;
+    }
+
     if (!unifyPair(t1, t2)) {
       reportTypeMismatch(t1, t2, constraint.context);
       return false;
@@ -442,6 +470,10 @@ bool TypeChecker::unify() {
 
 bool TypeChecker::unifyPair(std::shared_ptr<Type> t1,
                             std::shared_ptr<Type> t2) {
+  if (!t1 || !t2) {
+    return false;
+  }
+
   auto var1 = dynamic_cast<TypeVariable *>(t1.get());
   auto var2 = dynamic_cast<TypeVariable *>(t2.get());
 
@@ -478,7 +510,11 @@ bool TypeChecker::unifyPair(std::shared_ptr<Type> t1,
   auto a1 = dynamic_cast<ArrayType *>(t1.get());
   auto a2 = dynamic_cast<ArrayType *>(t2.get());
   if (a1 && a2) {
-    return unifyPair(a1->elementType, a2->elementType);
+    auto e1 = a1->getElementType();
+    auto e2 = a2->getElementType();
+    if (!e1 || !e2)
+      return false;
+    return unifyPair(e1, e2);
   }
 
   auto f1 = dynamic_cast<FunctionType *>(t1.get());
@@ -487,11 +523,19 @@ bool TypeChecker::unifyPair(std::shared_ptr<Type> t1,
     if (f1->paramTypes.size() != f2->paramTypes.size()) {
       return false;
     }
-    if (!unifyPair(f1->returnType, f2->returnType)) {
-      return false;
+    auto r1 = f1->getReturnType();
+    auto r2 = f2->getReturnType();
+    if (r1 && r2) {
+      if (!unifyPair(r1, r2)) {
+        return false;
+      }
     }
     for (size_t i = 0; i < f1->paramTypes.size(); ++i) {
-      if (!unifyPair(f1->paramTypes[i], f2->paramTypes[i])) {
+      auto p1t = f1->getParamType(i);
+      auto p2t = f2->getParamType(i);
+      if (!p1t || !p2t)
+        continue;
+      if (!unifyPair(p1t, p2t)) {
         return false;
       }
     }
@@ -506,7 +550,7 @@ bool TypeChecker::unifyPair(std::shared_ptr<Type> t1,
       return false;
     }
     for (size_t i = 0; i < g1->typeParams.size(); ++i) {
-      if (!unifyPair(g1->typeParams[i], g2->typeParams[i])) {
+      if (!unifyPair(g1->getTypeParam(i), g2->getTypeParam(i))) {
         return false;
       }
     }
@@ -517,6 +561,10 @@ bool TypeChecker::unifyPair(std::shared_ptr<Type> t1,
 }
 
 bool TypeChecker::occursIn(const std::string &varName, const Type *type) {
+  if (!type) {
+    return false;
+  }
+
   if (auto *var = dynamic_cast<const TypeVariable *>(type)) {
     if (var->name == varName) {
       return true;
@@ -527,15 +575,17 @@ bool TypeChecker::occursIn(const std::string &varName, const Type *type) {
   }
 
   if (auto *arr = dynamic_cast<const ArrayType *>(type)) {
+    if (!arr->elementType)
+      return false;
     return occursIn(varName, arr->elementType.get());
   }
 
   if (auto *fn = dynamic_cast<const FunctionType *>(type)) {
-    if (occursIn(varName, fn->returnType.get())) {
+    if (fn->returnType && occursIn(varName, fn->returnType.get())) {
       return true;
     }
     for (const auto &param : fn->paramTypes) {
-      if (occursIn(varName, param.get())) {
+      if (param && occursIn(varName, param.get())) {
         return true;
       }
     }
@@ -543,7 +593,7 @@ bool TypeChecker::occursIn(const std::string &varName, const Type *type) {
 
   if (auto *gen = dynamic_cast<const GenericType *>(type)) {
     for (const auto &tp : gen->typeParams) {
-      if (occursIn(varName, tp.get())) {
+      if (tp && occursIn(varName, tp.get())) {
         return true;
       }
     }
@@ -554,6 +604,22 @@ bool TypeChecker::occursIn(const std::string &varName, const Type *type) {
   }
 
   return false;
+}
+
+void TypeChecker::visitModuleStmt(ModuleStmt &stmt) {
+  stmtTypes_[&stmt] = unit_;
+}
+
+void TypeChecker::visitImportStmt(ImportStmt &stmt) {
+  stmtTypes_[&stmt] = unit_;
+}
+
+void TypeChecker::visitExportStmt(ExportStmt &stmt) {
+  stmtTypes_[&stmt] = unit_;
+}
+
+void TypeChecker::visitExternStmt(ExternStmt &stmt) {
+  stmtTypes_[&stmt] = unit_;
 }
 
 } // namespace types

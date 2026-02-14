@@ -90,6 +90,14 @@ public:
   explicit ArrayType(std::unique_ptr<Type> elem)
       : elementType(std::move(elem)) {}
 
+  static std::shared_ptr<ArrayType> make(std::shared_ptr<Type> elem) {
+    return std::shared_ptr<ArrayType>(new ArrayType(elem->clone()));
+  }
+
+  std::shared_ptr<Type> getElementType() const {
+    return elementType ? elementType->clone() : nullptr;
+  }
+
   void accept(TypeVisitor &visitor) override;
   std::string toString() const override;
   bool equals(const Type &other) const override;
@@ -107,6 +115,28 @@ public:
   FunctionType(std::vector<std::unique_ptr<Type>> params,
                std::unique_ptr<Type> ret)
       : paramTypes(std::move(params)), returnType(std::move(ret)) {}
+
+  static std::shared_ptr<FunctionType>
+  make(const std::vector<std::shared_ptr<Type>> &params,
+       std::shared_ptr<Type> ret) {
+    std::vector<std::unique_ptr<Type>> paramOwned;
+    for (auto p : params) {
+      paramOwned.push_back(p->clone());
+    }
+    return std::shared_ptr<FunctionType>(
+        new FunctionType(std::move(paramOwned), ret->clone()));
+  }
+
+  std::shared_ptr<Type> getParamType(size_t i) const {
+    if (i < paramTypes.size()) {
+      return paramTypes[i]->clone();
+    }
+    return nullptr;
+  }
+
+  std::shared_ptr<Type> getReturnType() const {
+    return returnType ? returnType->clone() : nullptr;
+  }
 
   void accept(TypeVisitor &visitor) override;
   std::string toString() const override;
@@ -145,6 +175,13 @@ public:
 
   GenericType(std::string n, std::vector<std::unique_ptr<Type>> params)
       : name(std::move(n)), typeParams(std::move(params)) {}
+
+  std::shared_ptr<Type> getTypeParam(size_t i) const {
+    if (i < typeParams.size()) {
+      return typeParams[i]->clone();
+    }
+    return nullptr;
+  }
 
   void accept(TypeVisitor &visitor) override;
   std::string toString() const override;
