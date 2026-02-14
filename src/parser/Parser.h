@@ -6,6 +6,7 @@
 
 #include "../ast/AST.h"
 #include "../lexer/Token.h"
+#include "../modules/ModuleResolver.h"
 #include "../utils/DiagnosticsCollector.h"
 
 /**
@@ -51,12 +52,29 @@ public:
    */
   meadows::DiagnosticsCollector *diagnostics() { return diagnostics_; }
 
+  /**
+   * @brief Set the source file path for module resolution.
+   */
+  void setSourcePath(const std::string &path) { sourcePath_ = path; }
+
+  /**
+   * @brief Set the stdlib path for module resolution.
+   */
+  void setStdlibPath(const std::string &path) {
+    resolverConfig_.stdlibPath = path;
+    resolver_ = std::make_unique<meadows::ModuleResolver>(resolverConfig_);
+  }
+
 private:
   std::vector<Token> tokens_;
   size_t current_;
   meadows::DiagnosticsCollector *diagnostics_;
   bool inErrorRecovery_;
   int consecutiveErrors_;
+  std::string sourcePath_;
+  meadows::ModuleResolverConfig resolverConfig_;
+  std::unique_ptr<meadows::ModuleResolver> resolver_;
+
   static constexpr int MAX_CONSECUTIVE_ERRORS = 3;
 
   bool isAtEnd() const;
@@ -104,6 +122,7 @@ private:
   std::unique_ptr<Stmt> parseModuleStmt();
   std::unique_ptr<Stmt> parseImportStmt();
   std::unique_ptr<Stmt> parseExportStmt();
+  std::unique_ptr<Stmt> parseExternStmt();
 
   std::unique_ptr<Expr> parseExpr();
   std::unique_ptr<Expr> parseAssignment(int depth = 0);
@@ -121,6 +140,9 @@ private:
 
   std::vector<std::unique_ptr<Expr>> parseArgs();
   std::vector<std::unique_ptr<Stmt>> parseBlock();
+
+  std::vector<std::unique_ptr<Stmt>>
+  resolveAndParseModule(const std::string &modulePath);
 };
 
 #endif

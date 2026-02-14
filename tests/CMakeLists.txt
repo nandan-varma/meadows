@@ -32,6 +32,7 @@ set(TEST_SOURCES
     unit/utils/WarningManager.test.cpp
     unit/config/Config.test.cpp
     unit/modules/ModuleCompiler.test.cpp
+    unit/stdlib/Stdlib.test.cpp
 )
 
 # Create test executable

@@ -308,6 +308,19 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
+class ExternStmt : public Stmt {
+public:
+  std::string cName;
+  std::string meadowsName;
+  std::string returnType;
+  std::vector<std::pair<std::string, std::string>> params;
+
+  ExternStmt(const std::string &c, const std::string &m, const std::string &ret,
+             std::vector<std::pair<std::string, std::string>> p)
+      : cName(c), meadowsName(m), returnType(ret), params(std::move(p)) {}
+  void accept(StmtVisitor &visitor) override;
+};
+
 class ExprVisitor {
 public:
   virtual ~ExprVisitor() = default;
@@ -342,6 +355,7 @@ public:
   virtual void visitModuleStmt(ModuleStmt &stmt) = 0;
   virtual void visitImportStmt(ImportStmt &stmt) = 0;
   virtual void visitExportStmt(ExportStmt &stmt) = 0;
+  virtual void visitExternStmt(ExternStmt &stmt) = 0;
 };
 
 #endif

@@ -68,6 +68,7 @@ enum class TokenType {
   COLON,
   SEMICOLON,
   DOT,
+  EXTERN,
 
   // Comments
   COMMENT,

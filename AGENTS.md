@@ -1,46 +1,53 @@
-# AGENTS.md - Guidelines for Coding Agents
+# AGENTS.md - Coding Guidelines for Meadows Compiler
 
 Guidelines for AI agents working on the Meadows compiler codebase.
 
-## Quick Reference Commands
+## Build Commands
 
-### Building
 ```bash
-./build.sh tests          # Full build with tests
-./build.sh debug/release  # Specific build type
+# Build targets
+./build.sh                  # Build everything (debug + release + tests)
+./build.sh debug            # Debug build only
+./build.sh release          # Release build only
+./build.sh tests            # Test executables only
+./build.sh clean            # Clean all build artifacts
+
+# CMake directly
 cmake -B build -DBUILD_TESTS=ON && cmake --build build -j$(nproc)
 ```
 
-### Testing
-```bash
-./test.sh                     # All tests (unit + integration + security)
-./test.sh unit                # Unit tests only
-./test.sh integration         # Integration tests only
-./test.sh security            # Security tests only
+## Test Commands
 
-# Single test case (exact name)
+```bash
+# Test suites
+./test.sh                   # All tests
+./test.sh unit              # Unit tests only
+./test.sh integration       # Integration tests (.ms files)
+./test.sh security          # Security tests
+./test.sh coverage          # Coverage report
+
+# Run specific test by name
 ./build/tests/meadows_tests "WarningManager setLevel OFF"
 
-# By tag
+# Run tests by tag
 ./build/tests/meadows_tests "[lexer]"
 ./build/tests/meadows_tests "[parser]"
-./build/tests/meadows_tests "[diagnostics]"
-./build/tests/meadows_tests "[warnings]"
+./build/tests/meadows_tests "[codegen]"
 
 # Catch2 options
-./build/tests/meadows_tests -l                 # List all tests
-./build/tests/meadows_tests -s                 # Show stdout
-./build/tests/meadows_tests -r compact         # Compact output
+./build/tests/meadows_tests -l       # List all tests
+./build/tests/meadows_tests -s       # Show stdout
+./build/tests/meadows_tests -r compact  # Compact output
 ```
 
-### Code Quality
+## Code Quality
+
 ```bash
-./scripts/dev/format.sh [--check]       # Format code
+./scripts/dev/format.sh [--check]       # Format code (clang-format)
 ./scripts/dev/run_static_analysis.sh    # Static analysis
-cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 ```
 
-## Code Style Guidelines
+## Code Style
 
 ### Formatting (from .clang-format)
 - 2-space indentation
@@ -48,20 +55,25 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 - Braces on same line: `if (x) {`
 - Pointer alignment: right (`int* ptr`)
 - One declaration per line
+- C++17 standard
 
-### Imports
+### Import Order
 ```cpp
-// Order: standard library → LLVM → project
+// 1. Standard library
 #include <string>
 #include <vector>
+
+// 2. LLVM
 #include <llvm/IR/Type.h>
+
+// 3. Project
 #include "../ast/AST.h"
 ```
 
 ### Naming Conventions
 | Type | Convention | Example |
 |------|-----------|---------|
-| Classes | PascalCase | `Lexer`, `Parser` |
+| Classes/Structs | PascalCase | `Lexer`, `Parser` |
 | Functions | camelCase | `tokenize()`, `parseExpr()` |
 | Variables | camelCase | `currentToken` |
 | Constants | UPPER_SNAKE_CASE | `MAX_FILE_SIZE` |
@@ -78,12 +90,12 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 - Use `constexpr` for compile-time constants
 
 ### Error Handling
-- Custom exceptions in `src/utils/Exceptions.h`:
-  - `LexicalException` - lexer errors with `SourceLocation`
-  - `ParseException` - parser errors with `SourceLocation`
-  - `MeadowsException` - general errors with `ErrorCode`
+- Use exceptions from `src/utils/Exceptions.h`:
+  - `LexicalException` - lexer errors
+  - `ParseException` - parser errors
+  - `MeadowsException` - general errors
 - Include line numbers: `"Error at line " + std::to_string(line)`
-- Use `DiagnosticsCollector` for non-fatal error collection
+- Use `DiagnosticsCollector` for non-fatal errors
 - Exit codes: 1 = usage error, 2 = critical error
 
 ### Class Design
@@ -97,19 +109,12 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 - Never use `system()`; use `fork()` + `execvp()`
 - Validate paths for traversal (`..`, dangerous chars)
 - Check file sizes (10MB max via `MAX_ALLOC_SIZE`)
-- Reject dangerous chars: `;|&`$\(){}[]<>!\`
+- Reject dangerous chars: `;|&`$
+(){}[]<>!
+`
 - Use `MemoryUtils.h` for safe allocation
 
-## Testing Guidelines
-
-- Use Catch2 v3.x for unit tests
-- Place tests in `tests/unit/<module>/`
-- One test file per module: `Lexer.test.cpp`
-- Use tags: `[lexer]`, `[parser]`, `[exceptions]`, `[diagnostics]`
-- Include positive and negative test cases
-- Test edge cases: empty input, large files, nesting
-
-## Module Structure
+## Project Structure
 
 ```
 src/
@@ -117,13 +122,16 @@ src/
   parser/         - Syntax analysis
   ast/            - AST node definitions
   codegen/        - LLVM IR generation
-  lsp/            - Language Server Protocol support
-  utils/          - Utilities (exceptions, diagnostics, warnings, timer)
+  lsp/            - Language Server Protocol
+  utils/          - Exceptions, diagnostics, warnings
   main/           - Entry point
+  stdlib/         - Standard library (c/ and std/)
+  types/          - Type system
+  modules/        - Module resolution
 
 tests/
-  unit/           - Unit tests by module
-  integration/    - Full program tests (.ms files)
+  unit/           - Unit tests (Catch2)
+  integration/    - Full program tests (.ms)
   security/       - Security and fuzz tests
 ```
 
@@ -136,42 +144,26 @@ tests/
 4. Add visitor implementation in `src/codegen/CodeGen.cpp`
 5. Add parser support in `src/parser/Parser.cpp`
 6. Add lexer token in `src/lexer/Token.h` if needed
+7. Add unit tests in `tests/unit/<module>/`
 
-### Adding Compiler Pass
-1. Add method declaration to appropriate class
-2. Implement in corresponding `.cpp` file
-3. Add unit tests in `tests/unit/<module>/`
-4. Update `CMakeLists.txt` if new source files
-
-### Adding Exceptions
-1. Define error code in `src/utils/ErrorCodes.h`
-2. Add exception class in `src/utils/Exceptions.h` if needed
-3. Use `DiagnosticsCollector::reportError()` for non-fatal errors
-4. Add tests in `tests/unit/utils/Exceptions.test.cpp`
+### Testing
+- Use Catch2 v3.x
+- One test file per module: `Lexer.test.cpp`
+- Use tags: `[lexer]`, `[parser]`, `[codegen]`
+- Include positive and negative test cases
+- Test edge cases: empty input, large files, nesting
 
 ## Git Workflow
 - Commit messages: imperative mood, 50-char summary
 - One logical change per commit
 - Run tests before committing: `./test.sh unit`
-- Don't commit build artifacts or `.vsix` files
+- Don't commit build artifacts
 - Include test coverage for new features
+
+See README.md for complete roadmap.
 
 ## Performance Tips
 - Profile before optimizing
 - Use `std::unordered_map` for O(1) lookups
 - Reserve vector capacity when size known
 - Avoid O(n²) string concatenation
-
-## Cursor and Copilot Rules
-
-No specific Cursor rules (.cursor/rules/ or .cursorrules) or Copilot instructions (.github/copilot-instructions.md) were found in this repository.
-
-## Additional Guidelines
-
-- Use meaningful commit messages with imperative mood (e.g., "Add lexer token validation", not "Added lexer token validation")
-- Run full test suite before pushing changes
-- For security-critical changes, run the security test suite specifically
-- Use the provided scripts for consistency across development environments
-- When adding new features, include corresponding unit tests
-- Follow LLVM coding standards for any LLVM-interfacing code
-- Use RAII principles extensively for resource management

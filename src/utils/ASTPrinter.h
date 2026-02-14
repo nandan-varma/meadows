@@ -319,6 +319,13 @@ public:
     }
     output_ << ")\n";
   }
+
+  void visitExternStmt(ExternStmt &stmt) override {
+    indent();
+    output_ << "ExternStmt(C: \"" << stmt.cName
+            << "\", Meadows: " << stmt.meadowsName << ") -> " << stmt.returnType
+            << "\n";
+  }
 };
 
 #endif

@@ -9,6 +9,7 @@
 #include <llvm/Support/Casting.h>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 constexpr int INT32_BIT_WIDTH = 32;
 
@@ -118,6 +119,260 @@ CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
   freeFunc = llvm::cast<llvm::Function>(
       module->getOrInsertFunction("free", freeType).getCallee());
 
+  auto memcpyType = llvm::FunctionType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("memcpy", memcpyType);
+
+  auto memcmpType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("memcmp", memcmpType);
+
+  auto strdupType = llvm::FunctionType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  module->getOrInsertFunction("strdup", strdupType);
+
+  auto strndupType = llvm::FunctionType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("strndup", strndupType);
+
+  auto strncmpType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("strncmp", strncmpType);
+
+  auto strnlenType = llvm::FunctionType::get(
+      llvm::Type::getInt64Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("strnlen", strnlenType);
+
+  // File I/O functions
+  auto fopenType = llvm::FunctionType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("fopen", fopenType);
+
+  auto fcloseType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  module->getOrInsertFunction("fclose", fcloseType);
+
+  auto freadType = llvm::FunctionType::get(
+      llvm::Type::getInt64Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context), llvm::Type::getInt64Ty(*context),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("fread", freadType);
+
+  auto fwriteType = llvm::FunctionType::get(
+      llvm::Type::getInt64Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context), llvm::Type::getInt64Ty(*context),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("fwrite", fwriteType);
+
+  auto fgetsType = llvm::FunctionType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt32Ty(*context),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("fgets", fgetsType);
+
+  auto feofType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  module->getOrInsertFunction("feof", feofType);
+
+  auto ferrorType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  module->getOrInsertFunction("ferror", ferrorType);
+
+  auto removeType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
+  module->getOrInsertFunction("remove", removeType);
+
+  auto renameType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("rename", renameType);
+
+  // Math functions
+  auto sinType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("sin", sinType);
+
+  auto cosType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("cos", cosType);
+
+  auto tanType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("tan", tanType);
+
+  auto asinType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("asin", asinType);
+
+  auto acosType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("acos", acosType);
+
+  auto atanType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("atan", atanType);
+
+  auto atan2Type = llvm::FunctionType::get(
+      llvm::Type::getDoubleTy(*context),
+      {llvm::Type::getDoubleTy(*context), llvm::Type::getDoubleTy(*context)},
+      false);
+  module->getOrInsertFunction("atan2", atan2Type);
+
+  auto sinhType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("sinh", sinhType);
+
+  auto coshType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("cosh", coshType);
+
+  auto tanhType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("tanh", tanhType);
+
+  auto expType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("exp", expType);
+
+  auto exp2Type =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("exp2", exp2Type);
+
+  auto logType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("log", logType);
+
+  auto log10Type =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("log10", log10Type);
+
+  auto log2Type =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("log2", log2Type);
+
+  auto powType = llvm::FunctionType::get(
+      llvm::Type::getDoubleTy(*context),
+      {llvm::Type::getDoubleTy(*context), llvm::Type::getDoubleTy(*context)},
+      false);
+  module->getOrInsertFunction("pow", powType);
+
+  auto sqrtType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("sqrt", sqrtType);
+
+  auto cbrtType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("cbrt", cbrtType);
+
+  auto hypotType = llvm::FunctionType::get(
+      llvm::Type::getDoubleTy(*context),
+      {llvm::Type::getDoubleTy(*context), llvm::Type::getDoubleTy(*context)},
+      false);
+  module->getOrInsertFunction("hypot", hypotType);
+
+  auto floorType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("floor", floorType);
+
+  auto ceilType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("ceil", ceilType);
+
+  auto roundType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("round", roundType);
+
+  auto truncType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("trunc", truncType);
+
+  auto fabsType =
+      llvm::FunctionType::get(llvm::Type::getDoubleTy(*context),
+                              {llvm::Type::getDoubleTy(*context)}, false);
+  module->getOrInsertFunction("fabs", fabsType);
+
+  auto fabsfType =
+      llvm::FunctionType::get(llvm::Type::getFloatTy(*context),
+                              {llvm::Type::getFloatTy(*context)}, false);
+  module->getOrInsertFunction("fabsf", fabsfType);
+
+  auto lldivType = llvm::FunctionType::get(
+      llvm::Type::getInt64Ty(*context),
+      {llvm::Type::getInt64Ty(*context), llvm::Type::getInt64Ty(*context)},
+      false);
+  module->getOrInsertFunction("lldiv", lldivType);
+
+  auto randType =
+      llvm::FunctionType::get(llvm::Type::getInt32Ty(*context), {}, false);
+  module->getOrInsertFunction("rand", randType);
+
+  auto srandType =
+      llvm::FunctionType::get(llvm::Type::getVoidTy(*context),
+                              {llvm::Type::getInt32Ty(*context)}, false);
+  module->getOrInsertFunction("srand", srandType);
+
+  auto setArgsType = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(*context),
+      {llvm::Type::getInt32Ty(*context),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  setArgsFunc = llvm::cast<llvm::Function>(
+      module->getOrInsertFunction("meadows_set_args", setArgsType).getCallee());
+
   currentFunction = nullptr;
   exprResult = nullptr;
   currentBlock = nullptr;
@@ -126,37 +381,80 @@ CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
 void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   variableScopeStack.clear();
 
-  auto mainType =
-      llvm::FunctionType::get(llvm::Type::getInt32Ty(*context), {}, false);
-  auto mainFunc = llvm::Function::Create(
+  bool hasUserMain = false;
+  for (const auto &stmt : statements) {
+    if (auto funcStmt = dynamic_cast<FuncStmt *>(stmt.get())) {
+      if (funcStmt->name == "main") {
+        hasUserMain = true;
+        break;
+      }
+    }
+  }
+
+  std::vector<llvm::Type *> mainArgTypes = {
+      llvm::Type::getInt32Ty(*context),
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)};
+  auto mainType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*context),
+                                          mainArgTypes, false);
+
+  llvm::Function *wrapperMain = llvm::Function::Create(
       mainType, llvm::Function::ExternalLinkage, "main", module.get());
-  auto entry = llvm::BasicBlock::Create(*context, "entry", mainFunc);
+  llvm::BasicBlock *entry =
+      llvm::BasicBlock::Create(*context, "entry", wrapperMain);
   builder->SetInsertPoint(entry);
-  currentFunction = mainFunc;
+  currentFunction = wrapperMain;
   currentBlock = entry;
+
+  auto argsIter = wrapperMain->arg_begin();
+  llvm::Value *argcArg = &*argsIter;
+  argcArg->setName("argc");
+  llvm::Value *argvArg = &*(++argsIter);
+  argvArg->setName("argv");
+
+  builder->CreateCall(setArgsFunc, {argcArg, argvArg});
 
   enterScope();
 
+  llvm::Function *userMainFunc = nullptr;
   for (auto &stmt : statements) {
+    if (auto funcStmt = dynamic_cast<FuncStmt *>(stmt.get())) {
+      if (funcStmt->name == "main") {
+        funcStmt->name = "_meadows_user_main";
+      }
+    }
     stmt->accept(*this);
   }
 
-  exitScope();
+  userMainFunc = module->getFunction("_meadows_user_main");
 
-  freeAllocatedStrings();
+  if (userMainFunc) {
+    builder->SetInsertPoint(entry);
+    std::vector<llvm::Value *> args;
+    if (userMainFunc->arg_size() > 0) {
+      args.push_back(argcArg);
+    }
+    if (userMainFunc->arg_size() > 1) {
+      args.push_back(argvArg);
+    }
+    builder->CreateCall(userMainFunc, args);
+  }
+
+  exitScope();
 
   if (optimize_) {
     module->print(llvm::errs(), nullptr);
   }
 
+  builder->SetInsertPoint(entry);
   builder->CreateRet(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
 }
 
 void CodeGen::freeAllocatedStrings() {
-  for (auto ptr : allocatedStrings) {
-    builder->CreateCall(freeFunc, {ptr});
-  }
+  // Note: We're not freeing strings here because they may be allocated
+  // in different basic blocks (e.g., inside loops). The OS will reclaim
+  // this memory when the program exits. For a production compiler, we'd
+  // need more sophisticated lifetime tracking.
   allocatedStrings.clear();
 }
 
@@ -164,15 +462,27 @@ std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
 
 void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
   if (!expr.value.empty() && isdigit(expr.value[0])) {
-    try {
-      exprResult = llvm::ConstantInt::get(
-          llvm::Type::getInt32Ty(*context),
-          llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
-    } catch (const std::out_of_range &) {
-      constexpr int32_t MAX_I32_VALUE = INT32_MAX;
-      exprResult =
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                 llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
+    if (expr.value.find('.') != std::string::npos ||
+        expr.value.find('e') != std::string::npos ||
+        expr.value.find('E') != std::string::npos) {
+      try {
+        exprResult = llvm::ConstantFP::get(llvm::Type::getDoubleTy(*context),
+                                           std::stod(expr.value));
+      } catch (const std::out_of_range &) {
+        exprResult =
+            llvm::ConstantFP::get(llvm::Type::getDoubleTy(*context), 0.0);
+      }
+    } else {
+      try {
+        exprResult = llvm::ConstantInt::get(
+            llvm::Type::getInt32Ty(*context),
+            llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
+      } catch (const std::out_of_range &) {
+        constexpr int32_t MAX_I32_VALUE = INT32_MAX;
+        exprResult =
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                   llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
+      }
     }
   } else {
     StringUtils::StringPool::getInstance().intern(expr.value);
@@ -226,7 +536,23 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
     validateDivision(right);
     exprResult = builder->CreateSDiv(left, right);
   } else if (expr.op == "==") {
-    exprResult = builder->CreateICmpEQ(left, right);
+    llvm::Value *leftVal = left;
+    llvm::Value *rightVal = right;
+    if (left->getType() != right->getType()) {
+      auto leftTy = left->getType();
+      auto rightTy = right->getType();
+      if (leftTy->isIntegerTy() && rightTy->isIntegerTy()) {
+        auto widerTy =
+            (leftTy->getIntegerBitWidth() >= rightTy->getIntegerBitWidth())
+                ? leftTy
+                : rightTy;
+        if (leftTy != widerTy)
+          leftVal = builder->CreateZExt(left, widerTy);
+        if (rightTy != widerTy)
+          rightVal = builder->CreateZExt(right, widerTy);
+      }
+    }
+    exprResult = builder->CreateICmpEQ(leftVal, rightVal);
   } else if (expr.op == "!=") {
     exprResult = builder->CreateICmpNE(left, right);
   } else if (expr.op == ">") {
@@ -379,18 +705,31 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
 }
 
 void CodeGen::visitCallExpr(CallExpr &expr) {
+  std::string funcName;
   auto varExpr = dynamic_cast<VarExpr *>(expr.callee.get());
-  if (!varExpr)
-    error("Only variable calls supported");
+  if (varExpr) {
+    funcName = varExpr->name;
+  } else {
+    auto fieldAccess = dynamic_cast<FieldAccessExpr *>(expr.callee.get());
+    if (!fieldAccess) {
+      error("Only variable and field access calls supported");
+    }
+    funcName = fieldAccess->fieldName;
+  }
 
-  auto func = module->getFunction(varExpr->name);
+  auto it = externNameMapping.find(funcName);
+  if (it != externNameMapping.end()) {
+    funcName = it->second;
+  }
+
+  auto func = module->getFunction(funcName);
   if (!func) {
-    error("Undefined function: ", varExpr->name);
+    error("Undefined function: ", funcName);
   }
 
   if (func->arg_size() != expr.args.size()) {
     std::ostringstream oss;
-    oss << "Function " << varExpr->name << " expects " << func->arg_size()
+    oss << "Function " << funcName << " expects " << func->arg_size()
         << " arguments, got " << expr.args.size();
     error(oss.str());
   }
@@ -399,7 +738,7 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
   for (auto &arg : expr.args) {
     arg->accept(*this);
     if (!exprResult) {
-      error("Failed to generate argument code for function: ", varExpr->name);
+      error("Failed to generate argument code for function: ", funcName);
     }
     args.push_back(exprResult);
   }
@@ -552,13 +891,36 @@ void CodeGen::visitLetStmt(LetStmt &stmt) {
   variableTypes[stmt.name] = val->getType();
 }
 
+llvm::Type *CodeGen::getTypeFromAnnotation(const std::string &annotation) {
+  if (annotation == "i64") {
+    return llvm::Type::getInt64Ty(*context);
+  } else if (annotation == "string") {
+    return llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+  } else if (annotation == "f64" || annotation == "double") {
+    return llvm::Type::getDoubleTy(*context);
+  } else if (annotation == "f32" || annotation == "float") {
+    return llvm::Type::getFloatTy(*context);
+  } else if (annotation == "void") {
+    return llvm::Type::getVoidTy(*context);
+  }
+  // Default to i32
+  return llvm::Type::getInt32Ty(*context);
+}
+
 void CodeGen::visitFuncStmt(FuncStmt &stmt) {
   auto savedBlock = builder->GetInsertBlock();
   auto savedFunction = currentFunction;
-  std::vector<llvm::Type *> paramTypes(stmt.params.size(),
-                                       llvm::Type::getInt32Ty(*context));
-  auto funcType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*context),
-                                          paramTypes, false);
+
+  // Build parameter types from annotations
+  std::vector<llvm::Type *> paramTypes;
+  for (auto &param : stmt.params) {
+    paramTypes.push_back(getTypeFromAnnotation(param.typeAnnotation));
+  }
+
+  // Get return type from annotation
+  llvm::Type *returnType = getTypeFromAnnotation(stmt.returnTypeAnnotation);
+
+  auto funcType = llvm::FunctionType::get(returnType, paramTypes, false);
   auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
                                      stmt.name, module.get());
   auto entry = llvm::BasicBlock::Create(*context, "entry", func);
@@ -568,18 +930,27 @@ void CodeGen::visitFuncStmt(FuncStmt &stmt) {
 
   auto it = func->arg_begin();
   for (auto &param : stmt.params) {
-    auto alloca = builder->CreateAlloca(llvm::Type::getInt32Ty(*context));
+    llvm::Type *paramType = getTypeFromAnnotation(param.typeAnnotation);
+    auto alloca = builder->CreateAlloca(paramType);
     builder->CreateStore(&*it, alloca);
     declareVariable(param.name, alloca);
+    variableTypes[param.name] = paramType;
     ++it;
   }
   currentFunction = func;
   for (auto &s : stmt.body) {
     s->accept(*this);
   }
+
+  // Free allocated strings before function return
+  freeAllocatedStrings();
+
   if (!builder->GetInsertBlock()->getTerminator()) {
-    builder->CreateRet(
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
+    if (returnType->isVoidTy()) {
+      builder->CreateRetVoid();
+    } else {
+      builder->CreateRet(llvm::ConstantInt::get(returnType, 0));
+    }
   }
 
   exitScope();
@@ -674,7 +1045,16 @@ void CodeGen::visitWhileStmt(WhileStmt &stmt) {
   builder->SetInsertPoint(condBB);
   stmt.condition->accept(*this);
   auto cond = exprResult;
-  builder->CreateCondBr(cond, bodyBB, endBB);
+
+  llvm::Value *boolCond = nullptr;
+  if (cond->getType()->isIntegerTy()) {
+    boolCond = builder->CreateICmpNE(
+        cond, llvm::ConstantInt::get(cond->getType(), 0), "whileCond");
+  } else {
+    boolCond = cond;
+  }
+
+  builder->CreateCondBr(boolCond, bodyBB, endBB);
   builder->SetInsertPoint(bodyBB);
   for (auto &s : stmt.body)
     s->accept(*this);
@@ -703,6 +1083,14 @@ void CodeGen::visitPrintStmt(PrintStmt &stmt) {
   if (val->getType()->isIntegerTy()) {
     auto format = builder->CreateGlobalString("%d\n");
     builder->CreateCall(printfFunc, {format, val});
+  } else if (val->getType()->isDoubleTy()) {
+    auto format = builder->CreateGlobalString("%g\n");
+    builder->CreateCall(printfFunc, {format, val});
+  } else if (val->getType()->isFloatTy()) {
+    auto format = builder->CreateGlobalString("%g\n");
+    auto valDouble =
+        builder->CreateFPExt(val, llvm::Type::getDoubleTy(*context));
+    builder->CreateCall(printfFunc, {format, valDouble});
   } else if (val->getType()->isPointerTy()) {
     auto format = builder->CreateGlobalString("%s\n");
     builder->CreateCall(printfFunc, {format, val});
@@ -741,4 +1129,49 @@ void CodeGen::visitImportStmt(ImportStmt &stmt) {
 void CodeGen::visitExportStmt(ExportStmt &stmt) {
   // Export statements are handled at the module level
   // They don't generate LLVM IR directly
+}
+
+void CodeGen::visitExternStmt(ExternStmt &stmt) {
+  llvm::Type *returnType = llvm::Type::getInt32Ty(*context);
+
+  if (stmt.returnType == "i32") {
+    returnType = llvm::Type::getInt32Ty(*context);
+  } else if (stmt.returnType == "i64") {
+    returnType = llvm::Type::getInt64Ty(*context);
+  } else if (stmt.returnType == "f32") {
+    returnType = llvm::Type::getFloatTy(*context);
+  } else if (stmt.returnType == "f64") {
+    returnType = llvm::Type::getDoubleTy(*context);
+  } else if (stmt.returnType == "bool") {
+    returnType = llvm::Type::getInt1Ty(*context);
+  } else if (stmt.returnType == "string") {
+    returnType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+  } else if (stmt.returnType == "void") {
+    returnType = llvm::Type::getVoidTy(*context);
+  }
+
+  std::vector<llvm::Type *> paramTypes;
+  for (const auto &param : stmt.params) {
+    llvm::Type *paramType = llvm::Type::getInt32Ty(*context);
+    if (param.second == "i32") {
+      paramType = llvm::Type::getInt32Ty(*context);
+    } else if (param.second == "i64") {
+      paramType = llvm::Type::getInt64Ty(*context);
+    } else if (param.second == "f32") {
+      paramType = llvm::Type::getFloatTy(*context);
+    } else if (param.second == "f64") {
+      paramType = llvm::Type::getDoubleTy(*context);
+    } else if (param.second == "bool") {
+      paramType = llvm::Type::getInt1Ty(*context);
+    } else if (param.second == "string") {
+      paramType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+    }
+    paramTypes.push_back(paramType);
+  }
+
+  auto funcType = llvm::FunctionType::get(returnType, paramTypes, false);
+  auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                     stmt.cName, module.get());
+  func->setCallingConv(llvm::CallingConv::C);
+  externNameMapping[stmt.meadowsName] = stmt.cName;
 }

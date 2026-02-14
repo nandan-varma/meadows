@@ -184,12 +184,17 @@ target_include_directories(meadows_lib
 #==============================================================================
 # Main Executable
 #==============================================================================
-add_executable(${PROJECT_NAME} src/main/meadows.cpp)
+add_executable(${PROJECT_NAME} src/main/meadows.cpp src/stdlib/c/meadows_stdlib.c)
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
     meadows_lib
     ${LLVM_LIBS}
+)
+
+target_include_directories(${PROJECT_NAME}
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/stdlib/c
 )
 
 # Set output directory

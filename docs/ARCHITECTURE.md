@@ -278,17 +278,116 @@ tests/
 ├── integration/    # Full program tests
 └── security/       # Security tests
 ```
+## Standard Library
 
-### Test Framework
+### C Standard Library (`src/stdlib/c/`)
 
-- **Catch2 v3.x** for unit tests
-- Tags: `[lexer]`, `[parser]`, `[exceptions]`, `[diagnostics]`, `[warnings]`
-- Integration tests via `.ms` files
+**Files:** `meadows_stdlib.h`, `meadows_stdlib.c`
 
-### Security Tests
+**Purpose:** C implementation of runtime functions used by Meadows programs.
 
-- Command injection prevention
-- Path traversal prevention
-- File extension validation
-- File size limits
-- Error handling verification
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `meadows_args()` | Returns the argument count |
+| `meadows_getarg(n)` | Returns the nth argument as string |
+| `meadows_set_args(argc, argv)` | Stores argc/argv globally |
+| `meadows_opendir(path)` | Opens directory, returns handle (i64) |
+| `meadows_readdir(dir_ptr)` | Reads next entry, returns name |
+| `meadows_closedir(dir_ptr)` | Closes directory |
+| `meadows_mkdir(path, mode)` | Creates directory |
+| `meadows_rmdir(path)` | Removes directory |
+| `meadows_is_directory(path)` | Checks if path is directory |
+
+### Meadows Standard Library (`src/stdlib/std/`)
+
+**Modules:** `io.ms`, `string.ms`, `dir.ms`, `math.ms`, `time.ms`, `array.ms`, `os.ms`
+
+**Module Pattern:**
+```meadows
+import std.io;
+import std.dir;
+
+let file = fopen("test.txt", "r");
+let content = read_file("test.txt");
+```
+
+**Directory Operations (`std/dir.ms`):**
+```meadows
+import std.dir;
+
+let dir = opendir(".");
+let entry = readdir(dir);
+closedir(dir);
+```
+
+**Command-Line Arguments (`extern` declarations):**
+```meadows
+extern "meadows_args" args() -> i32;
+extern "meadows_getarg" getarg(n: i32) -> string;
+
+func main() -> i32 {
+    let count = args();           # Number of arguments
+    let arg0 = getarg(0);        # Program name
+    let arg1 = getarg(1);        # First argument
+    print(count);
+    return 0;
+}
+```
+
+### CLI Commands (`examples/cli/commands/`)
+
+**Implemented Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `ls.ms` | List directory contents |
+| `cat.ms` | Concatenate and print files |
+| `echo.ms` | Print arguments |
+| `head.ms` | Print first N lines |
+| `tail.ms` | Print last N lines |
+| `wc.ms` | Word, line, and character count |
+
+**Building Commands:**
+```bash
+cd examples/cli/commands
+/Users/nandan/dev/meadows/build/bin/Meadows ls.ms
+./ls.ms.out .
+```
+
+## Entry Point Architecture
+
+### Main Wrapper Pattern
+
+On macOS, the system's C runtime calls `_main` as the entry point. The Meadows compiler generates:
+
+1. **Wrapper Function (`main` → `_main`):**
+   - Receives `argc` and `argv` from the runtime
+   - Calls `meadows_set_args()` to store globally
+   - Calls user's `main()` function (renamed to `_meadows_user_main`)
+   - Returns exit code
+
+2. **User's Main Function (`_meadows_user_main`):**
+   - Renamed during code generation to avoid symbol conflicts
+   - Can use `args()` and `getarg()` to access command-line arguments
+   - Standard function body as defined in source
+
+**Generated IR Pattern:**
+```llvm
+define i32 @main(i32 %argc, ptr %argv) {
+entry:
+  call void @meadows_set_args(i32 %argc, ptr %argv)
+  call i32 @_meadows_user_main()
+  ret i32 0
+}
+
+define i32 @_meadows_user_main() {
+  ; User's code here
+  ; Can call meadows_args() to get argc
+}
+
+define i32 @meadows_args() {
+  ; Returns global_argc
+}
+```

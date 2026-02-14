@@ -98,6 +98,51 @@ let result = factorial(5);
 print result;
 ```
 
+## CLI Command Testing
+
+Commands are located in `examples/cli/commands/`:
+
+```bash
+# Build a command
+cd examples/cli/commands
+/Users/nandan/dev/meadows/build/bin/Meadows ls.ms
+
+# Run the command
+./ls.ms.out .
+
+# Test with arguments
+./echo.ms.out hello world
+# Output: hello world
+```
+
+### Available Commands
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `ls.ms` | `./ls.ms.out [dir]` | List directory contents |
+| `cat.ms` | `./cat.ms file.txt` | Print file contents |
+| `echo.ms` | `./echo.ms arg1 arg2` | Print arguments |
+| `head.ms` | `./head.ms -n 5 file.txt` | Print first N lines |
+| `tail.ms` | `./tail.ms -n 5 file.txt` | Print last N lines |
+| `wc.ms` | `./wc.ms file.txt` | Count lines/words/chars |
+
+### Testing args() Function
+
+```meadows
+extern "meadows_args" args() -> i32;
+
+func main() -> i32 {
+    let count = args();
+    print(count);  # Prints number of arguments
+    return 0;
+}
+```
+
+```bash
+$ ./program.out foo bar
+3  # Output: program name + 2 arguments = 3
+```
+
 ## Security Tests
 
 Security tests are in `scripts/test/run_security_tests.sh` and test:

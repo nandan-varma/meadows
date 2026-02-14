@@ -1,0 +1,22 @@
+module std.io;
+
+extern "meadows_fopen" fopen(path: string, mode: string) -> i64;
+extern "meadows_fclose" fclose(file: i64) -> i32;
+extern "meadows_fread" fread(buffer: string, size: i64, count: i64, file: i64) -> i64;
+extern "meadows_fwrite" fwrite(buffer: string, size: i64, count: i64, file: i64) -> i64;
+extern "meadows_fgets" fgets(buffer: string, size: i64, file: i64) -> string;
+extern "meadows_feof" feof(file: i64) -> i32;
+extern "meadows_ferror" ferror(file: i64) -> i32;
+extern "meadows_stdin" stdin() -> i64;
+extern "meadows_stdout" stdout() -> i64;
+extern "meadows_stderr" stderr() -> i64;
+extern "meadows_read_file" read_file(path: string) -> string;
+extern "meadows_write_file" write_file(path: string, content: string) -> i32;
+extern "meadows_append_file" append_file(path: string, content: string) -> i32;
+extern "meadows_fseek" fseek(file: i64, offset: i64, whence: i32) -> i32;
+extern "meadows_ftell" ftell(file: i64) -> i64;
+extern "meadows_rewind" rewind(file: i64) -> void;
+extern "meadows_fflush" fflush(file: i64) -> i32;
+extern "meadows_remove_file" remove_file(path: string) -> i32;
+extern "meadows_rename_file" rename_file(old_path: string, new_path: string) -> i32;
+extern "meadows_file_exists" file_exists(path: string) -> i32;

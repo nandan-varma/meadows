@@ -27,6 +27,7 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"export", TokenType::EXPORT},
     {"as", TokenType::AS},
     {"from", TokenType::FROM},
+    {"extern", TokenType::EXTERN},
     // Type system
     {"type", TokenType::TYPE},
     {"i32", TokenType::I32},

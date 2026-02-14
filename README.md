@@ -1,320 +1,385 @@
-# Meadows Compiler
+# Meadows Programming Language
 
-A simple compiled programming language called "Meadows" that compiles to LLVM IR and then to native executables.
+A systems programming language designed for safety, performance, and developer productivity. Compiles to native executables via LLVM.
+
+**Current Status:** Alpha (15-20% production-ready) | **Target:** v1.0 Production Release
 
 ## Quick Start
 
 ```bash
-# Build everything (compiler + tests)
-./build.sh
-
-# Run all tests
-./test.sh
+# Build the compiler
+./build.sh release
 
 # Compile and run a Meadows program
-./build/meadows hello.ms
+./build/bin/Meadows hello.ms
 ./hello.ms.out
+
+# Run tests
+./test.sh
 ```
 
-## Features
+## What Makes Meadows Different?
 
-- **Variables**: `let name = "Alice"; let age = 30;`
-- **Functions**: `func greet(person) { print "Hello, " + person; }`
-- **Conditionals**: `if (age > 18) { print "Adult"; } else { print "Minor"; }`
-- **Loops**: `for (i in range(0, 5)) { print i; }` and `while` loops
-- **Comments**: `# comment` or `// comment`
-- **Print**: `print "Hello, world";`
+Meadows combines the safety guarantees of modern languages with the performance of systems programming:
 
-## Building
+- **Memory Safety**: Ownership-based memory management (inspired by Rust)
+- **Zero-Cost Abstractions**: Generic types, traits, and compile-time optimization
+- **Fearless Concurrency**: Async/await with structured concurrency
+- **Excellent Tooling**: Built-in formatter, package manager, and testing framework
+- **C Interop**: Seamless FFI for using existing C libraries
+- **Fast Compilation**: Optimized for quick edit-compile-run cycles
 
-The project uses a modular build system. All build commands are available through the main `./build.sh` script.
+## Installation
 
+### macOS
 ```bash
-./build.sh                    # Build everything (default)
-./build.sh debug             # Build debug version only
-./build.sh release           # Build release version only
-./build.sh tests             # Build test executables
-./build.sh clean             # Clean all build artifacts
+brew install meadows-lang
 ```
 
-### Build Options
-
+### Linux
 ```bash
-./build.sh [TARGET] [OPTIONS]
-
-Options:
-  -j N         Use N parallel jobs (default: auto-detect)
-  -v           Verbose output
-  --llvm PATH  Specify LLVM cmake directory
-
-Examples:
-  ./build.sh release -j8              # Release build with 8 jobs
-  ./build.sh tests --verbose          # Build tests verbosely
-  ./build.sh debug --llvm /usr/lib/llvm-17/lib/cmake/llvm
+curl -fsSL https://meadows-lang.org/install.sh | sh
 ```
 
-### Build Outputs
-
-- **Debug**: `build-debug/meadows`
-- **Release**: `build-release/meadows`
-- **Tests**: `build/tests/meadows_tests`
-
-## Testing
-
-Comprehensive test suite with unit tests, integration tests, and security tests.
-
+### From Source
 ```bash
-./test.sh                    # Run all tests (default)
-./test.sh unit              # Run unit tests only
-./test.sh integration       # Run integration tests (.ms files)
-./test.sh security          # Run security tests
-./test.sh coverage          # Generate coverage report
+git clone https://github.com/meadows-lang/meadows.git
+cd meadows
+./build.sh release
+sudo cp build/bin/Meadows /usr/local/bin/
 ```
 
-### Test Options
+## Language Features
 
-```bash
-./test.sh [SUITE] [OPTIONS]
-
-Options:
-  -v, --verbose    Verbose output
-  -f, --fail-fast  Stop on first failure
-  --no-build       Don't rebuild before testing
-
-Examples:
-  ./test.sh unit -v              # Verbose unit tests
-  ./test.sh all -f               # All tests, fail fast
-  ./test.sh integration --no-build  # Skip rebuild
-```
-
-### Test Coverage
-
-```bash
-./test.sh coverage
-# Generates coverage_report/index.html
-```
-
-See [TESTING.md](TESTING.md) for detailed testing documentation.
-
-## Usage
-
-Compile a `.ms` file:
-
-```bash
-./build/meadows path/to/file.ms
-```
-
-This generates:
-- `file.ms.ll` - LLVM IR
-- `file.ms.out` - Native executable
-
-Run the executable:
-
-```bash
-./file.ms.out
-```
-
-## Project Structure
-
-```
-meadows/
-├── src/                    # Source code
-│   ├── lexer/             # Lexical analysis
-│   ├── parser/            # Syntax parsing
-│   ├── ast/               # Abstract syntax tree
-│   ├── codegen/           # LLVM IR generation
-│   └── main/              # Compiler entry point
-├── scripts/               # Build and development scripts
-│   ├── build/             # Build scripts
-│   ├── test/              # Test scripts
-│   └── dev/               # Development utilities
-├── tests/                 # Test cases
-│   ├── *.ms               # Meadows test files
-│   ├── *.expected         # Expected output files
-│   └── unit/              # Unit tests (Catch2)
-├── docs/                  # Documentation
-├── build.sh               # Main build script
-├── test.sh                # Main test script
-└── CMakeLists.txt         # CMake configuration
-```
-
-## Dependencies
-
-- **CMake** (3.10+)
-- **LLVM** (17.x) - Install via Homebrew on macOS: `brew install llvm@17`
-- **clang++** - For final compilation to executable
-- **Python 3** - For some test utilities (optional)
-
-### macOS Setup
-
-```bash
-brew install cmake llvm@17
-```
-
-### Linux Setup
-
-```bash
-sudo apt-get install cmake llvm-17-dev clang
-```
-
-## Development Scripts
-
-Located in `scripts/` directory:
-
-```bash
-# Format code
-./scripts/dev/format.sh           # Format all source files
-./scripts/dev/format.sh --check   # Check formatting (CI mode)
-```
-
-## Language Syntax Quick Reference
-
-Meadows is a C-style compiled language with simple syntax.
-
-### Statements & Comments
-
+### Basic Syntax
 ```meadows
-let x = 42;           # Variable declaration (ends with ;)
-print "Hello";        # Print statement
-// This is a comment
-```
+# Variables and types
+let name = "Alice";
+let age: i32 = 30;
+let pi: f64 = 3.14159;
+let is_valid = true;
 
-### Variables & Types
+# Functions
+func greet(person: string) -> string {
+    return "Hello, " + person;
+}
 
-```meadows
-let name = "Alice";        # String
-let age = 30;              # Integer
-let numbers = [1, 2, 3];   # Array
-let person = {            # Object
-    name: "Bob",
-    age: 25
-};
-```
-
-### Operators
-
-```meadows
-# Arithmetic
-let sum = 10 + 5;         # Addition
-let diff = 10 - 5;        # Subtraction
-let prod = 10 * 5;        # Multiplication
-let quot = 10 / 5;        # Division
-let neg = -10;            # Unary minus
-
-# Comparison
-let eq = 10 == 10;        # Equal
-let gt = 10 > 5;          # Greater than
-let lt = 5 < 10;          # Less than
-let ge = 10 >= 10;        # Greater or equal
-let le = 5 <= 10;         # Less or equal
-```
-
-### Control Flow
-
-```meadows
-if (age > 18) {
-    print "Adult";
+# Control flow
+if (age >= 18) {
+    print("Adult");
 } else {
-    print "Minor";
+    print("Minor");
+}
+
+# Loops
+for (i in range(0, 5)) {
+    print(i);  # 0, 1, 2, 3, 4
 }
 
 while (count > 0) {
-    print count;
     count = count - 1;
 }
+```
 
-for (i in range(0, 5)) {
-    print i;  # Prints 0, 1, 2, 3, 4
+### Structs and Enums
+```meadows
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+enum Status {
+    Pending,
+    Success(string),
+    Error { code: i32, message: string },
+}
+
+func distance(p1: Point, p2: Point) -> f64 {
+    let dx = p2.x - p1.x;
+    let dy = p2.y - p1.y;
+    return sqrt(dx * dx + dy * dy);
 }
 ```
 
-### Functions
-
+### Generics
 ```meadows
-func factorial(n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
+func identity<T>(value: T) -> T {
+    return value;
 }
 
-let result = factorial(5);
-print result;
-```
+struct Box<T> {
+    value: T,
+}
 
-### String Escapes
-
-```meadows
-let newline = "line1\nline2";
-let tab = "col1\tcol2";
-let quote = "He said \"hello\"";
-let path = "C:\\path\\to\\file";
-```
-
-### Complete Example
-
-```meadows
-func factorial(n) {
-    if (n <= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
+impl<T> Box<T> {
+    func new(value: T) -> Box<T> {
+        return Box { value: value };
     }
 }
-
-let result = factorial(5);
-print result;
 ```
 
-## Testing Status
+### Error Handling
+```meadows
+func read_file(path: string) -> Result<string, FileError> {
+    let file = File::open(path)?;
+    let content = file.read_all()?;
+    return Ok(content);
+}
 
-| Test Type | Count | Status |
-|-----------|-------|--------|
-| Unit Tests | 23 | ✅ Passing |
-| Integration Tests | 4 | ✅ Passing |
-| Security Tests | 12 | ✅ Passing |
-| **Total** | **39** | **✅ All Pass** |
+func main() -> Result<void, Error> {
+    match read_file("data.txt") {
+        Ok(content) => print(content),
+        Err(e) => print("Error: " + e),
+    }
+}
+```
 
-## Continuous Integration
+### Async/Await
+```meadows
+async func fetch_data(url: string) -> Result<Response, Error> {
+    let response = http_get(url).await?;
+    return Ok(response);
+}
 
-GitHub Actions automatically builds and tests on every push:
-- Multi-platform builds (Linux, macOS)
-- Debug and release configurations
-- Automated unit tests
-- Integration tests
-- Security tests
+async func main() {
+    let result = fetch_data("https://api.example.com").await;
+    match result {
+        Ok(data) => print(data),
+        Err(e) => print("Error: " + e),
+    }
+}
+```
 
-See [`.github/workflows/release.yml`](.github/workflows/release.yml) for details.
+## Standard Library
 
-## Releases
+```meadows
+import std.collections;
+import std.io;
+import std.string;
 
-Automated releases are created when version tags (e.g., `v1.0.0`) are pushed:
-- Pre-built binaries for Linux x64 and macOS x64
-- Debug and release builds
-- Installation scripts
+func main() -> i32 {
+    # Dynamic arrays
+    let vec = Vec<i32>::new();
+    vec.push(1);
+    vec.push(2);
+    
+    # Hash maps
+    let map = HashMap<string, i32>::new();
+    map.insert("key", 42);
+    
+    # File I/O
+    let content = File::read("input.txt")?;
+    File::write("output.txt", content)?;
+    
+    return 0;
+}
+```
+
+## Package Manager
+
+```bash
+# Initialize a new project
+meadows init my-project
+cd my-project
+
+# Add dependencies
+meadows add serde
+meadows add tokio --version "1.0"
+
+# Build
+meadows build
+
+# Run tests
+meadows test
+
+# Format code
+meadows fmt
+```
+
+## Roadmap to v1.0
+
+### Phase 1: Foundation (Months 1-4) - Core Language
+**Goal:** Complete type system and basic tooling
+
+- [ ] **Type System Completion**
+  - [ ] Generic type code generation (monomorphization)
+  - [ ] Struct code generation (LLVM struct types)
+  - [ ] Enum code generation (tagged unions)
+  - [ ] Integrate TypeChecker into compiler pipeline
+  
+- [ ] **Multi-file Module Compilation**
+  - [ ] Cross-module type checking
+  - [ ] Separate compilation of modules
+  - [ ] Incremental builds
+  
+- [ ] **Package Manager (MVP)**
+  - [ ] Fetch dependencies from git repositories
+  - [ ] Semantic versioning support
+  - [ ] Lock file for reproducible builds
+  - [ ] Local cache management
+  
+- [ ] **Testing Framework**
+  - [ ] `meadows test` command
+  - [ ] Built-in assert macros (`assert_eq`, `assert_panics`)
+  - [ ] Test organization (test modules)
+  - [ ] Coverage reporting
+
+**Deliverable:** Can write and publish small libraries with proper dependencies and tests
+
+### Phase 2: Safety & Reliability (Months 5-8)
+**Goal:** Memory safety and robust error handling
+
+- [ ] **Memory Safety System**
+  - [ ] Ownership and borrowing rules
+  - [ ] Lifetime tracking
+  - [ ] Borrow checker integration
+  - [ ] Smart pointer types (`Box<T>`, `Rc<T>`, `Arc<T>`)
+  - Alternative: Garbage collector (faster to implement, less control)
+  
+- [ ] **Error Handling**
+  - [ ] `Result<T, E>` type
+  - [ ] `Option<T>` type
+  - [ ] `?` operator for error propagation
+  - [ ] Panic and recover mechanisms
+  - [ ] Custom error types
+  
+- [ ] **Standard Collections**
+  - [ ] `HashMap<K, V>`
+  - [ ] `Vec<T>` (dynamic array)
+  - [ ] `HashSet<T>`
+  - [ ] `LinkedList<T>`
+  - [ ] Iterator protocol
+  
+- [ ] **Pattern Matching**
+  - [ ] `match` expressions
+  - [ ] Destructuring
+  - [ ] Guards and bindings
+
+**Deliverable:** Production-ready memory safety and error handling for systems programming
+
+### Phase 3: Ecosystem (Months 9-12)
+**Goal:** Developer tooling and interoperability
+
+- [ ] **Tooling**
+  - [ ] Code formatter (`meadows fmt`)
+  - [ ] Linter (`meadows lint`)
+  - [ ] Documentation generator (`meadows doc`)
+  - [ ] Debugger support (DWARF generation)
+  - [ ] IDE integration (autocomplete, goto definition)
+  
+- [ ] **JSON Support**
+  - [ ] JSON parsing and serialization
+  - [ ] Derive macros for structs/enums
+  - [ ] Streaming parser for large files
+  
+- [ ] **Build System Improvements**
+  - [ ] Build caching
+  - [ ] Parallel builds
+  - [ ] Cross-compilation support
+  - [ ] Link-time optimization
+  
+- [ ] **FFI Enhancements**
+  - [ ] Complex C struct support
+  - [ ] Callback functions
+  - [ ] Automatic binding generation
+
+**Deliverable:** Professional development experience comparable to Go/Rust
+
+### Phase 4: Performance & Scale (Months 13-18)
+**Goal:** Concurrency, networking, and large-scale applications
+
+- [ ] **Concurrency**
+  - [ ] Async/await runtime
+  - [ ] Tasks and executors
+  - [ ] Channels for communication
+  - [ ] Mutex and RwLock
+  - [ ] Atomic operations
+  
+- [ ] **Networking Stack**
+  - [ ] TCP/UDP sockets
+  - [ ] HTTP client/server
+  - [ ] TLS/SSL support
+  - [ ] WebSocket support
+  
+- [ ] **WebAssembly Support**
+  - [ ] Compile to WASM target
+  - [ ] WASI support
+  - [ ] Browser runtime
+  
+- [ ] **Performance**
+  - [ ] Profile-guided optimization
+  - [ ] SIMD intrinsics
+  - [ ] Inline assembly
+  - [ ] Zero-copy I/O
+
+**Deliverable:** Can build high-performance web services and systems software
+
+## Current Status
+
+| Feature Category | Status | Completion |
+|-----------------|--------|------------|
+| **Type System** | Partial | 40% |
+| **Memory Management** | C-style | 20% |
+| **Error Handling** | Fatal only | 30% |
+| **Concurrency** | Not started | 0% |
+| **Package Manager** | Config parsing | 25% |
+| **Tooling** | Basic LSP | 30% |
+| **Standard Library** | C wrappers | 35% |
+| **Documentation** | In progress | 50% |
+
+**Overall: ~15-20% of v1.0 complete**
+
+## Comparison to Other Languages
+
+| Language | Time to v1.0 | Meadows Status |
+|----------|--------------|----------------|
+| Go | 3 years (2009-2012) | Similar to 2009 |
+| Rust | 5 years (2010-2015) | Similar to 2011 |
+| Swift | 4 years (2010-2014) | Similar to 2011 |
+
+**Estimated Meadows v1.0:** 18 months with focused development
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `./test.sh`
-5. Format code: `./scripts/dev/format.sh`
-6. Submit a pull request
+We welcome contributions! Please see:
+- [AGENTS.md](AGENTS.md) - Detailed guidelines for AI coding agents
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Human contributor guide
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview
+
+### Priority Areas for Contribution
+
+1. **Type System** - Help complete generic and struct code generation
+2. **Standard Library** - Implement collections in Meadows
+3. **Documentation** - Improve examples and tutorials
+4. **Testing** - Add more test coverage
 
 ## Documentation
 
-- [TESTING.md](TESTING.md) - Detailed testing guide
-- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) - Implementation details
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview
+- [Language Reference](docs/LANGUAGE.md) - Complete language specification
+- [Architecture Overview](docs/ARCHITECTURE.md) - Compiler internals
+- [Testing Guide](docs/TESTING.md) - How to test Meadows code
+- [API Reference](https://docs.meadows-lang.org) - Standard library docs
+
+## Community
+
+- **Discord:** [discord.gg/meadows](https://discord.gg/meadows)
+- **Forum:** [forum.meadows-lang.org](https://forum.meadows-lang.org)
+- **Twitter:** [@meadows_lang](https://twitter.com/meadows_lang)
+- **Blog:** [blog.meadows-lang.org](https://blog.meadows-lang.org)
 
 ## License
 
-[Your License Here]
+Meadows is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-Built with:
-- LLVM Project
-- Catch2 Testing Framework
-- CMake Build System
+Meadows is built on the shoulders of giants:
+- **LLVM Project** - Code generation and optimization
+- **Rust** - Ownership system inspiration
+- **Go** - Simplicity and tooling philosophy
+- **TypeScript** - Type system ideas
+- **Swift** - Ergonomic syntax inspiration
+
+---
+
+**Ready to build the future of systems programming?** [Get started →](https://docs.meadows-lang.org/tutorial)

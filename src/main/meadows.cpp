@@ -118,15 +118,16 @@ int compileWithClang(const std::string &inputFile,
                      const std::string &outputFile) {
   pid_t pid = fork();
   if (pid == 0) {
-    // Child process - execute clang++
-    // Using execvp for security (no shell interpolation)
-    const char *args[] = {"clang++", inputFile.c_str(), "-o",
-                          outputFile.c_str(), nullptr};
+    const char *args[] = {
+        "clang++",
+        inputFile.c_str(),
+        "/Users/nandan/dev/meadows/src/stdlib/c/meadows_stdlib.c",
+        "-o",
+        outputFile.c_str(),
+        nullptr};
     execvp("clang++", const_cast<char *const *>(args));
-    // If we get here, execvp failed
     _exit(127);
   } else if (pid > 0) {
-    // Parent process - wait for child
     int status;
     pid_t result = waitpid(pid, &status, 0);
     if (result == -1) {
@@ -137,7 +138,6 @@ int compileWithClang(const std::string &inputFile,
     }
     return -1;
   } else {
-    // Fork failed
     return -1;
   }
 }
@@ -517,6 +517,8 @@ int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
     }
 
     Parser parser(tokens, diagnostics);
+    parser.setSourcePath(filePath);
+    parser.setStdlibPath("/Users/nandan/dev/meadows/src/stdlib");
     auto statements = parser.parse();
 
     if (diagnostics.hasErrors()) {

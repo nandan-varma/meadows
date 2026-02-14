@@ -51,3 +51,6 @@ void ImportStmt::accept(StmtVisitor &visitor) {
 void ExportStmt::accept(StmtVisitor &visitor) {
   visitor.visitExportStmt(*this);
 }
+void ExternStmt::accept(StmtVisitor &visitor) {
+  visitor.visitExternStmt(*this);
+}

@@ -72,12 +72,15 @@ private:
   llvm::Function *mallocFunc;
   llvm::Function *freeFunc;
   llvm::Function *strlenFunc;
+  llvm::Function *setArgsFunc;
   llvm::Function *currentFunction;
   llvm::Value *exprResult;
   llvm::BasicBlock *currentBlock;
 
   std::vector<std::unordered_map<std::string, llvm::Value *>>
       variableScopeStack;
+
+  std::unordered_map<std::string, std::string> externNameMapping;
 
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
@@ -90,6 +93,7 @@ private:
   void declareVariable(const std::string &name, llvm::Value *value);
   llvm::Value *lookupVariable(const std::string &name);
   bool variableExists(const std::string &name);
+  llvm::Type *getTypeFromAnnotation(const std::string &annotation);
 
   template <typename... Args> [[noreturn]] void error(Args &&...args) {
     std::ostringstream oss;
@@ -124,6 +128,7 @@ private:
   void visitModuleStmt(ModuleStmt &stmt) override;
   void visitImportStmt(ImportStmt &stmt) override;
   void visitExportStmt(ExportStmt &stmt) override;
+  void visitExternStmt(ExternStmt &stmt) override;
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;
