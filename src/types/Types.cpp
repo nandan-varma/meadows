@@ -48,7 +48,7 @@ std::string PrimitiveType::toString() const {
   case PrimitiveKind::STRING:
     return "string";
   case PrimitiveKind::UNIT:
-    return "()";
+    return "unit";
   case PrimitiveKind::NEVER:
     return "never";
   default:
@@ -167,6 +167,10 @@ std::string TypeVariable::toString() const {
   if (name.empty()) {
     return "_" + std::to_string(id);
   }
+  // Always prefix with ' for type variables
+  if (name[0] != '\'') {
+    return "'" + name;
+  }
   return name;
 }
 
@@ -180,7 +184,18 @@ bool TypeVariable::equals(const Type &other) const {
     return false;
   }
   // Same variable if same ID
-  return id == v->id;
+  if (id == v->id) {
+    return true;
+  }
+  // If no instances set, compare by name
+  if (!instance && !v->instance) {
+    return name == v->name;
+  }
+  // If both have instances, compare instances
+  if (instance && v->instance) {
+    return instance->equals(*v->instance);
+  }
+  return false;
 }
 
 std::unique_ptr<Type> TypeVariable::clone() const {
@@ -261,12 +276,40 @@ std::string StructType::toString() const {
     }
     oss << ">";
   }
+  oss << " {";
+  for (size_t i = 0; i < fieldOrder.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    const auto &fieldName = fieldOrder[i];
+    auto it = fields.find(fieldName);
+    if (it != fields.end() && it->second) {
+      oss << fieldName << ": " << it->second->toString();
+    }
+  }
+  oss << "}";
   return oss.str();
 }
 
 bool StructType::equals(const Type &other) const {
   auto *s = dynamic_cast<const StructType *>(&other);
-  return s != nullptr && name == s->name;
+  if (s == nullptr || name != s->name) {
+    return false;
+  }
+  // Compare fields
+  if (fields.size() != s->fields.size()) {
+    return false;
+  }
+  for (const auto &fieldName : fieldOrder) {
+    auto it1 = fields.find(fieldName);
+    auto it2 = s->fields.find(fieldName);
+    if (it2 == s->fields.end()) {
+      return false;
+    }
+    if (!it1->second->equals(*it2->second)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 std::unique_ptr<Type> StructType::clone() const {
@@ -301,12 +344,26 @@ std::string EnumType::toString() const {
     }
     oss << ">";
   }
+  oss << " {";
+  for (size_t i = 0; i < variants.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    oss << variants[i].name;
+  }
+  oss << "}";
   return oss.str();
 }
 
 bool EnumType::equals(const Type &other) const {
   auto *e = dynamic_cast<const EnumType *>(&other);
-  return e != nullptr && name == e->name;
+  if (e == nullptr || name != e->name) {
+    return false;
+  }
+  // Compare variant count
+  if (variants.size() != e->variants.size()) {
+    return false;
+  }
+  return true;
 }
 
 std::unique_ptr<Type> EnumType::clone() const {

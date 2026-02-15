@@ -1,6 +1,7 @@
 #include "ModuleResolver.h"
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
 
 namespace meadows {
 
@@ -45,6 +46,27 @@ ModuleResolutionResult ModuleResolver::resolve(const ModuleName &moduleName,
       "Module '" + moduleName.toString() + "' not found");
 }
 
+static std::string normalizePath(const std::string &path) {
+  std::string result = path;
+  // Remove "./" at the beginning
+  size_t pos = 0;
+  while ((pos = result.find("/", pos)) != std::string::npos) {
+    if (pos > 0 && result[pos - 1] == '.' &&
+        (pos == 1 || result[pos - 2] == '/')) {
+      // Remove the "./"
+      result.erase(pos - 1, 2);
+      pos = (pos > 1) ? pos - 1 : 0;
+    } else {
+      ++pos;
+    }
+  }
+  // Handle "./" at the start
+  if (result.substr(0, 2) == "./") {
+    result = result.substr(2);
+  }
+  return result;
+}
+
 ModuleResolutionResult
 ModuleResolver::resolveRelative(const std::string &relativePath,
                                 const std::string &fromPath) {
@@ -73,6 +95,9 @@ ModuleResolver::resolveRelative(const std::string &relativePath,
     fullPath += ".ms";
   }
 
+  // Normalize path (remove ./)
+  fullPath = normalizePath(fullPath);
+
   if (fileExists(fullPath)) {
     ModuleName name = parseModuleNameFromFile(fullPath);
     return ModuleResolutionResult::makeSuccess(fullPath, name,
@@ -100,8 +125,14 @@ void ModuleResolver::setSearchPaths(
 }
 
 bool ModuleResolver::fileExists(const std::string &path) {
-  std::ifstream file(path);
-  return file.good();
+  if (path.empty()) {
+    return false;
+  }
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {
+    return false;
+  }
+  return S_ISREG(st.st_mode);
 }
 
 ModuleName
@@ -114,8 +145,14 @@ ModuleResolver::parseModuleNameFromFile(const std::string &filePath) {
   std::string firstLine;
   std::getline(file, firstLine);
 
+  // Trim leading whitespace from firstLine
+  size_t lineStart = 0;
+  while (lineStart < firstLine.size() && isspace(firstLine[lineStart])) {
+    ++lineStart;
+  }
+
   // Look for: module module.name;
-  size_t modulePos = firstLine.find("module ");
+  size_t modulePos = firstLine.find("module ", lineStart);
   if (modulePos != std::string::npos) {
     size_t start = modulePos + 7; // length of "module "
     size_t end = firstLine.find(';', start);
@@ -123,9 +160,12 @@ ModuleResolver::parseModuleNameFromFile(const std::string &filePath) {
       end = firstLine.size();
     }
     std::string moduleName = firstLine.substr(start, end - start);
-    // Trim whitespace
+    // Trim whitespace from both ends
     while (!moduleName.empty() && isspace(moduleName.back())) {
       moduleName.pop_back();
+    }
+    while (!moduleName.empty() && isspace(moduleName.front())) {
+      moduleName.erase(0, 1);
     }
     return ModuleName(moduleName);
   }
@@ -149,13 +189,21 @@ bool ModuleResolver::isValidModuleName(const std::string &name) {
     return false;
 
   size_t start = 0;
+  bool isFirstComponent = true;
   while (start < name.size()) {
     size_t dot = name.find('.', start);
     std::string component = (dot == std::string::npos)
                                 ? name.substr(start)
                                 : name.substr(start, dot - start);
 
-    if (!isValidComponent(component)) {
+    // Empty first component is invalid (e.g., ".leading")
+    if (isFirstComponent && component.empty()) {
+      return false;
+    }
+    isFirstComponent = false;
+
+    // Allow empty components after first (e.g., "math..utils" is valid)
+    if (!component.empty() && !isValidComponent(component)) {
       return false;
     }
 

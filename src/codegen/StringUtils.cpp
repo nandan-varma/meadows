@@ -38,6 +38,9 @@ std::string EscapeHandler::process(const std::string &input) {
       default:
         result += next;
       }
+    } else if (c == '\\' && i + 1 >= input.length()) {
+      // Trailing backslash - skip it (drop it)
+      continue;
     } else {
       result += c;
     }

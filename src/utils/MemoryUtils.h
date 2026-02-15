@@ -58,6 +58,9 @@ public:
   template <typename T>
   static void checkArrayBounds(const T *array, size_t index,
                                size_t max_elements) {
+    if (array == nullptr && index == 0 && max_elements == 0) {
+      return; // Valid case for null arrays
+    }
     if (index >= max_elements) {
       throw std::out_of_range("Array index out of bounds");
     }
@@ -137,7 +140,7 @@ public:
           path[i] == '$' || path[i] == '(' || path[i] == ')' ||
           path[i] == '{' || path[i] == '}' || path[i] == '[' ||
           path[i] == ']' || path[i] == '<' || path[i] == '>' ||
-          path[i] == '!') {
+          path[i] == '!' || path[i] == '`') {
         return false;
       }
     }

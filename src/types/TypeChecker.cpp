@@ -71,7 +71,8 @@ bool TypeChecker::check(const std::vector<std::unique_ptr<Stmt>> &statements) {
       inferStmt(stmt.get());
     }
 
-    return unify();
+    bool unified = unify();
+    return unified && errors_.empty();
   } catch (const std::exception &e) {
     errors_.push_back(std::string("Type checker error: ") + e.what());
     return false;
@@ -415,7 +416,16 @@ void TypeChecker::visitFuncStmt(FuncStmt &stmt) {
 
 void TypeChecker::visitIfStmt(IfStmt &stmt) {
   auto condType = inferExpr(stmt.condition.get());
-  addConstraint(condType, bool_, "If condition must be boolean");
+
+  // Allow numeric types as conditions (coerce to bool)
+  auto prim = std::dynamic_pointer_cast<PrimitiveType>(condType);
+  if (prim &&
+      (prim->kind == PrimitiveKind::I32 || prim->kind == PrimitiveKind::I64 ||
+       prim->kind == PrimitiveKind::F32 || prim->kind == PrimitiveKind::F64)) {
+    // Allow numeric conditions - they coerce to bool
+  } else {
+    addConstraint(condType, bool_, "If condition must be boolean");
+  }
 
   checkBlock(stmt.thenBranch);
   checkBlock(stmt.elseBranch);

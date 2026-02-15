@@ -1,0 +1,27 @@
+# Test: simple_import
+# Purpose: Verify basic module import functionality
+# Expected: Successful compilation with exported symbol access
+
+# File: math.ms
+module math;
+
+export func add(a, b) {
+    return a + b;
+}
+
+export func subtract(a, b) {
+    return a - b;
+}
+
+# File: main.ms
+module main;
+
+import math;
+
+func main() {
+    let x = math.add(5, 3);
+    let y = math.subtract(10, 4);
+    print x;
+    print y;
+    return 0;
+}

@@ -25,14 +25,22 @@ set(TEST_SOURCES
     unit/lexer/Lexer.test.cpp
     unit/parser/Parser.test.cpp
     unit/codegen/CodeGen.test.cpp
+    unit/codegen/SymbolTable.test.cpp
+    unit/codegen/StringUtils.test.cpp
     unit/utils/Exceptions.test.cpp
     unit/utils/DiagnosticsCollector.test.cpp
     unit/utils/ErrorCodes.test.cpp
     unit/utils/Timer.test.cpp
     unit/utils/WarningManager.test.cpp
+    unit/utils/MemoryUtils.test.cpp
     unit/config/Config.test.cpp
+    unit/config/TOMLParser.test.cpp
     unit/modules/ModuleCompiler.test.cpp
+    unit/modules/ModuleResolver.test.cpp
     unit/stdlib/Stdlib.test.cpp
+    unit/ast/AST.test.cpp
+    unit/types/TypeChecker.test.cpp
+    unit/types/Types.test.cpp
 )
 
 # Create test executable

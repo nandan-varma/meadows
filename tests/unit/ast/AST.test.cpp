@@ -79,7 +79,10 @@ TEST_CASE("AST collections", "[ast]") {
   }
 
   SECTION("FuncStmt stores parameters and body") {
-    std::vector<std::string> params = {"a", "b", "c"};
+    std::vector<FuncParam> params;
+    params.emplace_back("a", "i32");
+    params.emplace_back("b", "i32");
+    params.emplace_back("c", "i32");
     std::vector<std::unique_ptr<Stmt>> body;
     body.push_back(std::make_unique<ReturnStmt>(std::make_unique<BinaryExpr>(
         std::make_unique<VarExpr>("a"), "+", std::make_unique<VarExpr>("b"))));
@@ -98,8 +101,9 @@ TEST_CASE("IfStmt branches", "[ast]") {
     thenBranch.push_back(
         std::make_unique<PrintStmt>(std::make_unique<LiteralExpr>("true")));
 
-    auto ifStmt = std::make_unique<IfStmt>(std::move(condition),
-                                           std::move(thenBranch), {});
+    std::vector<std::unique_ptr<Stmt>> elseBranch;
+    auto ifStmt = std::make_unique<IfStmt>(
+        std::move(condition), std::move(thenBranch), std::move(elseBranch));
     CHECK(ifStmt->thenBranch.size() == 1);
     CHECK(ifStmt->elseBranch.empty());
   }

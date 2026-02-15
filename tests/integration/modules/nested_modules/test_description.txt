@@ -1,0 +1,33 @@
+# Test: nested_modules
+# Purpose: Verify nested module hierarchy resolution
+# Expected: Correct resolution of deeply nested modules
+
+# File: std/io/file.ms
+module std.io.file;
+
+export func open(path) {
+    return 1;  # Simulated file handle
+}
+
+export func close(handle) {
+    return 0;
+}
+
+# File: std/io/net.ms
+module std.io.net;
+
+export func connect(host) {
+    return 1;
+}
+
+# File: app/main.ms
+module app.main;
+
+import std.io.file;
+import std.io.net;
+
+func main() {
+    let file = std.io.file.open("test.txt");
+    let conn = std.io.net.connect("localhost");
+    return 0;
+}

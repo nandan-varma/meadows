@@ -84,24 +84,55 @@ bool ModuleName::startsWith(const ModuleName &other) const {
 
 ModuleName ModuleName::fromPath(const std::string &path) {
   ModuleName name;
-  size_t start = 0;
+  if (path.empty()) {
+    return name;
+  }
+
+  // Find "src/" in the path to extract module name
+  size_t srcPos = path.find("/src/");
+  if (srcPos != std::string::npos) {
+    // Start after "src/"
+    size_t start = srcPos + 5;
+    while (start < path.size()) {
+      size_t pos = path.find('/', start);
+      if (pos == std::string::npos) {
+        std::string ext = path.substr(start);
+        // Remove .ms extension if present
+        if (ext.size() > 3 && ext.substr(ext.size() - 3) == ".ms") {
+          ext = ext.substr(0, ext.size() - 3);
+        }
+        if (!ext.empty()) {
+          name.components.push_back(ext);
+        }
+        break;
+      }
+      std::string component = path.substr(start, pos - start);
+      if (!component.empty()) {
+        name.components.push_back(component);
+      }
+      start = pos + 1;
+    }
+    return name;
+  }
+
+  // For paths without src/, fall back to original behavior
+  size_t start = (path[0] == '/') ? 1 : 0;
   while (start < path.size()) {
     size_t pos = path.find('/', start);
     if (pos == std::string::npos) {
       std::string ext = path.substr(start);
-      // Remove .ms extension if present
       if (ext.size() > 3 && ext.substr(ext.size() - 3) == ".ms") {
         ext = ext.substr(0, ext.size() - 3);
       }
-      name.components.push_back(ext);
+      if (!ext.empty()) {
+        name.components.push_back(ext);
+      }
       break;
     }
     std::string component = path.substr(start, pos - start);
-    if (component.size() > 3 &&
-        component.substr(component.size() - 3) == ".ms") {
-      component = component.substr(0, component.size() - 3);
+    if (!component.empty()) {
+      name.components.push_back(component);
     }
-    name.components.push_back(component);
     start = pos + 1;
   }
   return name;
