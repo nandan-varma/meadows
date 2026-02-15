@@ -232,6 +232,11 @@ void TypeChecker::visitUnaryExpr(UnaryExpr &expr) {
   }
 }
 
+void TypeChecker::visitTryExpr(TryExpr &expr) {
+  auto innerType = inferExpr(expr.expr.get());
+  exprTypes_[&expr] = freshTypeVar();
+}
+
 void TypeChecker::visitLogicalExpr(LogicalExpr &expr) {
   auto leftType = inferExpr(expr.left.get());
   auto rightType = inferExpr(expr.right.get());
@@ -318,6 +323,35 @@ void TypeChecker::visitArrayExpr(ArrayExpr &expr) {
 
 void TypeChecker::visitObjectExpr(ObjectExpr &expr) {
   exprTypes_[&expr] = freshTypeVar();
+}
+
+void TypeChecker::visitMatchExpr(MatchExpr &expr) {
+  auto scrutineeType = inferExpr(expr.scrutinee.get());
+
+  std::shared_ptr<Type> resultType = nullptr;
+  for (auto &arm : expr.arms) {
+    auto armType = inferExpr(arm.body.get());
+    if (!resultType) {
+      resultType = armType;
+    }
+  }
+
+  if (!resultType) {
+    resultType = unit_;
+  }
+
+  exprTypes_[&expr] = resultType;
+}
+
+void TypeChecker::visitEnumVariantExpr(EnumVariantExpr &expr) {
+  auto enumType = std::make_shared<EnumType>(expr.enumName);
+  std::vector<std::unique_ptr<Type>> argTypes;
+  for (size_t i = 0; i < expr.args.size(); ++i) {
+    auto argType = inferExpr(expr.args[i].get());
+    argTypes.push_back(argType->clone());
+  }
+  enumType->addVariant(expr.variantName, std::move(argTypes));
+  exprTypes_[&expr] = enumType;
 }
 
 void TypeChecker::visitExprStmt(ExprStmt &stmt) {

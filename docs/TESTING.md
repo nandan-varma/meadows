@@ -11,12 +11,17 @@ tests/
 │   ├── parser/
 │   ├── codegen/
 │   ├── ast/
-│   └── utils/
+│   ├── utils/
+│   ├── config/
+│   ├── modules/
+│   └── stdlib/
 ├── integration/       # Full program tests (.ms files)
 │   ├── factorial.ms
 │   ├── hello.ms
 │   ├── loop.ms
 │   └── variables.ms
+├── edge_cases/        # Edge case tests
+├── performance/       # Performance benchmarks
 └── security/          # Security and fuzz tests
 ```
 
@@ -40,6 +45,23 @@ tests/
 ./build/tests/meadows_tests "[timer]"      # Run timer tests
 ./build/tests/meadows_tests "Test Name"    # Run specific test case
 ```
+
+### Test Categories
+
+| Category | Description | Test Count |
+|----------|-------------|------------|
+| `[lexer]` | Tokenization tests | ~20 |
+| `[parser]` | AST construction tests | ~30 |
+| `[codegen]` | LLVM IR generation tests | ~25 |
+| `[types]` | Type system tests | ~15 |
+| `[exceptions]` | Error handling tests | ~10 |
+| `[diagnostics]` | Diagnostic system tests | ~15 |
+| `[warnings]` | Warning system tests | ~8 |
+| `[utils]` | Utility tests | ~10 |
+| `[modules]` | Module system tests | ~5 |
+| `[stdlib]` | Standard library tests | ~5 |
+
+**Total: 143 tests with 1212 assertions**
 
 ## Adding Unit Tests
 
@@ -85,8 +107,44 @@ TEST_CASE("Lexer tokenizes identifiers", "[lexer]") {
 
 Add `.ms` files to `tests/integration/`:
 
+### Example: Pattern Matching Test
 ```meadows
-// Example: factorial.ms
+# tests/integration/pattern_match_test.ms
+func test_match(x: i32) -> i32 {
+    let result = match (x) {
+        0 => 42,
+        _ => 99,
+    };
+    return result;
+}
+
+func main() -> i32 {
+    let r0 = test_match(0);
+    let r5 = test_match(5);
+    print r0;  # Output: 42
+    print r5;  # Output: 99
+    return 0;
+}
+```
+
+### Example: Enum Test
+```meadows
+# tests/integration/enum_test.ms
+enum Result = {
+    Ok(i32),
+    Err(i32),
+};
+
+func main() -> i32 {
+    let r: Result = Result.Ok(42);
+    print 42;
+    return 0;
+}
+```
+
+### Example: Factorial
+```meadows
+// factorial.ms
 fn factorial(n: int) -> int {
     if n <= 1 {
         return 1;

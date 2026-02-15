@@ -428,7 +428,6 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   userMainFunc = module->getFunction("_meadows_user_main");
 
   if (userMainFunc) {
-    builder->SetInsertPoint(entry);
     std::vector<llvm::Value *> args;
     if (userMainFunc->arg_size() > 0) {
       args.push_back(argcArg);
@@ -445,9 +444,12 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
     module->print(llvm::errs(), nullptr);
   }
 
-  builder->SetInsertPoint(entry);
-  builder->CreateRet(
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
+  // Add return to the current block (which may be entry or a block after if
+  // statements)
+  if (!builder->GetInsertBlock()->getTerminator()) {
+    builder->CreateRet(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
+  }
 }
 
 void CodeGen::freeAllocatedStrings() {
@@ -582,6 +584,8 @@ void CodeGen::visitUnaryExpr(UnaryExpr &expr) {
     error("Unknown unary operator: ", expr.op);
   }
 }
+
+void CodeGen::visitTryExpr(TryExpr &expr) { expr.expr->accept(*this); }
 
 void CodeGen::visitLogicalExpr(LogicalExpr &expr) {
   auto savedFunction = currentFunction;
@@ -966,28 +970,102 @@ void CodeGen::visitIfStmt(IfStmt &stmt) {
   // Convert condition to boolean if needed
   llvm::Value *boolCond = nullptr;
   if (cond->getType()->isIntegerTy()) {
-    // Convert integer to i1 for branch
     boolCond = builder->CreateICmpNE(
         cond, llvm::ConstantInt::get(cond->getType(), 0), "boolCond");
   } else {
     boolCond = cond;
   }
 
-  auto thenBB = llvm::BasicBlock::Create(*context, "then", currentFunction);
-  auto elseBB = llvm::BasicBlock::Create(*context, "else", currentFunction);
-  auto endBB = llvm::BasicBlock::Create(*context, "endif", currentFunction);
+  llvm::Function *currentFunc = builder->GetInsertBlock()->getParent();
+
+  // Create all the blocks upfront
+  auto thenBB = llvm::BasicBlock::Create(*context, "then", currentFunc);
+  auto elseBB = llvm::BasicBlock::Create(*context, "else", currentFunc);
+  auto endBB = llvm::BasicBlock::Create(*context, "endif", currentFunc);
+  auto afterIf = llvm::BasicBlock::Create(*context, "afterif", currentFunc);
+
+  // Branch from current block to then or else
   builder->CreateCondBr(boolCond, thenBB, elseBB);
+
+  // Generate then branch
   builder->SetInsertPoint(thenBB);
   for (auto &s : stmt.thenBranch)
     s->accept(*this);
   if (!builder->GetInsertBlock()->getTerminator())
     builder->CreateBr(endBB);
+
+  // Generate else branch - recursively handle else-if chains
   builder->SetInsertPoint(elseBB);
-  for (auto &s : stmt.elseBranch)
-    s->accept(*this);
-  if (!builder->GetInsertBlock()->getTerminator())
-    builder->CreateBr(endBB);
+  generateElseBranch(stmt.elseBranch, endBB);
+
+  // Add branch from endif to afterif
   builder->SetInsertPoint(endBB);
+  builder->CreateBr(afterIf);
+
+  // Continue after the if statement in the new block
+  builder->SetInsertPoint(afterIf);
+}
+
+void CodeGen::generateElseBranch(
+    const std::vector<std::unique_ptr<Stmt>> &elseBranch,
+    llvm::BasicBlock *endBB) {
+  if (elseBranch.empty()) {
+    builder->CreateBr(endBB);
+    return;
+  }
+
+  // Check if else branch is a single if statement (else-if chain)
+  if (elseBranch.size() == 1) {
+    auto &firstStmt = elseBranch[0];
+    auto *nestedIf = dynamic_cast<IfStmt *>(firstStmt.get());
+    if (nestedIf) {
+      // This is an else-if: generate nested if condition
+      nestedIf->condition->accept(*this);
+      auto cond = exprResult;
+
+      llvm::Value *boolCond = nullptr;
+      if (cond->getType()->isIntegerTy()) {
+        boolCond = builder->CreateICmpNE(
+            cond, llvm::ConstantInt::get(cond->getType(), 0), "boolCond");
+      } else {
+        boolCond = cond;
+      }
+
+      llvm::Function *currentFunc = builder->GetInsertBlock()->getParent();
+
+      auto nestedThenBB =
+          llvm::BasicBlock::Create(*context, "then", currentFunc);
+      auto nestedElseBB =
+          llvm::BasicBlock::Create(*context, "else", currentFunc);
+
+      builder->CreateCondBr(boolCond, nestedThenBB, nestedElseBB);
+
+      // Nested then branch
+      builder->SetInsertPoint(nestedThenBB);
+      for (auto &s : nestedIf->thenBranch)
+        s->accept(*this);
+      if (!builder->GetInsertBlock()->getTerminator())
+        builder->CreateBr(endBB);
+
+      // Nested else branch (recursively handle else-if)
+      builder->SetInsertPoint(nestedElseBB);
+      generateElseBranch(nestedIf->elseBranch, endBB);
+
+      return;
+    }
+  }
+
+  // Regular else block (multiple statements or not an if)
+  for (auto &s : elseBranch) {
+    s->accept(*this);
+  }
+
+  // Always branch to end - print statements don't have terminators
+  llvm::BasicBlock *current = builder->GetInsertBlock();
+  bool hasTerminator = current->getTerminator() != nullptr;
+  if (!hasTerminator) {
+    builder->CreateBr(endBB);
+  }
 }
 
 void CodeGen::visitForStmt(ForStmt &stmt) {
@@ -1112,8 +1190,116 @@ void CodeGen::visitContinueStmt(ContinueStmt &stmt) {
 }
 
 void CodeGen::visitTypeDefStmt(TypeDefStmt &stmt) {
-  // Type definitions don't generate LLVM IR directly
-  // They're used for type checking only
+  if (stmt.isEnum) {
+    std::vector<llvm::Type *> elementTypes;
+    elementTypes.push_back(llvm::Type::getInt32Ty(*context));
+
+    size_t maxPayloadSize = 0;
+    for (const auto &variant : stmt.variants) {
+      if (variant.second.size() > maxPayloadSize) {
+        maxPayloadSize = variant.second.size();
+      }
+    }
+
+    for (size_t i = 0; i < maxPayloadSize; ++i) {
+      elementTypes.push_back(llvm::Type::getInt64Ty(*context));
+    }
+
+    auto enumStructType =
+        llvm::StructType::create(*context, "enum." + stmt.name);
+    enumStructType->setBody(elementTypes, false);
+    enumTypes_[stmt.name] = enumStructType;
+    definedEnums_[stmt.name] = std::vector<std::string>();
+    for (const auto &variant : stmt.variants) {
+      definedEnums_[stmt.name].push_back(variant.first);
+    }
+  } else {
+    std::vector<llvm::Type *> fieldTypes;
+    for (const auto &field : stmt.fields) {
+      llvm::Type *fieldType = llvm::Type::getInt64Ty(*context);
+      if (field.second == "i32") {
+        fieldType = llvm::Type::getInt32Ty(*context);
+      } else if (field.second == "i64") {
+        fieldType = llvm::Type::getInt64Ty(*context);
+      } else if (field.second == "f32") {
+        fieldType = llvm::Type::getFloatTy(*context);
+      } else if (field.second == "f64") {
+        fieldType = llvm::Type::getDoubleTy(*context);
+      } else if (field.second == "bool") {
+        fieldType = llvm::Type::getInt1Ty(*context);
+      } else if (field.second == "string") {
+        fieldType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+      }
+      fieldTypes.push_back(fieldType);
+    }
+
+    auto structType = llvm::StructType::create(*context, "struct." + stmt.name);
+    structType->setBody(fieldTypes, false);
+    structTypes_[stmt.name] = structType;
+  }
+}
+
+void CodeGen::visitMatchExpr(MatchExpr &expr) {
+  expr.scrutinee->accept(*this);
+  auto scrutinee = exprResult;
+
+  llvm::Type *resultTypePtr = scrutinee->getType();
+
+  llvm::Value *result = llvm::UndefValue::get(resultTypePtr);
+
+  for (size_t i = expr.arms.size(); i > 0; --i) {
+    size_t idx = i - 1;
+    auto &arm = expr.arms[idx];
+
+    arm.body->accept(*this);
+    llvm::Value *armResult = exprResult;
+
+    if (arm.pattern->kind == PatternKind::WILDCARD) {
+      result = armResult;
+    } else if (arm.pattern->kind == PatternKind::LITERAL) {
+      int tagValue = std::stoi(arm.pattern->literalValue);
+      auto caseValue = llvm::ConstantInt::get(scrutinee->getType(), tagValue);
+      auto *cmp = builder->CreateICmpEQ(scrutinee, caseValue, "cmpeq");
+      result = builder->CreateSelect(cmp, armResult, result, "select");
+    }
+  }
+
+  exprResult = result;
+}
+
+void CodeGen::visitEnumVariantExpr(EnumVariantExpr &expr) {
+  auto enumStructType = enumTypes_[expr.enumName];
+  if (!enumStructType) {
+    error("Unknown enum type: " + expr.enumName);
+    return;
+  }
+
+  auto alloc = builder->CreateAlloca(enumStructType);
+
+  int variantTag = 0;
+  if (definedEnums_.find(expr.enumName) != definedEnums_.end()) {
+    const auto &variants = definedEnums_[expr.enumName];
+    for (size_t i = 0; i < variants.size(); ++i) {
+      if (variants[i] == expr.variantName) {
+        variantTag = i;
+        break;
+      }
+    }
+  }
+
+  auto tagValue =
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), variantTag);
+  auto tagPtr = builder->CreateStructGEP(enumStructType, alloc, 0);
+  builder->CreateStore(tagValue, tagPtr);
+
+  for (size_t i = 0; i < expr.args.size(); ++i) {
+    expr.args[i]->accept(*this);
+    auto argValue = exprResult;
+    auto argPtr = builder->CreateStructGEP(enumStructType, alloc, i + 1);
+    builder->CreateStore(argValue, argPtr);
+  }
+
+  exprResult = builder->CreateLoad(enumStructType, alloc);
 }
 
 void CodeGen::visitModuleStmt(ModuleStmt &stmt) {

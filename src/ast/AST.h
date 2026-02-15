@@ -129,6 +129,13 @@ public:
   void accept(ExprVisitor &visitor) override;
 };
 
+class TryExpr : public Expr {
+public:
+  std::unique_ptr<Expr> expr;
+  explicit TryExpr(std::unique_ptr<Expr> e) : expr(std::move(e)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
 class CallExpr : public Expr {
 public:
   std::unique_ptr<Expr> callee;
@@ -321,6 +328,47 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
+enum class PatternKind { WILDCARD, BIND, LITERAL, ENUM, TUPLE, STRUCT, OR };
+
+class Pattern {
+public:
+  PatternKind kind;
+  std::string name;
+  std::string literalValue;
+  std::vector<std::unique_ptr<Pattern>> subPatterns;
+  std::string typeName;
+
+  Pattern(PatternKind k) : kind(k) {}
+};
+
+class MatchArm {
+public:
+  std::unique_ptr<Pattern> pattern;
+  std::unique_ptr<Expr> body;
+  MatchArm(std::unique_ptr<Pattern> p, std::unique_ptr<Expr> b)
+      : pattern(std::move(p)), body(std::move(b)) {}
+};
+
+class MatchExpr : public Expr {
+public:
+  std::unique_ptr<Expr> scrutinee;
+  std::vector<MatchArm> arms;
+  MatchExpr(std::unique_ptr<Expr> s, std::vector<MatchArm> a)
+      : scrutinee(std::move(s)), arms(std::move(a)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
+class EnumVariantExpr : public Expr {
+public:
+  std::string enumName;
+  std::string variantName;
+  std::vector<std::unique_ptr<Expr>> args;
+  EnumVariantExpr(const std::string &enumN, const std::string &variantN,
+                  std::vector<std::unique_ptr<Expr>> a)
+      : enumName(enumN), variantName(variantN), args(std::move(a)) {}
+  void accept(ExprVisitor &visitor) override;
+};
+
 class ExprVisitor {
 public:
   virtual ~ExprVisitor() = default;
@@ -329,12 +377,15 @@ public:
   virtual void visitAssignExpr(AssignExpr &expr) = 0;
   virtual void visitBinaryExpr(BinaryExpr &expr) = 0;
   virtual void visitUnaryExpr(UnaryExpr &expr) = 0;
+  virtual void visitTryExpr(TryExpr &expr) = 0;
   virtual void visitLogicalExpr(LogicalExpr &expr) = 0;
   virtual void visitIndexExpr(IndexExpr &expr) = 0;
   virtual void visitFieldAccessExpr(FieldAccessExpr &expr) = 0;
   virtual void visitCallExpr(CallExpr &expr) = 0;
   virtual void visitArrayExpr(ArrayExpr &expr) = 0;
   virtual void visitObjectExpr(ObjectExpr &expr) = 0;
+  virtual void visitMatchExpr(MatchExpr &expr) = 0;
+  virtual void visitEnumVariantExpr(EnumVariantExpr &expr) = 0;
 };
 
 class StmtVisitor {

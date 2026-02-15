@@ -135,6 +135,31 @@ void meadows_array_fill(int64_t arr, int32_t value, int32_t size);
 int32_t meadows_array_index_of(int64_t arr, int32_t value, int32_t size);
 int32_t meadows_array_contains(int64_t arr, int32_t value, int32_t size);
 void meadows_array_sort(int64_t arr, int32_t size);
+
+int64_t meadows_vec_create(int32_t capacity);
+void meadows_vec_free(int64_t vec);
+int32_t meadows_vec_len(int64_t vec);
+int64_t meadows_vec_push(int64_t vec, int32_t value);
+int32_t meadows_vec_get(int64_t vec, int32_t index);
+void meadows_vec_set(int64_t vec, int32_t index, int32_t value);
+
+int64_t meadows_hashmap_create(int32_t capacity);
+void meadows_hashmap_free(int64_t map);
+int32_t meadows_hashmap_len(int64_t map);
+int32_t meadows_hashmap_hash(const char *key);
+int64_t meadows_hashmap_put(int64_t map, const char *key, int32_t value);
+int32_t meadows_hashmap_get(int64_t map, const char *key);
+int32_t meadows_hashmap_has(int64_t map, const char *key);
+int64_t meadows_hashmap_remove(int64_t map, const char *key);
+int64_t meadows_hashmap_keys(int64_t map);
+
+int64_t meadows_hashset_create(int32_t capacity);
+void meadows_hashset_free(int64_t set);
+int32_t meadows_hashset_len(int64_t set);
+int64_t meadows_hashset_add(int64_t set, int32_t value);
+int32_t meadows_hashset_has(int64_t set, int32_t value);
+int64_t meadows_hashset_remove(int64_t set, int32_t value);
+
 int64_t meadows_time(void);
 void meadows_sleep(int64_t milliseconds);
 int64_t meadows_clock(void);

@@ -79,6 +79,14 @@ public:
     indentLevel_--;
   }
 
+  void visitTryExpr(TryExpr &expr) override {
+    indent();
+    output_ << "TryExpr\n";
+    indentLevel_++;
+    expr.expr->accept(*this);
+    indentLevel_--;
+  }
+
   void visitLogicalExpr(LogicalExpr &expr) override {
     indent();
     output_ << "LogicalExpr(" << (expr.op == LogicalOperator::AND ? "&&" : "||")
@@ -138,6 +146,40 @@ public:
     output_ << "FieldAccessExpr(" << expr.fieldName << ")\n";
     indentLevel_++;
     expr.object->accept(*this);
+    indentLevel_--;
+  }
+
+  void visitMatchExpr(MatchExpr &expr) override {
+    indent();
+    output_ << "MatchExpr\n";
+    indentLevel_++;
+    indent();
+    output_ << "Scrutinee:\n";
+    indentLevel_++;
+    expr.scrutinee->accept(*this);
+    indentLevel_--;
+    indent();
+    output_ << "Arms:\n";
+    indentLevel_++;
+    for (const auto &arm : expr.arms) {
+      indent();
+      output_ << "Arm:\n";
+      indentLevel_++;
+      arm.body->accept(*this);
+      indentLevel_--;
+    }
+    indentLevel_--;
+    indentLevel_--;
+  }
+
+  void visitEnumVariantExpr(EnumVariantExpr &expr) override {
+    indent();
+    output_ << "EnumVariantExpr(" << expr.enumName << "." << expr.variantName
+            << ")\n";
+    indentLevel_++;
+    for (const auto &arg : expr.args) {
+      arg->accept(*this);
+    }
     indentLevel_--;
   }
 

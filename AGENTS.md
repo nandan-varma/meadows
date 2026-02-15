@@ -122,11 +122,12 @@ src/
   parser/         - Syntax analysis
   ast/            - AST node definitions
   codegen/        - LLVM IR generation
+  types/          - Type system (TypeChecker, Types)
+  config/         - Configuration (TOMLParser, Config)
   lsp/            - Language Server Protocol
   utils/          - Exceptions, diagnostics, warnings
   main/           - Entry point
   stdlib/         - Standard library (c/ and std/)
-  types/          - Type system
   modules/        - Module resolution
 
 tests/
@@ -142,9 +143,10 @@ tests/
 2. Add visitor methods to `ExprVisitor`/`StmtVisitor`
 3. Implement `accept()` in `src/ast/AST.cpp`
 4. Add visitor implementation in `src/codegen/CodeGen.cpp`
-5. Add parser support in `src/parser/Parser.cpp`
+5. Add parser support in `src/parser/Parser.cpp` or `ParserExpressions.cpp`
 6. Add lexer token in `src/lexer/Token.h` if needed
-7. Add unit tests in `tests/unit/<module>/`
+7. Add type checking in `src/types/TypeChecker.cpp` if needed
+8. Add unit tests in `tests/unit/<module>/`
 
 ### Testing
 - Use Catch2 v3.x

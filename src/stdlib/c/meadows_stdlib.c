@@ -512,3 +512,268 @@ void meadows_set_args(int argc, char *argv[]) {
   global_argc = argc;
   global_argv = argv;
 }
+
+typedef struct {
+  int32_t *data;
+  int32_t length;
+  int32_t capacity;
+} VecI32;
+
+int64_t meadows_vec_create(int32_t capacity) {
+  VecI32 *vec = (VecI32 *)malloc(sizeof(VecI32));
+  vec->capacity = capacity > 0 ? capacity : 4;
+  vec->length = 0;
+  vec->data = (int32_t *)malloc(sizeof(int32_t) * vec->capacity);
+  return (int64_t)vec;
+}
+
+void meadows_vec_free(int64_t vec_ptr) {
+  VecI32 *vec = (VecI32 *)vec_ptr;
+  if (vec) {
+    free(vec->data);
+    free(vec);
+  }
+}
+
+int32_t meadows_vec_len(int64_t vec_ptr) {
+  VecI32 *vec = (VecI32 *)vec_ptr;
+  return vec ? vec->length : 0;
+}
+
+int64_t meadows_vec_push(int64_t vec_ptr, int32_t value) {
+  VecI32 *vec = (VecI32 *)vec_ptr;
+  if (!vec)
+    return vec_ptr;
+
+  if (vec->length >= vec->capacity) {
+    vec->capacity *= 2;
+    vec->data = (int32_t *)realloc(vec->data, sizeof(int32_t) * vec->capacity);
+  }
+  vec->data[vec->length++] = value;
+  return vec_ptr;
+}
+
+int32_t meadows_vec_get(int64_t vec_ptr, int32_t index) {
+  VecI32 *vec = (VecI32 *)vec_ptr;
+  if (!vec || index < 0 || index >= vec->length)
+    return 0;
+  return vec->data[index];
+}
+
+void meadows_vec_set(int64_t vec_ptr, int32_t index, int32_t value) {
+  VecI32 *vec = (VecI32 *)vec_ptr;
+  if (!vec || index < 0 || index >= vec->length)
+    return;
+  vec->data[index] = value;
+}
+
+typedef struct {
+  char **keys;
+  int32_t *values;
+  int32_t length;
+  int32_t capacity;
+} HashMap;
+
+int32_t meadows_hashmap_hash(const char *key) {
+  int32_t hash = 5381;
+  int c;
+  while ((c = *key++)) {
+    hash = ((hash << 5) + hash) + c;
+  }
+  return hash;
+}
+
+int64_t meadows_hashmap_create(int32_t capacity) {
+  HashMap *map = (HashMap *)malloc(sizeof(HashMap));
+  map->capacity = capacity > 0 ? capacity : 16;
+  map->length = 0;
+  map->keys = (char **)calloc(map->capacity, sizeof(char *));
+  map->values = (int32_t *)calloc(map->capacity, sizeof(int32_t));
+  return (int64_t)map;
+}
+
+void meadows_hashmap_free(int64_t map_ptr) {
+  HashMap *map = (HashMap *)map_ptr;
+  if (!map)
+    return;
+  for (int32_t i = 0; i < map->capacity; i++) {
+    if (map->keys[i])
+      free(map->keys[i]);
+  }
+  free(map->keys);
+  free(map->values);
+  free(map);
+}
+
+int32_t meadows_hashmap_len(int64_t map_ptr) {
+  HashMap *map = (HashMap *)map_ptr;
+  return map ? map->length : 0;
+}
+
+static int32_t meadows_hashmap_find(HashMap *map, const char *key) {
+  int32_t index = meadows_hashmap_hash(key) % map->capacity;
+  for (int32_t i = 0; i < map->capacity; i++) {
+    int32_t idx = (index + i) % map->capacity;
+    if (!map->keys[idx])
+      return -1;
+    if (strcmp(map->keys[idx], key) == 0)
+      return idx;
+  }
+  return -1;
+}
+
+int64_t meadows_hashmap_put(int64_t map_ptr, const char *key, int32_t value) {
+  HashMap *map = (HashMap *)map_ptr;
+  if (!map)
+    return map_ptr;
+
+  int32_t idx = meadows_hashmap_find(map, key);
+  if (idx >= 0) {
+    map->values[idx] = value;
+    return map_ptr;
+  }
+
+  if (map->length >= map->capacity / 2) {
+    map->capacity *= 2;
+    map->keys = (char **)realloc(map->keys, sizeof(char *) * map->capacity);
+    map->values =
+        (int32_t *)realloc(map->values, sizeof(int32_t) * map->capacity);
+  }
+
+  idx = meadows_hashmap_hash(key) % map->capacity;
+  while (map->keys[idx]) {
+    idx = (idx + 1) % map->capacity;
+  }
+  map->keys[idx] = strdup(key);
+  map->values[idx] = value;
+  map->length++;
+  return map_ptr;
+}
+
+int32_t meadows_hashmap_get(int64_t map_ptr, const char *key) {
+  HashMap *map = (HashMap *)map_ptr;
+  if (!map)
+    return 0;
+  int32_t idx = meadows_hashmap_find(map, key);
+  return idx >= 0 ? map->values[idx] : 0;
+}
+
+int32_t meadows_hashmap_has(int64_t map_ptr, const char *key) {
+  HashMap *map = (HashMap *)map_ptr;
+  if (!map)
+    return 0;
+  return meadows_hashmap_find(map, key) >= 0 ? 1 : 0;
+}
+
+int64_t meadows_hashmap_remove(int64_t map_ptr, const char *key) {
+  HashMap *map = (HashMap *)map_ptr;
+  if (!map)
+    return map_ptr;
+
+  int32_t idx = meadows_hashmap_find(map, key);
+  if (idx < 0)
+    return map_ptr;
+
+  free(map->keys[idx]);
+  map->keys[idx] = NULL;
+  map->values[idx] = 0;
+  map->length--;
+  return map_ptr;
+}
+
+int64_t meadows_hashmap_keys(int64_t map_ptr) {
+  HashMap *map = (HashMap *)map_ptr;
+  int64_t keys_vec = meadows_vec_create(map ? map->length : 0);
+  if (!map)
+    return keys_vec;
+
+  for (int32_t i = 0; i < map->capacity; i++) {
+    if (map->keys[i]) {
+      meadows_vec_push(keys_vec, i);
+    }
+  }
+  return keys_vec;
+}
+
+typedef struct {
+  int32_t *values;
+  int32_t length;
+  int32_t capacity;
+} HashSet;
+
+int64_t meadows_hashset_create(int32_t capacity) {
+  HashSet *set = (HashSet *)malloc(sizeof(HashSet));
+  set->capacity = capacity > 0 ? capacity : 16;
+  set->length = 0;
+  set->values = (int32_t *)calloc(set->capacity, sizeof(int32_t));
+  return (int64_t)set;
+}
+
+void meadows_hashset_free(int64_t set_ptr) {
+  HashSet *set = (HashSet *)set_ptr;
+  if (set) {
+    free(set->values);
+    free(set);
+  }
+}
+
+int32_t meadows_hashset_len(int64_t set_ptr) {
+  HashSet *set = (HashSet *)set_ptr;
+  return set ? set->length : 0;
+}
+
+static int32_t meadows_hashset_index(HashSet *set, int32_t value) {
+  int32_t index = ((value % set->capacity) + set->capacity) % set->capacity;
+  for (int32_t i = 0; i < set->capacity; i++) {
+    int32_t idx = (index + i) % set->capacity;
+    if (set->values[idx] == value)
+      return idx;
+    if (set->values[idx] == 0)
+      return -1;
+  }
+  return -1;
+}
+
+int64_t meadows_hashset_add(int64_t set_ptr, int32_t value) {
+  HashSet *set = (HashSet *)set_ptr;
+  if (!set)
+    return set_ptr;
+
+  if (meadows_hashset_has(set_ptr, value))
+    return set_ptr;
+
+  if (set->length >= set->capacity / 2) {
+    set->capacity *= 2;
+    set->values =
+        (int32_t *)realloc(set->values, sizeof(int32_t) * set->capacity);
+  }
+
+  int32_t index = ((value % set->capacity) + set->capacity) % set->capacity;
+  while (set->values[index]) {
+    index = (index + 1) % set->capacity;
+  }
+  set->values[index] = value;
+  set->length++;
+  return set_ptr;
+}
+
+int32_t meadows_hashset_has(int64_t set_ptr, int32_t value) {
+  HashSet *set = (HashSet *)set_ptr;
+  if (!set)
+    return 0;
+  return meadows_hashset_index(set, value) >= 0 ? 1 : 0;
+}
+
+int64_t meadows_hashset_remove(int64_t set_ptr, int32_t value) {
+  HashSet *set = (HashSet *)set_ptr;
+  if (!set)
+    return set_ptr;
+
+  int32_t idx = meadows_hashset_index(set, value);
+  if (idx < 0)
+    return set_ptr;
+
+  set->values[idx] = 0;
+  set->length--;
+  return set_ptr;
+}

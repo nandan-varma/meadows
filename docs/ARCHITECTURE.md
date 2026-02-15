@@ -35,10 +35,13 @@ Source Code (.ms)
 ```
 src/
   lexer/          - Tokenization (Lexer.h, Lexer.cpp, Token.h)
-  parser/         - Syntax analysis (Parser.h, Parser.cpp)
+  parser/         - Syntax analysis (Parser.h, Parser.cpp, ParserExpressions.cpp)
   ast/            - AST node definitions (AST.h, AST.cpp)
-  codegen/        - LLVM IR generation
+  codegen/        - LLVM IR generation (CodeGen.h, CodeGen.cpp)
+  types/          - Type system (Types.h, TypeChecker.h)
+  config/         - Configuration (TOMLParser.h, Config.h)
   lsp/            - Language Server Protocol support
+  modules/        - Module resolution (ModuleResolver.h, ModuleCompiler.h)
   main/           - Entry point
   utils/          - Utilities (exceptions, diagnostics, warnings, timer)
 ```
@@ -59,10 +62,12 @@ src/
 - Custom exceptions: `LexicalException` with `SourceLocation`
 
 **Token Types:**
-- Keywords (let, func, if, for, while, return, break, continue, print, true, false, nil)
-- Operators (=, +, -, *, /, ==, !=, <, >, <=, >=, &&, ||)
-- Punctuation (;, :, ,, (, ), {, }, [, ])
-- Literals (integers, strings, identifiers)
+- Keywords (let, func, if, for, while, return, break, continue, print, true, false, nil, in, range)
+- Module keywords (module, import, export, as, from)
+- Type keywords (type, i32, i64, f32, f64, bool)
+- Operators (=, +, -, *, /, ==, !=, <, >, <=, >=, &&, ||, !, ->)
+- Punctuation (;, :, ,, (, ), {, }, [, ], ?)
+- Literals (integers, floats, strings, identifiers)
 
 ### Parser (`src/parser/`)
 
@@ -72,7 +77,7 @@ src/
 
 **Technique:** Recursive descent parsing with operator precedence (11 levels).
 
-**Statement Types (11):**
+**Statement Types (18):**
 1. `LetStmt` - Variable declarations
 2. `FuncStmt` - Function definitions
 3. `IfStmt` - Conditional statements
@@ -84,8 +89,13 @@ src/
 9. `ExprStmt` - Expression statements
 10. `BreakStmt` - Break from loops
 11. `ContinueStmt` - Continue loops
+12. `TypeDefStmt` - Type definitions
+13. `ModuleStmt` - Module declarations
+14. `ImportStmt` - Import statements
+15. `ExportStmt` - Export statements
+16. `ExternStmt` - External function declarations
 
-**Expression Types (11):**
+**Expression Types (18):**
 1. `LiteralExpr` - Literals (numbers, strings, booleans, nil)
 2. `VarExpr` - Variable references
 3. `AssignExpr` - Variable assignments
@@ -97,6 +107,10 @@ src/
 9. `FieldAccessExpr` - Field access on objects
 10. `ArrayExpr` - Array literals
 11. `ObjectExpr` - Object literals
+12. `TryExpr` - Error handling (?)
+13. `MatchExpr` - Pattern matching expressions (NEW in v0.5)
+14. `EnumVariantExpr` - Enum variant construction (NEW in v0.5)
+15. `TypeCastExpr` - Type casting (future)
 
 **Error Handling:**
 - Custom `ParseException` with `SourceLocation`
@@ -161,6 +175,72 @@ class StmtVisitor {
 | `WarningManager.h` | Warning configuration (OFF, DEFAULT, ALL, EXTRA) |
 | `Timer.h` | Performance measurement utilities |
 | `SourceLocation.h` | File location tracking for errors |
+
+### Type System (`src/types/`)
+
+**Files:** `Types.h`, `TypeChecker.h`
+
+**Responsibility:** Type inference and type checking for the Meadows language.
+
+**Type System Components:**
+
+| Type | Description |
+|------|-------------|
+| `PrimitiveType` | Base types: i32, i64, f32, f64, bool, string, unit, never |
+| `ArrayType` | Fixed-size arrays with element type |
+| `FunctionType` | Function signatures with parameter and return types |
+| `TypeVariable` | Type inference variables ('a, 'b) with unification |
+| `GenericType` | Generic types with type parameters (Vec<T>) |
+| `StructType` | Struct types with named fields |
+| `EnumType` | Enum types with variants (NEW in v0.5) |
+
+**TypeChecker Features:**
+- Type inference with unification
+- Type substitution
+- Constraint solving
+- Error reporting for type mismatches
+- Fresh type variable generation
+
+### Pattern Matching (`src/ast/`, `src/codegen/`)
+
+**Files:** AST.h, Parser.cpp, CodeGen.cpp
+
+**Responsibility:** Pattern matching expressions and enum handling.
+
+**Pattern Types:**
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `WILDCARD` | Matches any value | `_` |
+| `LITERAL` | Matches specific value | `0`, `"hello"` |
+| `BIND` | Binds value to name | `x`, `value` |
+| `ENUM` | Matches enum variant | `Some(x)`, `None` |
+| `TUPLE` | Matches tuple (planned) | `(a, b)` |
+| `STRUCT` | Matches struct (planned) | `{x, y}` |
+
+**Code Generation Strategy:**
+- Match expressions use LLVM select instructions
+- Each pattern generates comparison and selection
+- Wildcard patterns provide default values
+- Enum variants use tag-based dispatch
+
+**Example Match Generation:**
+```llvm
+; match (x) { 0 => 42, _ => 99 }
+%cmp = icmp eq i32 %x, 0
+%result = select i1 %cmp, i32 42, i32 99
+```
+
+### Config (`src/config/`)
+
+**Files:** `Config.h`, `Config.cpp`, `TOMLParser.h`, `TOMLParser.cpp`
+
+**Responsibility:** Configuration file parsing and management.
+
+**Features:**
+- TOML configuration file support (.meadows.toml)
+- Compiler options: optimization level, output path, etc.
+- Warning configuration
 
 ### LSP (`src/lsp/`)
 
@@ -302,7 +382,7 @@ tests/
 
 ### Meadows Standard Library (`src/stdlib/std/`)
 
-**Modules:** `io.ms`, `string.ms`, `dir.ms`, `math.ms`, `time.ms`, `array.ms`, `os.ms`
+**Modules:** `io.ms`, `string.ms`, `dir.ms`, `math.ms`, `time.ms`, `array.ms`, `os.ms`, `args.ms`, `vec.ms`, `hashmap.ms`, `hashset.ms`, `option.ms`, `result.ms`, `panic.ms`
 
 **Module Pattern:**
 ```meadows
@@ -312,6 +392,17 @@ import std.dir;
 let file = fopen("test.txt", "r");
 let content = read_file("test.txt");
 ```
+
+**Collection Modules:**
+
+| Module | Description |
+|--------|-------------|
+| `vec.ms` | Dynamic vector with push, get, set, len operations |
+| `hashmap.ms` | Hash map with put, get, has, remove operations |
+| `hashset.ms` | Hash set with add, has, remove operations |
+| `option.ms` | Option<T> type (Some, None) |
+| `result.ms` | Result<T, E> type (Ok, Err) |
+| `panic.ms` | Panic handling and recovery |
 
 **Directory Operations (`std/dir.ms`):**
 ```meadows

@@ -34,7 +34,10 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"i64", TokenType::I64},
     {"f32", TokenType::F32},
     {"f64", TokenType::F64},
-    {"bool", TokenType::BOOL}};
+    {"bool", TokenType::BOOL},
+    {"match", TokenType::MATCH},
+    {"enum", TokenType::ENUM},
+    {"_", TokenType::UNDERSCORE}};
 
 Lexer::Lexer(const std::string &source)
     : source_(source), pos_(0), line_(1), column_(1), currentLineStart_(0) {}
@@ -112,6 +115,10 @@ Token Lexer::handleOperator(char c, int startColumn) {
       advance();
       return Token(TokenType::EQUAL_EQUAL, "==", line_, startColumn);
     }
+    if (peek() == '>') {
+      advance();
+      return Token(TokenType::FAT_ARROW, "=>", line_, startColumn);
+    }
     return Token(TokenType::EQUAL, "=", line_, startColumn);
   case '&':
     advance();
@@ -178,6 +185,9 @@ Token Lexer::handleOperator(char c, int startColumn) {
   case '.':
     advance();
     return Token(TokenType::DOT, ".", line_, startColumn);
+  case '?':
+    advance();
+    return Token(TokenType::QUESTION, "?", line_, startColumn);
   }
 
   // Error

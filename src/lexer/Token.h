@@ -29,12 +29,19 @@ enum class TokenType {
 
   // Type system
   TYPE,
+  ENUM,
   I32,
   I64,
   F32,
   F64,
   BOOL,
   ARROW,
+
+  // Pattern matching
+  MATCH,
+  PIPE,
+  UNDERSCORE,
+  FAT_ARROW,
 
   // Literals
   IDENTIFIER,
@@ -68,6 +75,7 @@ enum class TokenType {
   COLON,
   SEMICOLON,
   DOT,
+  QUESTION,
   EXTERN,
 
   // Comments

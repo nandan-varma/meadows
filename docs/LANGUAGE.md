@@ -19,6 +19,23 @@ Source files must have the `.ms` extension.
 - Range: -2,147,483,648 to 2,147,483,647
 - Literals: `0`, `42`, `-17`
 
+### Integer (i64)
+- 64-bit signed integer
+- Range: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
+- Literals: `0L`, `42L`, `-17L`
+
+### Float (f32)
+- 32-bit floating point
+- Literals: `0.0f`, `3.14f`
+
+### Float (f64)
+- 64-bit floating point (double)
+- Literals: `0.0`, `3.14`
+
+### Boolean (bool)
+- true or false
+- Literals: `true`, `false`
+
 ### String
 - Pointer type to null-terminated character array
 - Literals: `"hello"`, `"world\n"`
@@ -41,6 +58,10 @@ Source files must have the `.ms` extension.
 let x = 42;
 let message = "hello";
 let numbers = [1, 2, 3];
+
+# Type annotations
+let x: i32 = 42;
+let message: string = "hello";
 ```
 
 ### Assignment
@@ -279,6 +300,81 @@ obj.field       # Field access
 func_name(arg1, arg2)
 ```
 
+## Pattern Matching
+
+### Match Expressions
+Match expressions provide control flow based on pattern matching:
+
+```meadows
+let result = match (value) {
+    0 => "zero",
+    1 => "one",
+    _ => "other",  # wildcard pattern
+};
+```
+
+### Pattern Types
+
+**Literal Patterns:**
+```meadows
+match (x) {
+    0 => "zero",
+    42 => "answer",
+    _ => "unknown",
+}
+```
+
+**Wildcard Pattern:**
+```meadows
+match (x) {
+    0 => "zero",
+    _ => "non-zero",  # matches anything
+}
+```
+
+### Match Result
+Match expressions evaluate to a value that can be assigned:
+```meadows
+let description = match (status_code) {
+    200 => "OK",
+    404 => "Not Found",
+    500 => "Server Error",
+    _ => "Unknown",
+};
+```
+
+## Enums
+
+### Enum Definition
+```meadows
+enum Status = {
+    Pending,
+    Success(string),
+    Error { code: i32, message: string },
+};
+```
+
+### Enum Variants
+Enums can have:
+- **Unit variants:** `Pending` (no data)
+- **Tuple variants:** `Success(string)` (unnamed fields)
+- **Struct variants:** `Error { code: i32, message: string }` (named fields)
+
+### Using Enums
+```meadows
+# Creating enum values
+let pending = Status.Pending;
+let success = Status.Success("Done!");
+let error = Status.Error { code: 404, message: "Not found" };
+
+# Pattern matching on enums
+match (status) {
+    Status.Pending => "Waiting...",
+    Status.Success(msg) => msg,
+    Status.Error { code, message } => "Error " + code + ": " + message,
+};
+```
+
 ## Runtime Errors
 
 ### Division by Zero
@@ -291,6 +387,6 @@ Validation check on array access. Prints error and exits with code -1.
 
 - No dynamic memory allocation (malloc available but not recommended)
 - Arrays and objects are compile-time constants only
-- Single return type (i32) for functions
-- No recursion support
-- No type inference (all variables inferred from literals)
+- Single return type for functions (inferred)
+- Recursion supported through type checker
+- Full type inference supported

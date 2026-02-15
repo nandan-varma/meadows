@@ -81,6 +81,10 @@ private:
       variableScopeStack;
 
   std::unordered_map<std::string, std::string> externNameMapping;
+  std::unordered_map<std::string, llvm::StructType *> enumTypes_;
+  std::unordered_map<std::string, llvm::StructType *> structTypes_;
+  std::unordered_map<std::string, std::vector<std::string>> definedEnums_;
+  llvm::Value *lastValue_ = nullptr;
 
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
@@ -106,12 +110,15 @@ private:
   void visitAssignExpr(AssignExpr &expr) override;
   void visitBinaryExpr(BinaryExpr &expr) override;
   void visitUnaryExpr(UnaryExpr &expr) override;
+  void visitTryExpr(TryExpr &expr) override;
   void visitLogicalExpr(LogicalExpr &expr) override;
   void visitIndexExpr(IndexExpr &expr) override;
   void visitFieldAccessExpr(FieldAccessExpr &expr) override;
   void visitCallExpr(CallExpr &expr) override;
   void visitArrayExpr(ArrayExpr &expr) override;
   void visitObjectExpr(ObjectExpr &expr) override;
+  void visitMatchExpr(MatchExpr &expr) override;
+  void visitEnumVariantExpr(EnumVariantExpr &expr) override;
 
   void visitExprStmt(ExprStmt &stmt) override;
   void visitLetStmt(LetStmt &stmt) override;
@@ -132,6 +139,10 @@ private:
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;
+  llvm::BasicBlock *endifBlock = nullptr;
+
+  void generateElseBranch(const std::vector<std::unique_ptr<Stmt>> &elseBranch,
+                          llvm::BasicBlock *endBB);
 
   static constexpr size_t MAX_STRING_LENGTH = 1024 * 1024;
   static constexpr size_t MAX_ARRAY_ELEMENTS = 1000000;

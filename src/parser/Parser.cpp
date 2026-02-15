@@ -235,6 +235,8 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
     return parseExportStmt();
   if (match(TokenType::EXTERN))
     return parseExternStmt();
+  if (match(TokenType::TYPE) || match(TokenType::ENUM))
+    return parseTypeDefStmt();
   if (match(TokenType::LEFT_BRACE))
     return parseBlockStmt();
   return parseExprStmt();
@@ -605,4 +607,284 @@ std::unique_ptr<Stmt> Parser::parseExternStmt() {
   consume(TokenType::SEMICOLON, "Expect ';' after extern declaration");
   return std::make_unique<ExternStmt>(cName.value, meadowsName.value,
                                       returnType, params);
+}
+
+std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
+  bool isEnum = previous().type == TokenType::ENUM;
+  if (!isEnum && previous().type != TokenType::TYPE) {
+    error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+          "Expect 'type' or 'enum' keyword");
+  }
+
+  const Token &name = consume(TokenType::IDENTIFIER, "Expect type name");
+
+  auto typeDef = std::make_unique<TypeDefStmt>(name.value, isEnum);
+
+  if (match(TokenType::EQUAL)) {
+    if (isEnum) {
+      consume(TokenType::LEFT_BRACE, "Expect '{' before enum variants");
+      while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        const Token &variantName =
+            consume(TokenType::IDENTIFIER, "Expect variant name");
+
+        std::vector<std::string> variantTypes;
+        if (match(TokenType::LEFT_PAREN)) {
+          while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+            TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
+                                      TokenType::F32,       TokenType::F64,
+                                      TokenType::BOOL,      TokenType::STRING,
+                                      TokenType::IDENTIFIER};
+            bool foundType = false;
+            for (auto typeTok : typeTokens) {
+              if (match(typeTok)) {
+                variantTypes.push_back(previous().value);
+                foundType = true;
+                break;
+              }
+            }
+            if (!foundType) {
+              error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                    "Expect type in variant parameters");
+            }
+            if (!check(TokenType::RIGHT_PAREN)) {
+              consume(TokenType::COMMA,
+                      "Expect ',' between variant parameters");
+            }
+          }
+          consume(TokenType::RIGHT_PAREN,
+                  "Expect ')' after variant parameters");
+        }
+
+        typeDef->variants.push_back(
+            {variantName.value, std::move(variantTypes)});
+
+        if (!check(TokenType::RIGHT_BRACE)) {
+          consume(TokenType::COMMA, "Expect ',' between variants");
+        }
+      }
+      consume(TokenType::RIGHT_BRACE, "Expect '}' after enum variants");
+      consume(TokenType::SEMICOLON, "Expect ';' after type definition");
+      return std::move(typeDef);
+    }
+
+    // type Name = struct { ... }
+    consume(TokenType::LEFT_BRACE, "Expect '{' before struct fields");
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+      const Token &fieldName =
+          consume(TokenType::IDENTIFIER, "Expect field name");
+      consume(TokenType::COLON, "Expect ':' after field name");
+
+      TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
+                                TokenType::F32,       TokenType::F64,
+                                TokenType::BOOL,      TokenType::STRING,
+                                TokenType::IDENTIFIER};
+      bool foundType = false;
+      for (auto typeTok : typeTokens) {
+        if (match(typeTok)) {
+          typeDef->fields[fieldName.value] = previous().value;
+          foundType = true;
+          break;
+        }
+      }
+      if (!foundType) {
+        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+              "Expect type name for field");
+      }
+      if (!check(TokenType::RIGHT_BRACE)) {
+        consume(TokenType::COMMA, "Expect ',' between fields");
+      }
+    }
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after struct fields");
+    consume(TokenType::SEMICOLON, "Expect ';' after type definition");
+    return std::move(typeDef);
+  }
+
+  // Handle case without '=' - just use braces directly
+  if (isEnum) {
+    consume(TokenType::LEFT_BRACE, "Expect '{' before enum variants");
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+      const Token &variantName =
+          consume(TokenType::IDENTIFIER, "Expect variant name");
+
+      std::vector<std::string> variantTypes;
+      if (match(TokenType::LEFT_PAREN)) {
+        while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+          TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
+                                    TokenType::F32,       TokenType::F64,
+                                    TokenType::BOOL,      TokenType::STRING,
+                                    TokenType::IDENTIFIER};
+          bool foundType = false;
+          for (auto typeTok : typeTokens) {
+            if (match(typeTok)) {
+              variantTypes.push_back(previous().value);
+              foundType = true;
+              break;
+            }
+          }
+          if (!foundType) {
+            error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                  "Expect type in variant parameters");
+          }
+          if (!check(TokenType::RIGHT_PAREN)) {
+            consume(TokenType::COMMA, "Expect ',' between variant parameters");
+          }
+        }
+        consume(TokenType::RIGHT_PAREN, "Expect ')' after variant parameters");
+      }
+
+      typeDef->variants.push_back({variantName.value, std::move(variantTypes)});
+
+      if (!check(TokenType::RIGHT_BRACE)) {
+        consume(TokenType::COMMA, "Expect ',' between variants");
+      }
+    }
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after enum variants");
+  } else {
+    consume(TokenType::LEFT_BRACE, "Expect '{' before struct fields");
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+      const Token &fieldName =
+          consume(TokenType::IDENTIFIER, "Expect field name");
+      consume(TokenType::COLON, "Expect ':' after field name");
+
+      TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
+                                TokenType::F32,       TokenType::F64,
+                                TokenType::BOOL,      TokenType::STRING,
+                                TokenType::IDENTIFIER};
+      bool foundType = false;
+      for (auto typeTok : typeTokens) {
+        if (match(typeTok)) {
+          typeDef->fields[fieldName.value] = previous().value;
+          foundType = true;
+          break;
+        }
+      }
+      if (!foundType) {
+        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+              "Expect type name for field");
+      }
+      if (!check(TokenType::RIGHT_BRACE)) {
+        consume(TokenType::COMMA, "Expect ',' between fields");
+      }
+    }
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after struct fields");
+  }
+
+  consume(TokenType::SEMICOLON, "Expect ';' after type definition");
+  return std::move(typeDef);
+}
+
+std::unique_ptr<Expr> Parser::parseMatchExpr() {
+  consume(TokenType::LEFT_PAREN, "Expect '(' after 'match'");
+  auto scrutinee = parseExpr();
+  consume(TokenType::RIGHT_PAREN, "Expect ')' after match expression");
+  consume(TokenType::LEFT_BRACE, "Expect '{' before match arms");
+
+  std::vector<MatchArm> arms;
+  while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    auto pattern = parsePattern();
+    consume(TokenType::FAT_ARROW, "Expect '=>' in match arm");
+    auto body = parseExpr();
+    arms.emplace_back(std::move(pattern), std::move(body));
+    if (!check(TokenType::RIGHT_BRACE)) {
+      consume(TokenType::COMMA, "Expect ',' between match arms");
+    }
+  }
+
+  consume(TokenType::RIGHT_BRACE, "Expect '}' after match arms");
+  return std::make_unique<MatchExpr>(std::move(scrutinee), std::move(arms));
+}
+
+std::unique_ptr<Pattern> Parser::parsePattern() {
+  if (match(TokenType::UNDERSCORE)) {
+    auto pattern = std::make_unique<Pattern>(PatternKind::WILDCARD);
+    return pattern;
+  }
+
+  if (match(TokenType::IDENTIFIER)) {
+    std::string name = previous().value;
+
+    if (match(TokenType::LEFT_PAREN)) {
+      auto pattern = std::make_unique<Pattern>(PatternKind::ENUM);
+      pattern->name = name;
+      while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+        auto subPattern = parsePattern();
+        pattern->subPatterns.push_back(std::move(subPattern));
+        if (!check(TokenType::RIGHT_PAREN)) {
+          consume(TokenType::COMMA, "Expect ',' between pattern arguments");
+        }
+      }
+      consume(TokenType::RIGHT_PAREN, "Expect ')' after enum pattern");
+      return pattern;
+    }
+
+    if (match(TokenType::COMMA) || check(TokenType::ARROW)) {
+      auto pattern = std::make_unique<Pattern>(PatternKind::BIND);
+      pattern->name = name;
+      return pattern;
+    }
+
+    auto pattern = std::make_unique<Pattern>(PatternKind::BIND);
+    pattern->name = name;
+    return pattern;
+  }
+
+  if (match(TokenType::NUMBER) || match(TokenType::STRING) ||
+      match(TokenType::TRUE) || match(TokenType::FALSE)) {
+    auto pattern = std::make_unique<Pattern>(PatternKind::LITERAL);
+    pattern->literalValue = previous().value;
+    return pattern;
+  }
+
+  if (match(TokenType::LEFT_PAREN)) {
+    auto pattern = std::make_unique<Pattern>(PatternKind::TUPLE);
+    while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+      auto subPattern = parsePattern();
+      pattern->subPatterns.push_back(std::move(subPattern));
+      if (!check(TokenType::RIGHT_PAREN)) {
+        consume(TokenType::COMMA, "Expect ',' between tuple patterns");
+      }
+    }
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after tuple pattern");
+    return pattern;
+  }
+
+  if (match(TokenType::LEFT_BRACE)) {
+    auto pattern = std::make_unique<Pattern>(PatternKind::STRUCT);
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+      const Token &fieldName =
+          consume(TokenType::IDENTIFIER, "Expect field name in pattern");
+      pattern->subPatterns.push_back(
+          std::make_unique<Pattern>(PatternKind::BIND));
+      pattern->subPatterns.back()->name = fieldName.value;
+      if (!check(TokenType::RIGHT_BRACE)) {
+        consume(TokenType::COMMA, "Expect ',' between struct patterns");
+      }
+    }
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after struct pattern");
+    return pattern;
+  }
+
+  error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, "Expect valid pattern");
+  return std::make_unique<Pattern>(PatternKind::WILDCARD);
+}
+
+std::unique_ptr<Expr> Parser::parseEnumVariant() {
+  const Token &enumName = previous();
+  consume(TokenType::DOT, "Expect '.' after enum name");
+  const Token &variantName =
+      consume(TokenType::IDENTIFIER, "Expect variant name");
+
+  std::vector<std::unique_ptr<Expr>> args;
+  if (match(TokenType::LEFT_PAREN)) {
+    while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+      args.push_back(parseExpr());
+      if (!check(TokenType::RIGHT_PAREN)) {
+        consume(TokenType::COMMA, "Expect ',' between arguments");
+      }
+    }
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after variant arguments");
+  }
+
+  return std::make_unique<EnumVariantExpr>(enumName.value, variantName.value,
+                                           std::move(args));
 }

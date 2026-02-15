@@ -11,6 +11,7 @@ void BinaryExpr::accept(ExprVisitor &visitor) {
   visitor.visitBinaryExpr(*this);
 }
 void UnaryExpr::accept(ExprVisitor &visitor) { visitor.visitUnaryExpr(*this); }
+void TryExpr::accept(ExprVisitor &visitor) { visitor.visitTryExpr(*this); }
 void LogicalExpr::accept(ExprVisitor &visitor) {
   visitor.visitLogicalExpr(*this);
 }
@@ -22,6 +23,10 @@ void CallExpr::accept(ExprVisitor &visitor) { visitor.visitCallExpr(*this); }
 void ArrayExpr::accept(ExprVisitor &visitor) { visitor.visitArrayExpr(*this); }
 void ObjectExpr::accept(ExprVisitor &visitor) {
   visitor.visitObjectExpr(*this);
+}
+void MatchExpr::accept(ExprVisitor &visitor) { visitor.visitMatchExpr(*this); }
+void EnumVariantExpr::accept(ExprVisitor &visitor) {
+  visitor.visitEnumVariantExpr(*this);
 }
 
 void ExprStmt::accept(StmtVisitor &visitor) { visitor.visitExprStmt(*this); }

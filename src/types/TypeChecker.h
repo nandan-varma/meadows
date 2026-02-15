@@ -42,12 +42,15 @@ public:
   void visitAssignExpr(AssignExpr &expr) override;
   void visitBinaryExpr(BinaryExpr &expr) override;
   void visitUnaryExpr(UnaryExpr &expr) override;
+  void visitTryExpr(TryExpr &expr) override;
   void visitLogicalExpr(LogicalExpr &expr) override;
   void visitIndexExpr(IndexExpr &expr) override;
   void visitFieldAccessExpr(FieldAccessExpr &expr) override;
   void visitCallExpr(CallExpr &expr) override;
   void visitArrayExpr(ArrayExpr &expr) override;
   void visitObjectExpr(ObjectExpr &expr) override;
+  void visitMatchExpr(MatchExpr &expr) override;
+  void visitEnumVariantExpr(EnumVariantExpr &expr) override;
 
   void visitExprStmt(ExprStmt &stmt) override;
   void visitLetStmt(LetStmt &stmt) override;

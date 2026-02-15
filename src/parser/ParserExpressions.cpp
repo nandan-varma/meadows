@@ -109,6 +109,9 @@ std::unique_ptr<Expr> Parser::parseCall(int depth) {
     consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments");
     expr = std::make_unique<CallExpr>(std::move(expr), std::move(args));
   }
+  while (match(TokenType::QUESTION)) {
+    expr = std::make_unique<TryExpr>(std::move(expr));
+  }
   return expr;
 }
 
@@ -145,8 +148,28 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
   if (match(TokenType::FALSE)) {
     return std::make_unique<LiteralExpr>("0");
   }
+  if (match(TokenType::MATCH)) {
+    return parseMatchExpr();
+  }
   if (match(TokenType::IDENTIFIER)) {
-    return std::make_unique<VarExpr>(previous().value);
+    Token id = previous();
+    if (match(TokenType::DOT)) {
+      const Token &variantName =
+          consume(TokenType::IDENTIFIER, "Expect variant name");
+      std::vector<std::unique_ptr<Expr>> args;
+      if (match(TokenType::LEFT_PAREN)) {
+        while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
+          args.push_back(parseExpr());
+          if (!check(TokenType::RIGHT_PAREN)) {
+            consume(TokenType::COMMA, "Expect ',' between arguments");
+          }
+        }
+        consume(TokenType::RIGHT_PAREN, "Expect ')' after variant arguments");
+      }
+      return std::make_unique<EnumVariantExpr>(id.value, variantName.value,
+                                               std::move(args));
+    }
+    return std::make_unique<VarExpr>(id.value);
   }
   if (match(TokenType::LEFT_BRACKET)) {
     std::vector<std::unique_ptr<Expr>> elements;

@@ -123,6 +123,7 @@ private:
   std::unique_ptr<Stmt> parseImportStmt();
   std::unique_ptr<Stmt> parseExportStmt();
   std::unique_ptr<Stmt> parseExternStmt();
+  std::unique_ptr<Stmt> parseTypeDefStmt();
 
   std::unique_ptr<Expr> parseExpr();
   std::unique_ptr<Expr> parseAssignment(int depth = 0);
@@ -137,6 +138,9 @@ private:
   std::unique_ptr<Expr> parseIndex(int depth = 0);
   std::unique_ptr<Expr> parseFieldAccess(int depth = 0);
   std::unique_ptr<Expr> parsePrimary(int depth = 0);
+  std::unique_ptr<Expr> parseMatchExpr();
+  std::unique_ptr<Pattern> parsePattern();
+  std::unique_ptr<Expr> parseEnumVariant();
 
   std::vector<std::unique_ptr<Expr>> parseArgs();
   std::vector<std::unique_ptr<Stmt>> parseBlock();

@@ -2,7 +2,7 @@
 
 A systems programming language designed for safety, performance, and developer productivity. Compiles to native executables via LLVM.
 
-**Current Status:** Alpha (15-20% production-ready) | **Target:** v1.0 Production Release
+**Current Status:** Alpha (25-30% production-ready) | **Target:** v1.0 Production Release
 
 ## Quick Start
 
@@ -21,13 +21,6 @@ A systems programming language designed for safety, performance, and developer p
 ## What Makes Meadows Different?
 
 Meadows combines the safety guarantees of modern languages with the performance of systems programming:
-
-- **Memory Safety**: Ownership-based memory management (inspired by Rust)
-- **Zero-Cost Abstractions**: Generic types, traits, and compile-time optimization
-- **Fearless Concurrency**: Async/await with structured concurrency
-- **Excellent Tooling**: Built-in formatter, package manager, and testing framework
-- **C Interop**: Seamless FFI for using existing C libraries
-- **Fast Compilation**: Optimized for quick edit-compile-run cycles
 
 ## Installation
 
@@ -81,73 +74,76 @@ while (count > 0) {
 }
 ```
 
-### Structs and Enums
+### Structs and Enums ✅
 ```meadows
-struct Point {
-    x: f64,
-    y: f64,
-}
+type Point = {
+    x: i32,
+    y: i32,
+};
 
-enum Status {
+enum Status = {
     Pending,
     Success(string),
     Error { code: i32, message: string },
-}
+};
 
-func distance(p1: Point, p2: Point) -> f64 {
-    let dx = p2.x - p1.x;
-    let dy = p2.y - p1.y;
-    return sqrt(dx * dx + dy * dy);
-}
+# Pattern matching
+match (value) {
+    0 => "zero",
+    _ => "other",
+};
 ```
 
-### Generics
+### Generics 🚧
 ```meadows
+# Basic generics (partially implemented)
 func identity<T>(value: T) -> T {
     return value;
 }
 
-struct Box<T> {
-    value: T,
-}
+# Generic collections (available in stdlib)
+let vec = Vec<i32>::new();
+let map = HashMap<string, i32>::new();
 
-impl<T> Box<T> {
-    func new(value: T) -> Box<T> {
-        return Box { value: value };
-    }
-}
+# Full generic structs (planned for v0.7)
+# struct Box<T> { value: T }
 ```
 
-### Error Handling
+### Error Handling 🚧
 ```meadows
-func read_file(path: string) -> Result<string, FileError> {
-    let file = File::open(path)?;
-    let content = file.read_all()?;
-    return Ok(content);
+# Option and Result types (available)
+import std.option;
+import std.result;
+
+func find_element(arr: Vec<i32>, target: i32) -> Option<i32> {
+    for (item in arr) {
+        if (item == target) {
+            return Some(item);
+        }
+    }
+    return None;
 }
 
-func main() -> Result<void, Error> {
-    match read_file("data.txt") {
-        Ok(content) => print(content),
-        Err(e) => print("Error: " + e),
-    }
-}
+# Pattern matching on results
+match result {
+    Ok(value) => print(value),
+    Err(e) => print("Error"),
+};
+
+# ? operator (planned for v0.7)
+# let content = read_file("data.txt")?;
 ```
 
-### Async/Await
+### Async/Await 📋 (Planned v0.9)
 ```meadows
-async func fetch_data(url: string) -> Result<Response, Error> {
-    let response = http_get(url).await?;
-    return Ok(response);
-}
+# Async/await is planned for v0.9
+# Current status: Not yet implemented
 
-async func main() {
-    let result = fetch_data("https://api.example.com").await;
-    match result {
-        Ok(data) => print(data),
-        Err(e) => print("Error: " + e),
-    }
-}
+# Planned syntax:
+# async func fetch_data(url: string) -> Result<Response, Error> {
+#     let response = http_get(url).await?;
+#     return Ok(response);
+# }
 ```
 
 ## Standard Library
@@ -318,16 +314,17 @@ meadows fmt
 
 | Feature Category | Status | Completion |
 |-----------------|--------|------------|
-| **Type System** | Partial | 40% |
-| **Memory Management** | C-style | 20% |
-| **Error Handling** | Fatal only | 30% |
+| **Type System** | Functional | 60% |
+| **Pattern Matching** | Working | 85% |
+| **Memory Management** | C-style | 30% |
+| **Error Handling** | Option/Result | 50% |
 | **Concurrency** | Not started | 0% |
-| **Package Manager** | Config parsing | 25% |
-| **Tooling** | Basic LSP | 30% |
-| **Standard Library** | C wrappers | 35% |
-| **Documentation** | In progress | 50% |
+| **Package Manager** | Config parsing | 30% |
+| **Tooling** | Partial | 45% |
+| **Standard Library** | Collections | 55% |
+| **Documentation** | Good | 65% |
 
-**Overall: ~15-20% of v1.0 complete**
+**Overall: ~25-30% of v1.0 complete**
 
 ## Comparison to Other Languages
 
