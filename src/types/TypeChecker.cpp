@@ -1,5 +1,6 @@
 #include "TypeChecker.h"
 #include "../utils/ErrorCodes.h"
+#include <set>
 #include <sstream>
 
 namespace meadows {
@@ -329,9 +330,22 @@ void TypeChecker::visitObjectExpr(ObjectExpr &expr) {
 void TypeChecker::visitMatchExpr(MatchExpr &expr) {
   auto scrutineeType = inferExpr(expr.scrutinee.get());
 
+  bool hasWildcard = false;
+  std::set<std::string> coveredEnumVariants;
+
   std::shared_ptr<Type> resultType = nullptr;
   for (auto &arm : expr.arms) {
     auto armType = inferExpr(arm.body.get());
+
+    if (arm.pattern->kind == PatternKind::WILDCARD) {
+      hasWildcard = true;
+    }
+
+    if (arm.pattern->kind == PatternKind::ENUM &&
+        !arm.pattern->typeName.empty()) {
+      coveredEnumVariants.insert(arm.pattern->name);
+    }
+
     if (!resultType) {
       resultType = armType;
     }
@@ -339,6 +353,40 @@ void TypeChecker::visitMatchExpr(MatchExpr &expr) {
 
   if (!resultType) {
     resultType = unit_;
+  }
+
+  if (!hasWildcard) {
+    if (auto *enumType = dynamic_cast<EnumType *>(scrutineeType.get())) {
+      const auto &enumName = enumType->name;
+      if (definedEnums_.find(enumName) != definedEnums_.end()) {
+        const auto &expectedVariants = definedEnums_[enumName];
+        std::set<std::string> expectedSet(expectedVariants.begin(),
+                                          expectedVariants.end());
+
+        std::vector<std::string> missing;
+        std::set_difference(
+            expectedSet.begin(), expectedSet.end(), coveredEnumVariants.begin(),
+            coveredEnumVariants.end(), std::back_inserter(missing));
+
+        if (!missing.empty()) {
+          std::ostringstream oss;
+          oss << "non-exhaustive match: missing variants: ";
+          for (size_t i = 0; i < missing.size(); ++i) {
+            if (i > 0)
+              oss << ", ";
+            oss << missing[i];
+          }
+          errors_.push_back(oss.str());
+        }
+      }
+    } else if (scrutineeType == i32_ || scrutineeType == i64_) {
+      errors_.push_back(
+          "non-exhaustive match on integer type: add wildcard arm '_'");
+    } else if (scrutineeType == bool_) {
+      if (coveredEnumVariants.empty()) {
+        errors_.push_back("non-exhaustive match on bool: add wildcard arm '_'");
+      }
+    }
   }
 
   exprTypes_[&expr] = resultType;
@@ -492,6 +540,13 @@ void TypeChecker::visitPrintStmt(PrintStmt &stmt) {
 }
 
 void TypeChecker::visitTypeDefStmt(TypeDefStmt &stmt) {
+  if (stmt.isEnum) {
+    std::vector<std::string> variants;
+    for (const auto &variant : stmt.variants) {
+      variants.push_back(variant.first);
+    }
+    definedEnums_[stmt.name] = variants;
+  }
   stmtTypes_[&stmt] = unit_;
 }
 

@@ -140,6 +140,7 @@ private:
   std::unique_ptr<Expr> parsePrimary(int depth = 0);
   std::unique_ptr<Expr> parseMatchExpr();
   std::unique_ptr<Pattern> parsePattern();
+  std::unique_ptr<Pattern> parsePatternInternal();
   std::unique_ptr<Expr> parseEnumVariant();
 
   std::vector<std::unique_ptr<Expr>> parseArgs();

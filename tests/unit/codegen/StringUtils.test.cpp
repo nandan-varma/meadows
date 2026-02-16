@@ -239,11 +239,14 @@ TEST_CASE("StringPool clear", "[stringutils]") {
     auto &pool = StringPool::getInstance();
 
     const std::string *ptr1 = pool.intern("after_clear");
+    size_t sizeAfterFirst = pool.poolSize();
     pool.clear();
-    const std::string *ptr2 = pool.intern("after_clear");
+    CHECK(pool.poolSize() == 0);
 
-    CHECK(ptr1 != ptr2);
-    CHECK(*ptr1 == *ptr2);
+    const std::string *ptr2 = pool.intern("after_clear");
+    CHECK(pool.poolSize() == 1);
+    CHECK(*ptr2 == "after_clear");
+    CHECK(ptr2 != nullptr);
   }
 }
 

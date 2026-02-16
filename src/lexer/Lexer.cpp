@@ -133,7 +133,7 @@ Token Lexer::handleOperator(char c, int startColumn) {
       advance();
       return Token(TokenType::OR, "||", line_, startColumn);
     }
-    return Token(TokenType::IDENTIFIER, "|", line_, startColumn);
+    return Token(TokenType::PIPE, "|", line_, startColumn);
   case '>':
     advance();
     if (peek() == '=') {

@@ -565,6 +565,8 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
     exprResult = builder->CreateICmpSGE(left, right);
   } else if (expr.op == "<=") {
     exprResult = builder->CreateICmpSLE(left, right);
+  } else if (expr.op == "|") {
+    exprResult = builder->CreateOr(left, right);
   } else {
     error("Unknown binary operator: ", expr.op);
   }
@@ -1243,28 +1245,191 @@ void CodeGen::visitMatchExpr(MatchExpr &expr) {
   expr.scrutinee->accept(*this);
   auto scrutinee = exprResult;
 
-  llvm::Type *resultTypePtr = scrutinee->getType();
+  auto scrutineeType = scrutinee->getType();
+  llvm::Value *scrutineeAlloca = nullptr;
 
-  llvm::Value *result = llvm::UndefValue::get(resultTypePtr);
+  if (llvm::isa<llvm::LoadInst>(scrutinee)) {
+    scrutineeAlloca = llvm::cast<llvm::LoadInst>(scrutinee)->getOperand(0);
+  } else if (llvm::isa<llvm::AllocaInst>(scrutinee)) {
+    scrutineeAlloca = scrutinee;
+  } else {
+    auto alloc =
+        builder->CreateAlloca(scrutineeType, nullptr, "match_scrutinee");
+    builder->CreateStore(scrutinee, alloc);
+    scrutineeAlloca = alloc;
+    scrutinee =
+        builder->CreateLoad(scrutineeType, alloc, "match_scrutinee_val");
+  }
+
+  llvm::Value *result = llvm::UndefValue::get(scrutineeType);
 
   for (size_t i = expr.arms.size(); i > 0; --i) {
     size_t idx = i - 1;
     auto &arm = expr.arms[idx];
 
+    std::unordered_map<std::string, llvm::Value *> matchBindings;
+    auto *matchCondition = generateMatchArm(
+        *arm.pattern, scrutinee, scrutineeAlloca, *arm.body, matchBindings);
+
     arm.body->accept(*this);
     llvm::Value *armResult = exprResult;
 
-    if (arm.pattern->kind == PatternKind::WILDCARD) {
+    if (auto *c = llvm::dyn_cast<llvm::ConstantInt>(matchCondition)) {
+      if (c->isOne()) {
+        result = armResult;
+      } else {
+        result =
+            builder->CreateSelect(matchCondition, armResult, result, "select");
+      }
+    } else if (matchCondition) {
+      result =
+          builder->CreateSelect(matchCondition, armResult, result, "select");
+    } else {
       result = armResult;
-    } else if (arm.pattern->kind == PatternKind::LITERAL) {
-      int tagValue = std::stoi(arm.pattern->literalValue);
-      auto caseValue = llvm::ConstantInt::get(scrutinee->getType(), tagValue);
-      auto *cmp = builder->CreateICmpEQ(scrutinee, caseValue, "cmpeq");
-      result = builder->CreateSelect(cmp, armResult, result, "select");
     }
   }
 
   exprResult = result;
+}
+
+llvm::Value *CodeGen::generateMatchArm(
+    Pattern &pattern, llvm::Value *scrutinee, llvm::Value *scrutineeAlloca,
+    Expr &body, std::unordered_map<std::string, llvm::Value *> &matchBindings) {
+  switch (pattern.kind) {
+  case PatternKind::WILDCARD:
+    return llvm::ConstantInt::getTrue(*context);
+
+  case PatternKind::LITERAL: {
+    int tagValue;
+    if (pattern.literalValue == "true") {
+      tagValue = 1;
+    } else if (pattern.literalValue == "false") {
+      tagValue = 0;
+    } else {
+      tagValue = std::stoi(pattern.literalValue);
+    }
+    auto caseValue = llvm::ConstantInt::get(scrutinee->getType(), tagValue);
+    return builder->CreateICmpEQ(scrutinee, caseValue, "match_literal_cmp");
+  }
+
+  case PatternKind::BIND: {
+    auto alloca = builder->CreateAlloca(scrutinee->getType(), nullptr,
+                                        "bind_" + pattern.name);
+    builder->CreateStore(scrutinee, alloca);
+    matchBindings[pattern.name] = alloca;
+    symbolTable.declare(pattern.name, alloca);
+    return llvm::ConstantInt::getTrue(*context);
+  }
+
+  case PatternKind::TUPLE: {
+    if (pattern.subPatterns.empty()) {
+      return llvm::ConstantInt::getTrue(*context);
+    }
+    llvm::Value *cond = nullptr;
+    for (size_t i = 0; i < pattern.subPatterns.size(); ++i) {
+      auto *elem = builder->CreateExtractValue(
+          scrutinee, {static_cast<unsigned int>(i)}, "tuple_elem");
+      std::unordered_map<std::string, llvm::Value *> subBindings;
+      auto *elemCond = generateMatchArm(*pattern.subPatterns[i], elem, nullptr,
+                                        body, subBindings);
+      if (i == 0) {
+        cond = elemCond;
+      } else {
+        cond = builder->CreateAnd(cond, elemCond, "tuple_and");
+      }
+    }
+    return cond ? cond : llvm::ConstantInt::getTrue(*context);
+  }
+
+  case PatternKind::STRUCT: {
+    if (pattern.subPatterns.empty() || !scrutineeAlloca) {
+      return llvm::ConstantInt::getTrue(*context);
+    }
+    auto structType = llvm::cast<llvm::StructType>(scrutinee->getType());
+    llvm::Value *cond = nullptr;
+    for (size_t i = 0; i < pattern.subPatterns.size(); ++i) {
+      auto *fieldPtr = builder->CreateStructGEP(structType, scrutineeAlloca, i,
+                                                "struct_field_ptr");
+      auto *fieldVal = builder->CreateLoad(structType->getElementType(i),
+                                           fieldPtr, "struct_field");
+      std::unordered_map<std::string, llvm::Value *> subBindings;
+      auto *fieldCond = generateMatchArm(*pattern.subPatterns[i], fieldVal,
+                                         fieldPtr, body, subBindings);
+      if (i == 0) {
+        cond = fieldCond;
+      } else {
+        cond = builder->CreateAnd(cond, fieldCond, "struct_and");
+      }
+    }
+    return cond ? cond : llvm::ConstantInt::getTrue(*context);
+  }
+
+  case PatternKind::ENUM: {
+    auto enumStructType = enumTypes_[pattern.typeName];
+    if (!enumStructType || !scrutineeAlloca) {
+      auto caseValue = llvm::ConstantInt::get(scrutinee->getType(), 0);
+      return builder->CreateICmpEQ(scrutinee, caseValue, "match_enum_cmp");
+    }
+    auto tagPtr = builder->CreateStructGEP(enumStructType, scrutineeAlloca, 0,
+                                           "enum_tag_ptr");
+    auto tagVal = builder->CreateLoad(llvm::Type::getInt32Ty(*context), tagPtr,
+                                      "enum_tag");
+    int variantTag = 0;
+    if (definedEnums_.find(pattern.typeName) != definedEnums_.end()) {
+      const auto &variants = definedEnums_[pattern.typeName];
+      for (size_t i = 0; i < variants.size(); ++i) {
+        if (variants[i] == pattern.name) {
+          variantTag = static_cast<int>(i);
+          break;
+        }
+      }
+    }
+    auto expectedTag =
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), variantTag);
+    auto tagCmp = builder->CreateICmpEQ(tagVal, expectedTag, "enum_tag_cmp");
+
+    llvm::Value *cond = tagCmp;
+    if (!pattern.subPatterns.empty()) {
+      llvm::Value *dataCond = nullptr;
+      for (size_t i = 0; i < pattern.subPatterns.size(); ++i) {
+        auto *dataPtr = builder->CreateStructGEP(
+            enumStructType, scrutineeAlloca, i + 1, "enum_data_ptr");
+        auto *dataVal = builder->CreateLoad(
+            enumStructType->getElementType(i + 1), dataPtr, "enum_data");
+        std::unordered_map<std::string, llvm::Value *> subBindings;
+        auto *dataCmp = generateMatchArm(*pattern.subPatterns[i], dataVal,
+                                         dataPtr, body, subBindings);
+        if (i == 0) {
+          dataCond = dataCmp;
+        } else {
+          dataCond = builder->CreateAnd(dataCond, dataCmp, "enum_data_and");
+        }
+      }
+      cond = builder->CreateAnd(cond, dataCond, "enum_cond");
+    }
+    return cond;
+  }
+
+  case PatternKind::OR: {
+    if (pattern.subPatterns.empty()) {
+      return llvm::ConstantInt::getTrue(*context);
+    }
+    llvm::Value *cond = nullptr;
+    for (size_t i = 0; i < pattern.subPatterns.size(); ++i) {
+      std::unordered_map<std::string, llvm::Value *> subBindings;
+      auto *subCond = generateMatchArm(*pattern.subPatterns[i], scrutinee,
+                                       scrutineeAlloca, body, subBindings);
+      if (i == 0) {
+        cond = subCond;
+      } else {
+        cond = builder->CreateOr(cond, subCond, "or_pattern");
+      }
+    }
+    return cond ? cond : llvm::ConstantInt::getTrue(*context);
+  }
+  }
+
+  return llvm::ConstantInt::getTrue(*context);
 }
 
 void CodeGen::visitEnumVariantExpr(EnumVariantExpr &expr) {

@@ -97,6 +97,8 @@ private:
 
   std::shared_ptr<Type> i32_, i64_, f32_, f64_, bool_, string_, unit_;
 
+  std::unordered_map<std::string, std::vector<std::string>> definedEnums_;
+
   void initBuiltins();
   std::shared_ptr<Type> freshTypeVar();
   std::shared_ptr<Type> inferExpr(Expr *expr);

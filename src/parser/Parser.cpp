@@ -795,6 +795,35 @@ std::unique_ptr<Expr> Parser::parseMatchExpr() {
 }
 
 std::unique_ptr<Pattern> Parser::parsePattern() {
+  auto firstPattern = parsePatternInternal();
+
+  auto currentType = peek().type;
+  bool isPipe = (currentType == TokenType::PIPE);
+
+  if (isPipe) {
+    advance();
+    auto orPattern = std::make_unique<Pattern>(PatternKind::OR);
+    orPattern->subPatterns.push_back(std::move(firstPattern));
+
+    while (true) {
+      auto altPattern = parsePatternInternal();
+      orPattern->subPatterns.push_back(std::move(altPattern));
+
+      auto nextType = peek().type;
+      bool nextIsPipe = (nextType == TokenType::PIPE);
+
+      if (!nextIsPipe) {
+        break;
+      }
+      advance();
+    }
+    return orPattern;
+  }
+
+  return firstPattern;
+}
+
+std::unique_ptr<Pattern> Parser::parsePatternInternal() {
   if (match(TokenType::UNDERSCORE)) {
     auto pattern = std::make_unique<Pattern>(PatternKind::WILDCARD);
     return pattern;
@@ -807,7 +836,7 @@ std::unique_ptr<Pattern> Parser::parsePattern() {
       auto pattern = std::make_unique<Pattern>(PatternKind::ENUM);
       pattern->name = name;
       while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
-        auto subPattern = parsePattern();
+        auto subPattern = parsePatternInternal();
         pattern->subPatterns.push_back(std::move(subPattern));
         if (!check(TokenType::RIGHT_PAREN)) {
           consume(TokenType::COMMA, "Expect ',' between pattern arguments");
@@ -838,7 +867,7 @@ std::unique_ptr<Pattern> Parser::parsePattern() {
   if (match(TokenType::LEFT_PAREN)) {
     auto pattern = std::make_unique<Pattern>(PatternKind::TUPLE);
     while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
-      auto subPattern = parsePattern();
+      auto subPattern = parsePatternInternal();
       pattern->subPatterns.push_back(std::move(subPattern));
       if (!check(TokenType::RIGHT_PAREN)) {
         consume(TokenType::COMMA, "Expect ',' between tuple patterns");
@@ -853,9 +882,18 @@ std::unique_ptr<Pattern> Parser::parsePattern() {
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
       const Token &fieldName =
           consume(TokenType::IDENTIFIER, "Expect field name in pattern");
-      pattern->subPatterns.push_back(
-          std::make_unique<Pattern>(PatternKind::BIND));
-      pattern->subPatterns.back()->name = fieldName.value;
+
+      std::unique_ptr<Pattern> fieldPattern;
+      if (match(TokenType::COLON)) {
+        fieldPattern = parsePatternInternal();
+      } else {
+        fieldPattern = std::make_unique<Pattern>(PatternKind::BIND);
+        fieldPattern->name = fieldName.value;
+      }
+      pattern->subPatterns.push_back(std::move(fieldPattern));
+      if (!pattern->subPatterns.back()->name.empty()) {
+        pattern->subPatterns.back()->name = fieldName.value;
+      }
       if (!check(TokenType::RIGHT_BRACE)) {
         consume(TokenType::COMMA, "Expect ',' between struct patterns");
       }

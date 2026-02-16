@@ -33,6 +33,11 @@ std::unique_ptr<Expr> Parser::parseOr(int depth) {
     expr = std::make_unique<LogicalExpr>(std::move(expr), LogicalOperator::OR,
                                          std::move(right));
   }
+  while (match(TokenType::PIPE)) {
+    Token op = previous();
+    auto right = parseAnd(depth);
+    expr = std::make_unique<BinaryExpr>(std::move(expr), "|", std::move(right));
+  }
   return expr;
 }
 

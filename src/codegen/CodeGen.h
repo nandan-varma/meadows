@@ -118,6 +118,10 @@ private:
   void visitArrayExpr(ArrayExpr &expr) override;
   void visitObjectExpr(ObjectExpr &expr) override;
   void visitMatchExpr(MatchExpr &expr) override;
+  llvm::Value *generateMatchArm(
+      Pattern &pattern, llvm::Value *scrutinee, llvm::Value *scrutineeAlloca,
+      Expr &body,
+      std::unordered_map<std::string, llvm::Value *> &matchBindings);
   void visitEnumVariantExpr(EnumVariantExpr &expr) override;
 
   void visitExprStmt(ExprStmt &stmt) override;
