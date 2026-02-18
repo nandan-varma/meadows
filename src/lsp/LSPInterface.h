@@ -2,8 +2,8 @@
 #define LSP_INTERFACE_H
 
 #include "../ast/AST.h"
+#include "../errors/CompilationError.h"
 #include "../lexer/Token.h"
-#include "../utils/Exceptions.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,12 +52,12 @@ public:
                        const std::vector<std::string> &errors);
 
   /**
-   * @brief Output diagnostics using rich Diagnostic structures
+   * @brief Output diagnostics using rich CompilationError structures
    * @param filePath Path to the source file
-   * @param diagnostics List of diagnostics
+   * @param errors List of compilation errors
    */
   void emitDiagnostics(const std::string &filePath,
-                       const std::vector<meadows::Diagnostic> &diagnostics);
+                       const std::vector<meadows::CompilationError> &errors);
 
   /**
    * @brief Parse and convert an error message to LSP diagnostic format
@@ -69,13 +69,14 @@ public:
                            const std::string &filePath);
 
   /**
-   * @brief Parse error string into rich Diagnostic structure
+   * @brief Parse error string into rich CompilationError structure
    * @param error The error message from compiler
    * @param filePath Path to the source file
-   * @return Diagnostic structure
+   * @return CompilationError structure
    */
-  meadows::Diagnostic parseErrorToDiagnostic(const std::string &error,
-                                             const std::string &filePath);
+  meadows::CompilationError
+  parseErrorToCompilationError(const std::string &error,
+                               const std::string &filePath);
 
 private:
   std::string escapeJson(const std::string &str);
@@ -84,8 +85,9 @@ private:
   /**
    * @brief Output diagnostics as JSON (internal implementation)
    */
-  void emitDiagnosticsJSON(const std::string &filePath,
-                           const std::vector<meadows::Diagnostic> &diagnostics);
+  void
+  emitDiagnosticsJSON(const std::string &filePath,
+                      const std::vector<meadows::CompilationError> &errors);
 
   /**
    * @brief Convert severity string to LSP severity number

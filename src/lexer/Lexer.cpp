@@ -3,7 +3,6 @@
 #include <unordered_map>
 
 #include "../utils/ErrorCodes.h"
-#include "../utils/Exceptions.h"
 #include "../utils/MemoryUtils.h"
 #include "Lexer.h"
 
@@ -221,9 +220,8 @@ Token Lexer::number() {
   // Parse integer part
   while (isdigit(peek())) {
     if (digitCount >= MAX_DIGITS) {
-      meadows::SourceLocation loc("", line_, startColumn);
-      throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
-                                      "Number literal too large", loc);
+
+      throw std::runtime_error("Number literal too large");
     }
     advance();
     digitCount++;
@@ -235,9 +233,8 @@ Token Lexer::number() {
     // Parse fractional part
     while (isdigit(peek())) {
       if (digitCount >= MAX_DIGITS) {
-        meadows::SourceLocation loc("", line_, startColumn);
-        throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
-                                        "Number literal too large", loc);
+
+        throw std::runtime_error("Number literal too large");
       }
       advance();
       digitCount++;
@@ -252,9 +249,8 @@ Token Lexer::number() {
     }
     while (isdigit(peek())) {
       if (digitCount >= MAX_DIGITS) {
-        meadows::SourceLocation loc("", line_, startColumn);
-        throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
-                                        "Number literal too large", loc);
+
+        throw std::runtime_error("Number literal too large");
       }
       advance();
       digitCount++;
@@ -307,9 +303,8 @@ Token Lexer::string() {
     nonEscapeCount++;
   }
   if (isAtEnd()) {
-    meadows::SourceLocation loc("", startLine, startColumn);
-    throw meadows::LexicalException(meadows::ErrorCode::LEX_UNTERMINATED_STRING,
-                                    "Unterminated string", loc);
+
+    throw std::runtime_error("Unterminated string");
   }
   std::string value;
   value.reserve(nonEscapeCount);
@@ -322,10 +317,7 @@ Token Lexer::string() {
     }
   }
   if (value.size() > meadows::MAX_STRING_LENGTH) {
-    meadows::SourceLocation loc("", startLine, startColumn);
-    throw meadows::LexicalException(meadows::ErrorCode::LEX_INVALID_CHARACTER,
-                                    "String literal exceeds maximum length",
-                                    loc);
+    throw std::runtime_error("String literal exceeds maximum length");
   }
   advance();
   return Token(TokenType::STRING, value, line_, startColumn);

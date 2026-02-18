@@ -2,12 +2,14 @@
 #define PARSER_H
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "../ast/AST.h"
+#include "../ast/ASTFactory.h"
+#include "../errors/ErrorHandler.h"
 #include "../lexer/Token.h"
 #include "../modules/ModuleResolver.h"
-#include "../utils/DiagnosticsCollector.h"
 
 /**
  * @class Parser
@@ -25,20 +27,13 @@ public:
   /**
    * @brief Constructs a Parser for the given tokens.
    * @param tokens The token stream to parse.
+   * @param sourceFile The source file path for error reporting.
    */
-  Parser(std::vector<Token> tokens);
-
-  /**
-   * @brief Constructs a Parser with diagnostics collection.
-   * @param tokens The token stream to parse.
-   * @param diagnostics Collector for errors and warnings.
-   */
-  Parser(std::vector<Token> tokens, meadows::DiagnosticsCollector &diagnostics);
+  Parser(std::vector<Token> tokens, const std::string &sourceFile = "");
 
   /**
    * @brief Parses the entire token stream into an AST.
    * @return A vector of statement AST nodes.
-   * @throws std::runtime_error If a fatal syntax error is encountered.
    */
   std::vector<std::unique_ptr<Stmt>> parse();
 
@@ -48,9 +43,16 @@ public:
   bool hasErrors() const;
 
   /**
-   * @brief Get the diagnostics collector (if used).
+   * @brief Get the error handler.
    */
-  meadows::DiagnosticsCollector *diagnostics() { return diagnostics_; }
+  meadows::ErrorHandler &errorHandler() { return *errorHandler_; }
+
+  /**
+   * @brief Get the error context.
+   */
+  const meadows::ErrorContext &getErrorContext() const {
+    return errorHandler_->getContext();
+  }
 
   /**
    * @brief Set the source file path for module resolution.
@@ -65,17 +67,29 @@ public:
     resolver_ = std::make_unique<meadows::ModuleResolver>(resolverConfig_);
   }
 
+  /**
+   * @brief Set the project root for module resolution.
+   */
+  void setProjectRoot(const std::string &path) {
+    resolverConfig_.projectRoot = path;
+    resolver_ = std::make_unique<meadows::ModuleResolver>(resolverConfig_);
+  }
+
 private:
   std::vector<Token> tokens_;
   size_t current_;
-  meadows::DiagnosticsCollector *diagnostics_;
+  std::unique_ptr<meadows::ErrorHandler> errorHandler_;
   bool inErrorRecovery_;
   int consecutiveErrors_;
   std::string sourcePath_;
+  std::string sourceFile_;
   meadows::ModuleResolverConfig resolverConfig_;
   std::unique_ptr<meadows::ModuleResolver> resolver_;
 
   static constexpr int MAX_CONSECUTIVE_ERRORS = 3;
+
+  // AST Factory for node creation
+  meadows::ASTFactory &factory_;
 
   bool isAtEnd() const;
   const Token &peek() const;
@@ -83,18 +97,17 @@ private:
   const Token &advance();
   bool check(TokenType type) const;
   bool match(TokenType type);
-  const Token &consume(TokenType type, meadows::ErrorCode code,
-                       const std::string &message);
-
-  // Backward compatibility - uses generic error code
-  const Token &consume(TokenType type, const std::string &message) {
-    return consume(type, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message);
-  }
+  const Token &consume(TokenType type, const std::string &message);
 
   /**
-   * @brief Report an error at current position.
+   * @brief Create a source location from current token position.
    */
-  void error(meadows::ErrorCode code, const std::string &message);
+  meadows::SourceLocation currentLocation() const;
+
+  /**
+   * @brief Report a parse error.
+   */
+  void error(const std::string &message);
 
   /**
    * @brief Synchronize parser state after error (panic mode recovery).

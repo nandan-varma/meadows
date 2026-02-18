@@ -7,7 +7,7 @@
 #define TYPE_CHECKER_H
 
 #include "../ast/AST.h"
-#include "../utils/DiagnosticsCollector.h"
+#include "TypeBuilder.h"
 #include "Types.h"
 #include <iostream>
 #include <unordered_map>

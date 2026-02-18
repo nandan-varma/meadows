@@ -27,8 +27,6 @@ set(TEST_SOURCES
     unit/codegen/CodeGen.test.cpp
     unit/codegen/SymbolTable.test.cpp
     unit/codegen/StringUtils.test.cpp
-    unit/utils/Exceptions.test.cpp
-    unit/utils/DiagnosticsCollector.test.cpp
     unit/utils/ErrorCodes.test.cpp
     unit/utils/Timer.test.cpp
     unit/utils/WarningManager.test.cpp

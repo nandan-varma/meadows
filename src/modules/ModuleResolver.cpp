@@ -148,6 +148,10 @@ void ModuleResolver::setSearchPaths(
   searchOrder_ = paths;
 }
 
+void ModuleResolver::setConfig(const ModuleResolverConfig &config) {
+  config_ = config;
+}
+
 bool ModuleResolver::fileExists(const std::string &path) {
   if (path.empty()) {
     return false;

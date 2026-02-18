@@ -127,22 +127,24 @@ set(MEADOWS_LIB_SOURCES
   src/parser/Parser.cpp
   src/parser/ParserExpressions.cpp
   src/ast/AST.cpp
+  src/ast/ASTFactory.cpp
   src/codegen/CodeGen.cpp
+  src/codegen/CodeGenStrategy.cpp
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
   src/types/TypeChecker.cpp
   src/types/Types.cpp
+  src/types/TypeBuilder.cpp
   src/lsp/LSPInterface.cpp
   src/utils/ErrorCodes.cpp
-  src/utils/Exceptions.cpp
-  src/utils/DiagnosticsCollector.cpp
-  src/utils/ErrorFormatter.cpp
   src/utils/WarningManager.cpp
   src/config/Config.cpp
   src/config/TOMLParser.cpp
   src/modules/Modules.cpp
   src/modules/ModuleResolver.cpp
   src/modules/ModuleCompiler.cpp
+  src/errors/CompilationError.cpp
+  src/errors/ErrorHandler.cpp
 )
 
 set(MEADOWS_HEADERS
@@ -150,6 +152,7 @@ set(MEADOWS_HEADERS
   src/lexer/Token.h
   src/parser/Parser.h
   src/ast/AST.h
+  src/ast/ASTFactory.h
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
   src/codegen/StringUtils.h
@@ -157,11 +160,9 @@ set(MEADOWS_HEADERS
   src/codegen/TypeUtils.h
   src/types/TypeChecker.h
   src/types/Types.h
+  src/types/TypeBuilder.h
   src/lsp/LSPInterface.h
   src/utils/ErrorCodes.h
-  src/utils/Exceptions.h
-  src/utils/DiagnosticsCollector.h
-  src/utils/ErrorFormatter.h
   src/utils/Timer.h
   src/utils/ASTPrinter.h
   src/utils/WarningManager.h
@@ -171,6 +172,8 @@ set(MEADOWS_HEADERS
   src/modules/Modules.h
   src/modules/ModuleResolver.h
   src/modules/ModuleCompiler.h
+  src/errors/CompilationError.h
+  src/errors/ErrorHandler.h
 )
 
 #==============================================================================

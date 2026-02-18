@@ -23,6 +23,7 @@
  */
 
 #include "../ast/AST.h"
+#include "CodeGenStrategy.h"
 #include "MemoryUtils.h"
 #include "StringUtils.h"
 #include "SymbolTable.h"
@@ -53,16 +54,19 @@
  */
 class CodeGen : public ExprVisitor, public StmtVisitor {
 public:
-  CodeGen(bool optimize = false);
+  explicit CodeGen(::meadows::codegen::OptimizationLevel level =
+                       ::meadows::codegen::OptimizationLevel::DEBUG);
 
-  void setOptimize(bool optimize) { optimize_ = optimize; }
+  void
+  setStrategy(std::unique_ptr<::meadows::codegen::CodeGenStrategy> strategy);
+  void setOptimizationLevel(::meadows::codegen::OptimizationLevel level);
 
   void generate(const std::vector<std::unique_ptr<Stmt>> &statements);
 
   std::unique_ptr<llvm::Module> getModule();
 
 private:
-  bool optimize_ = false;
+  std::unique_ptr<::meadows::codegen::CodeGenStrategy> strategy_;
   std::unique_ptr<llvm::LLVMContext> context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;

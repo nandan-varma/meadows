@@ -21,10 +21,12 @@ void TypeChecker::initBuiltins() {
   string_ = std::make_shared<PrimitiveType>(PrimitiveKind::STRING);
   unit_ = std::make_shared<PrimitiveType>(PrimitiveKind::UNIT);
 
-  auto fnPrintI32 = FunctionType::make({i32_}, unit_);
+  auto fnPrintI32 =
+      FunctionTypeBuilder().withReturnType(unit_).withParam(i32_).build();
   bind("print_i32", fnPrintI32);
 
-  auto fnPrintString = FunctionType::make({string_}, unit_);
+  auto fnPrintString =
+      FunctionTypeBuilder().withReturnType(unit_).withParam(string_).build();
   bind("print_string", fnPrintString);
 }
 
@@ -256,7 +258,7 @@ void TypeChecker::visitIndexExpr(IndexExpr &expr) {
   addConstraint(indexType, i32_, "Array index must be integer");
 
   auto elemType = freshTypeVar();
-  auto expectedArray = ArrayType::make(elemType);
+  auto expectedArray = ArrayTypeBuilder(elemType).build();
   addConstraint(arrayType, expectedArray, "Index operation on non-array");
 
   exprTypes_[&expr] = elemType;
@@ -310,7 +312,7 @@ void TypeChecker::visitCallExpr(CallExpr &expr) {
 
 void TypeChecker::visitArrayExpr(ArrayExpr &expr) {
   if (expr.elements.empty()) {
-    exprTypes_[&expr] = ArrayType::make(freshTypeVar());
+    exprTypes_[&expr] = ArrayTypeBuilder(freshTypeVar()).build();
     return;
   }
 
@@ -320,7 +322,7 @@ void TypeChecker::visitArrayExpr(ArrayExpr &expr) {
     addConstraint(firstType, elemType, "Array element type mismatch");
   }
 
-  exprTypes_[&expr] = ArrayType::make(firstType);
+  exprTypes_[&expr] = ArrayTypeBuilder(firstType).build();
 }
 
 void TypeChecker::visitObjectExpr(ObjectExpr &expr) {
@@ -442,7 +444,11 @@ void TypeChecker::visitFuncStmt(FuncStmt &stmt) {
                         ? freshTypeVar()
                         : getPrimitiveType(stmt.returnTypeAnnotation);
 
-  auto fnType = FunctionType::make(paramTypes, returnType);
+  auto fnTypeBuilder = FunctionTypeBuilder().withReturnType(returnType);
+  for (const auto &paramType : paramTypes) {
+    fnTypeBuilder.withParam(paramType);
+  }
+  auto fnType = fnTypeBuilder.build();
   bind(stmt.name, fnType);
 
   auto prevEnv = env_;

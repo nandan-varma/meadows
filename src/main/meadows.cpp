@@ -1,13 +1,12 @@
 #include "../ast/AST.h"
 #include "../codegen/CodeGen.h"
 #include "../config/Config.h"
+#include "../errors/ErrorHandler.h"
 #include "../lexer/Lexer.h"
 #include "../lsp/LSPInterface.h"
 #include "../parser/Parser.h"
 #include "../types/TypeChecker.h"
 #include "../utils/ASTPrinter.h"
-#include "../utils/DiagnosticsCollector.h"
-#include "../utils/ErrorFormatter.h"
 #include "../utils/Timer.h"
 #include "../utils/WarningManager.h"
 #include <algorithm>
@@ -308,9 +307,6 @@ int cmdBuild(bool verbose, bool releaseMode) {
                      std::istreambuf_iterator<char>());
   entryFile.close();
 
-  // Compile using the existing logic
-  meadows::DiagnosticsCollector diagnostics;
-
   try {
     // Lexical analysis
     if (verbose) {
@@ -331,10 +327,10 @@ int cmdBuild(bool verbose, bool releaseMode) {
       std::cerr << "[parse] Parsing..." << std::endl;
     }
 
-    Parser parser(tokens);
+    Parser parser(tokens, entryPoint);
     auto statements = parser.parse();
 
-    if (diagnostics.hasErrors()) {
+    if (parser.hasErrors()) {
       std::cerr << "Parse errors found" << std::endl;
       return 1;
     }
@@ -464,23 +460,19 @@ int cmdLint(const std::string &filePath) {
   std::string source((std::istreambuf_iterator<char>(file)),
                      std::istreambuf_iterator<char>());
 
-  meadows::DiagnosticsCollector diagnostics;
-
   try {
     // Lex
     Lexer lexer(source);
     std::vector<Token> tokens = lexer.tokenize();
 
     // Parse
-    Parser parser(tokens, diagnostics);
+    Parser parser(tokens, filePath);
     parser.setSourcePath(filePath);
     parser.setStdlibPath(getStdlibPath());
     auto statements = parser.parse();
 
-    if (diagnostics.hasErrors()) {
-      meadows::ErrorFormatter formatter;
-      std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
-                                            filePath);
+    if (parser.hasErrors()) {
+      std::cerr << "Parse errors found in " << filePath << std::endl;
       return 1;
     }
 
@@ -555,22 +547,22 @@ int compileSingleFile(
 
   // In LSP mode, we skip the normal compilation and just validate
   if (lspMode) {
-    meadows::DiagnosticsCollector diagnostics;
+    std::vector<meadows::CompilationError> errors;
     std::vector<Token> tokens;
 
     try {
       Lexer lexer(source);
       tokens = lexer.tokenize();
-      Parser parser(tokens, diagnostics);
+      Parser parser(tokens, filePath);
       auto statements = parser.parse();
     } catch (const std::exception &e) {
-      meadows::SourceLocation loc(filePath, 1, 1);
-      diagnostics.reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                              std::string(e.what()), loc);
+      errors.emplace_back(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                          std::string(e.what()),
+                          meadows::SourceLocation(filePath, 1, 1));
     }
 
     LSPInterface lsp;
-    lsp.emitDiagnostics(filePath, diagnostics.diagnostics());
+    lsp.emitDiagnostics(filePath, errors);
     return 0;
   }
 
@@ -586,8 +578,6 @@ int compileSingleFile(
     }
   }
 
-  meadows::DiagnosticsCollector diagnostics;
-
   try {
     meadows::Timer lexTimer, parseTimer, codegenTimer;
 
@@ -601,12 +591,7 @@ int compileSingleFile(
     try {
       tokens = lexer.tokenize();
     } catch (const std::exception &e) {
-      meadows::SourceLocation loc(filePath, 1, 1);
-      diagnostics.reportError(meadows::ErrorCode::LEX_INVALID_CHARACTER,
-                              std::string(e.what()), loc);
-      meadows::ErrorFormatter formatter;
-      std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
-                                            filePath);
+      std::cerr << "Lexical error: " << e.what() << std::endl;
       return 1;
     }
 
@@ -620,15 +605,13 @@ int compileSingleFile(
       parseTimer.start();
     }
 
-    Parser parser(tokens, diagnostics);
+    Parser parser(tokens, filePath);
     parser.setSourcePath(filePath);
     parser.setStdlibPath(getStdlibPath());
     auto statements = parser.parse();
 
-    if (diagnostics.hasErrors()) {
-      meadows::ErrorFormatter formatter;
-      std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
-                                            filePath);
+    if (parser.hasErrors()) {
+      std::cerr << "Parse errors found in " << filePath << std::endl;
       return 1;
     }
 

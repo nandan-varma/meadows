@@ -69,6 +69,7 @@ public:
   std::vector<std::string> findModulesInDirectory(const std::string &dirPath);
   std::vector<ModuleSearchPath> getSearchOrder() const;
   void setSearchPaths(const std::vector<ModuleSearchPath> &paths);
+  void setConfig(const ModuleResolverConfig &config);
 
   static bool fileExists(const std::string &path);
   static ModuleName parseModuleNameFromFile(const std::string &filePath);

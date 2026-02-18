@@ -1,50 +1,50 @@
-#include <stdexcept>
+#include <fstream>
+#include <sstream>
 
+#include "../errors/CompilationError.h"
 #include "../lexer/Lexer.h"
 #include "../utils/MemoryUtils.h"
 #include "Parser.h"
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
 
-Parser::Parser(std::vector<Token> t)
-    : tokens_(std::move(t)), current_(0), diagnostics_(nullptr),
+Parser::Parser(std::vector<Token> tokens, const std::string &sourceFile)
+    : tokens_(std::move(tokens)), current_(0),
+      errorHandler_(std::make_unique<meadows::ErrorHandler>()),
       inErrorRecovery_(false), consecutiveErrors_(0), sourcePath_(""),
-      resolverConfig_(), resolver_(nullptr) {}
+      sourceFile_(sourceFile), resolverConfig_(), resolver_(nullptr),
+      factory_(meadows::ASTFactory::getInstance()) {
+  // Set up standard error handling chain
+  errorHandler_->addProcessor(std::make_unique<meadows::CounterProcessor>());
+  errorHandler_->addProcessor(std::make_unique<meadows::LimitProcessor>());
+  errorHandler_->addProcessor(
+      std::make_unique<meadows::ConsoleOutputProcessor>());
+}
 
-Parser::Parser(std::vector<Token> t, meadows::DiagnosticsCollector &diagnostics)
-    : tokens_(std::move(t)), current_(0), diagnostics_(&diagnostics),
-      inErrorRecovery_(false), consecutiveErrors_(0), sourcePath_(""),
-      resolverConfig_(), resolver_(nullptr) {}
+meadows::SourceLocation Parser::currentLocation() const {
+  const Token &tok = peek();
+  return meadows::SourceLocation(sourceFile_, tok.line, tok.column,
+                                 tok.column +
+                                     static_cast<int>(tok.value.length()));
+}
 
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
   std::vector<std::unique_ptr<Stmt>> statements;
   while (!isAtEnd()) {
-    try {
-      auto stmt = parseStmt();
-      if (stmt) {
-        auto importStmt = dynamic_cast<ImportStmt *>(stmt.get());
-        if (importStmt) {
-          auto externStmts = resolveAndParseModule(importStmt->modulePath);
-          for (auto &externStmt : externStmts) {
-            statements.push_back(std::move(externStmt));
-          }
+    auto stmt = parseStmt();
+    if (stmt) {
+      auto importStmt = dynamic_cast<ImportStmt *>(stmt.get());
+      if (importStmt) {
+        auto externStmts = resolveAndParseModule(importStmt->modulePath);
+        for (auto &externStmt : externStmts) {
+          statements.push_back(std::move(externStmt));
         }
-        statements.push_back(std::move(stmt));
-        consecutiveErrors_ = 0;
-        inErrorRecovery_ = false;
       }
-    } catch (const meadows::MeadowsException &e) {
-      throw;
-    } catch (const std::runtime_error &e) {
-      if (diagnostics_) {
-        meadows::SourceLocation loc("", peek().line, peek().column);
-        diagnostics_->reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                                  e.what(), loc);
-        synchronize();
-      } else {
-        throw;
-      }
+      statements.push_back(std::move(stmt));
+      consecutiveErrors_ = 0;
+      inErrorRecovery_ = false;
+    }
+
+    if (errorHandler_->hasReachedLimit()) {
+      break;
     }
   }
   return statements;
@@ -62,24 +62,19 @@ Parser::resolveAndParseModule(const std::string &modulePath) {
   auto resolution = resolver_->resolve(name, sourcePath_);
 
   if (!resolution.resolved) {
-    if (diagnostics_) {
-      meadows::SourceLocation loc("", peek().line, peek().column);
-      diagnostics_->reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                                "Could not resolve module '" + modulePath +
-                                    "': " + resolution.errorMessage,
-                                loc);
-    }
+    errorHandler_->handle(
+        meadows::ParseError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                            "Could not resolve module '" + modulePath +
+                                "': " + resolution.errorMessage,
+                            currentLocation()));
     return result;
   }
 
   std::ifstream file(resolution.filePath);
   if (!file.is_open()) {
-    if (diagnostics_) {
-      meadows::SourceLocation loc("", peek().line, peek().column);
-      diagnostics_->reportError(
-          meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-          "Cannot open module file: " + resolution.filePath, loc);
-    }
+    errorHandler_->handle(meadows::ParseError(
+        meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+        "Cannot open module file: " + resolution.filePath, currentLocation()));
     return result;
   }
 
@@ -91,18 +86,14 @@ Parser::resolveAndParseModule(const std::string &modulePath) {
   try {
     tokens = lexer.tokenize();
   } catch (const std::exception &e) {
-    if (diagnostics_) {
-      meadows::SourceLocation loc("", peek().line, peek().column);
-      diagnostics_->reportError(meadows::ErrorCode::LEX_INVALID_CHARACTER,
-                                std::string("Lexer error in ") +
-                                    resolution.filePath + ": " + e.what(),
-                                loc);
-    }
+    errorHandler_->handle(meadows::LexicalError(
+        meadows::ErrorCode::LEX_INVALID_CHARACTER,
+        std::string("Lexer error in ") + resolution.filePath + ": " + e.what(),
+        currentLocation()));
     return result;
   }
 
-  meadows::DiagnosticsCollector moduleDiagnostics;
-  Parser moduleParser(tokens, diagnostics_ ? *diagnostics_ : moduleDiagnostics);
+  Parser moduleParser(tokens, resolution.filePath);
   moduleParser.setSourcePath(resolution.filePath);
   auto moduleStmts = moduleParser.parse();
 
@@ -116,9 +107,7 @@ Parser::resolveAndParseModule(const std::string &modulePath) {
   return result;
 }
 
-bool Parser::hasErrors() const {
-  return diagnostics_ && diagnostics_->hasErrors();
-}
+bool Parser::hasErrors() const { return errorHandler_->hasErrors(); }
 
 bool Parser::isAtEnd() const { return peek().type == TokenType::EOF_TOKEN; }
 
@@ -146,44 +135,31 @@ bool Parser::match(TokenType type) {
   return false;
 }
 
-const Token &Parser::consume(TokenType type, meadows::ErrorCode code,
-                             const std::string &message) {
+const Token &Parser::consume(TokenType type, const std::string &message) {
   if (check(type)) {
     return advance();
   }
-  error(code, message);
-  // Return current_ token anyway to allow parsing to continue
+  error(message);
   return peek();
 }
 
-void Parser::error(meadows::ErrorCode code, const std::string &message) {
-  if (diagnostics_) {
-    meadows::SourceLocation loc("", peek().line, peek().column);
-    loc.endColumn = loc.column + 1;
-    diagnostics_->reportError(code, message, loc);
-    consecutiveErrors_++;
-    inErrorRecovery_ = true;
-  } else {
-    meadows::SourceLocation loc("", peek().line, peek().column);
-    throw meadows::ParseException(code, message, loc);
-  }
+void Parser::error(const std::string &message) {
+  auto loc = currentLocation();
+  errorHandler_->handle(meadows::ParseError(
+      meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message, loc));
+  consecutiveErrors_++;
+  inErrorRecovery_ = true;
+  synchronize();
 }
 
 void Parser::synchronize() {
-  if (!diagnostics_)
-    return;
-
   inErrorRecovery_ = true;
+  advance();
 
-  advance(); // Skip the token that caused the error
-
-  // Synchronize at statement boundaries
   while (!isAtEnd()) {
-    // Semicolon ends most statements
     if (previous().type == TokenType::SEMICOLON)
       return;
 
-    // Keywords that start new statements
     switch (peek().type) {
     case TokenType::LET:
     case TokenType::FUNC:
@@ -194,8 +170,7 @@ void Parser::synchronize() {
     case TokenType::RETURN:
     case TokenType::BREAK:
     case TokenType::CONTINUE:
-    case TokenType::LEFT_BRACE: // Block start
-    // Additional statement-start keywords for better recovery
+    case TokenType::LEFT_BRACE:
     case TokenType::MODULE:
     case TokenType::IMPORT:
     case TokenType::EXPORT:
@@ -253,10 +228,8 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
 std::unique_ptr<Stmt> Parser::parseLetStmt() {
   const Token &name = consume(TokenType::IDENTIFIER, "Expect variable name");
 
-  // Parse optional type annotation
   std::string typeAnnotation;
   if (match(TokenType::COLON)) {
-    // Type can be a keyword (i32, i64, f32, f64, bool, string) or identifier
     TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
                               TokenType::F32,       TokenType::F64,
                               TokenType::BOOL,      TokenType::STRING,
@@ -272,11 +245,9 @@ std::unique_ptr<Stmt> Parser::parseLetStmt() {
     }
 
     if (!foundType) {
-      error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-            "Expect type name after ':'");
+      error("Expect type name after ':'");
     }
 
-    // Handle generic types like List<i32>
     if (match(TokenType::LESS)) {
       typeAnnotation += "<";
       const Token &genericToken =
@@ -290,13 +261,20 @@ std::unique_ptr<Stmt> Parser::parseLetStmt() {
   consume(TokenType::EQUAL, "Expect '=' after variable name");
   auto initializer = parseExpr();
   consume(TokenType::SEMICOLON, "Expect ';' after variable declaration");
-  return std::make_unique<LetStmt>(name.value, std::move(initializer),
-                                   typeAnnotation);
+
+  if (typeAnnotation.empty()) {
+    return factory_.createLetStmt(name.value, std::move(initializer),
+                                  currentLocation());
+  } else {
+    return factory_.createLetStmt(name.value, std::move(initializer),
+                                  typeAnnotation, currentLocation());
+  }
 }
 
 std::unique_ptr<Stmt> Parser::parseFuncStmt() {
   const Token &name = consume(TokenType::IDENTIFIER, "Expect function name");
   consume(TokenType::LEFT_PAREN, "Expect '(' after function name");
+
   std::vector<FuncParam> params;
   if (!check(TokenType::RIGHT_PAREN)) {
     do {
@@ -304,7 +282,6 @@ std::unique_ptr<Stmt> Parser::parseFuncStmt() {
           consume(TokenType::IDENTIFIER, "Expect parameter name");
       std::string typeAnnotation;
       if (match(TokenType::COLON)) {
-        // Type can be a keyword or identifier
         TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
                                   TokenType::F32,       TokenType::F64,
                                   TokenType::BOOL,      TokenType::STRING,
@@ -318,8 +295,7 @@ std::unique_ptr<Stmt> Parser::parseFuncStmt() {
           }
         }
         if (!foundType) {
-          error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                "Expect type name after ':'");
+          error("Expect type name after ':'");
         }
       }
       params.emplace_back(paramName.value, typeAnnotation);
@@ -327,7 +303,6 @@ std::unique_ptr<Stmt> Parser::parseFuncStmt() {
   }
   consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters");
 
-  // Parse optional return type
   std::string returnType;
   if (match(TokenType::ARROW)) {
     TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
@@ -343,16 +318,22 @@ std::unique_ptr<Stmt> Parser::parseFuncStmt() {
       }
     }
     if (!foundType) {
-      error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-            "Expect return type after '->'");
+      error("Expect return type after '->'");
     }
   }
 
   consume(TokenType::LEFT_BRACE, "Expect '{' before function body");
   auto body = parseBlock();
   consume(TokenType::RIGHT_BRACE, "Expect '}' after function body");
-  return std::make_unique<FuncStmt>(name.value, std::move(params),
-                                    std::move(body), returnType);
+
+  if (returnType.empty()) {
+    return factory_.createFuncStmt(name.value, std::move(params),
+                                   std::move(body), currentLocation());
+  } else {
+    return factory_.createFuncStmt(name.value, std::move(params),
+                                   std::move(body), returnType,
+                                   currentLocation());
+  }
 }
 
 std::unique_ptr<Stmt> Parser::parseIfStmt() {
@@ -362,12 +343,10 @@ std::unique_ptr<Stmt> Parser::parseIfStmt() {
   consume(TokenType::LEFT_BRACE, "Expect '{' after condition");
   auto thenBranch = parseBlock();
   consume(TokenType::RIGHT_BRACE, "Expect '}' after then branch");
+
   std::vector<std::unique_ptr<Stmt>> elseBranch;
   if (match(TokenType::ELSE)) {
-    // Support else if by checking if next token is IF
     if (check(TokenType::IF)) {
-      // else if - create a nested if statement as a single else branch
-      // statement
       auto elseIfStmt = parseIfStmt();
       elseBranch.push_back(std::move(elseIfStmt));
     } else {
@@ -376,8 +355,9 @@ std::unique_ptr<Stmt> Parser::parseIfStmt() {
       consume(TokenType::RIGHT_BRACE, "Expect '}' after else branch");
     }
   }
-  return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch),
-                                  std::move(elseBranch));
+
+  return factory_.createIfStmt(std::move(condition), std::move(thenBranch),
+                               std::move(elseBranch), currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseForStmt() {
@@ -394,8 +374,9 @@ std::unique_ptr<Stmt> Parser::parseForStmt() {
   consume(TokenType::LEFT_BRACE, "Expect '{' after range");
   auto body = parseBlock();
   consume(TokenType::RIGHT_BRACE, "Expect '}' after body");
-  return std::make_unique<ForStmt>(var.value, std::move(start), std::move(end),
-                                   std::move(body));
+
+  return factory_.createForStmt(var.value, std::move(start), std::move(end),
+                                std::move(body), currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseWhileStmt() {
@@ -405,31 +386,32 @@ std::unique_ptr<Stmt> Parser::parseWhileStmt() {
   consume(TokenType::LEFT_BRACE, "Expect '{' after condition");
   auto body = parseBlock();
   consume(TokenType::RIGHT_BRACE, "Expect '}' after body");
-  return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
+
+  return factory_.createWhileStmt(std::move(condition), std::move(body),
+                                  currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseReturnStmt() {
-  // Check for empty return (void functions)
+  std::unique_ptr<Expr> value;
   if (check(TokenType::SEMICOLON)) {
-    auto nullExpr = std::make_unique<LiteralExpr>("0");
-    consume(TokenType::SEMICOLON, "Expect ';' after return");
-    return std::make_unique<ReturnStmt>(std::move(nullExpr));
+    value = factory_.createLiteralExpr("0", currentLocation());
+  } else {
+    value = parseExpr();
   }
-  auto value = parseExpr();
-  consume(TokenType::SEMICOLON, "Expect ';' after return value");
-  return std::make_unique<ReturnStmt>(std::move(value));
+  consume(TokenType::SEMICOLON, "Expect ';' after return");
+  return factory_.createReturnStmt(std::move(value), currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parsePrintStmt() {
   auto expr = parseExpr();
   consume(TokenType::SEMICOLON, "Expect ';' after print");
-  return std::make_unique<PrintStmt>(std::move(expr));
+  return factory_.createPrintStmt(std::move(expr), currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseExprStmt() {
   auto expr = parseExpr();
   consume(TokenType::SEMICOLON, "Expect ';' after expression");
-  return std::make_unique<ExprStmt>(std::move(expr));
+  return factory_.createExprStmt(std::move(expr), currentLocation());
 }
 
 std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
@@ -443,19 +425,19 @@ std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
 std::unique_ptr<Stmt> Parser::parseBlockStmt() {
   auto body = parseBlock();
   consume(TokenType::RIGHT_BRACE, "Expect '}' after block");
-  return std::make_unique<BlockStmt>(std::move(body));
+  return factory_.createBlockStmt(std::move(body), currentLocation());
 }
 
 std::unique_ptr<Expr> Parser::parseExpr() { return parseAssignment(); }
 
 std::unique_ptr<Stmt> Parser::parseBreakStmt() {
   consume(TokenType::SEMICOLON, "Expect ';' after break");
-  return std::make_unique<BreakStmt>();
+  return factory_.createBreakStmt(currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseContinueStmt() {
   consume(TokenType::SEMICOLON, "Expect ';' after continue");
-  return std::make_unique<ContinueStmt>();
+  return factory_.createContinueStmt(currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseModuleStmt() {
@@ -467,7 +449,7 @@ std::unique_ptr<Stmt> Parser::parseModuleStmt() {
     modulePath += "." + component.value;
   }
   consume(TokenType::SEMICOLON, "Expect ';' after module declaration");
-  return std::make_unique<ModuleStmt>(modulePath);
+  return factory_.createModuleStmt(modulePath, currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseImportStmt() {
@@ -505,8 +487,8 @@ std::unique_ptr<Stmt> Parser::parseImportStmt() {
   }
 
   consume(TokenType::SEMICOLON, "Expect ';' after import statement");
-  return std::make_unique<ImportStmt>(modulePath, std::move(specificImports),
-                                      alias);
+  return factory_.createImportStmt(modulePath, std::move(specificImports),
+                                   alias, currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseExportStmt() {
@@ -527,8 +509,7 @@ std::unique_ptr<Stmt> Parser::parseExportStmt() {
       }
     }
     if (!foundType) {
-      error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-            "Expect type name after ':' in export");
+      error("Expect type name after ':' in export");
     }
 
     if (match(TokenType::ARROW)) {
@@ -542,14 +523,18 @@ std::unique_ptr<Stmt> Parser::parseExportStmt() {
         }
       }
       if (!foundReturnType) {
-        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-              "Expect return type after '->' in export");
+        error("Expect return type after '->' in export");
       }
     }
   }
 
   consume(TokenType::SEMICOLON, "Expect ';' after export statement");
-  return std::make_unique<ExportStmt>(name.value, typeInfo);
+
+  if (typeInfo.empty()) {
+    return factory_.createExportStmt(name.value, currentLocation());
+  } else {
+    return factory_.createExportStmt(name.value, typeInfo, currentLocation());
+  }
 }
 
 std::unique_ptr<Stmt> Parser::parseExternStmt() {
@@ -582,8 +567,7 @@ std::unique_ptr<Stmt> Parser::parseExternStmt() {
       }
 
       if (!foundType) {
-        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-              "Expect type name after ':'");
+        error("Expect type name after ':'");
       }
     } while (match(TokenType::COMMA));
   }
@@ -607,26 +591,25 @@ std::unique_ptr<Stmt> Parser::parseExternStmt() {
     }
 
     if (!foundType) {
-      error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-            "Expect return type after '->'");
+      error("Expect return type after '->'");
     }
   }
 
   consume(TokenType::SEMICOLON, "Expect ';' after extern declaration");
-  return std::make_unique<ExternStmt>(cName.value, meadowsName.value,
-                                      returnType, params);
+  return factory_.createExternStmt(cName.value, meadowsName.value, returnType,
+                                   std::move(params), currentLocation());
 }
 
 std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
   bool isEnum = previous().type == TokenType::ENUM;
   if (!isEnum && previous().type != TokenType::TYPE) {
-    error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-          "Expect 'type' or 'enum' keyword");
+    error("Expect 'type' or 'enum' keyword");
   }
 
   const Token &name = consume(TokenType::IDENTIFIER, "Expect type name");
 
-  auto typeDef = std::make_unique<TypeDefStmt>(name.value, isEnum);
+  auto typeDef =
+      factory_.createTypeDefStmt(name.value, isEnum, currentLocation());
 
   if (match(TokenType::EQUAL)) {
     if (isEnum) {
@@ -651,8 +634,7 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
               }
             }
             if (!foundType) {
-              error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                    "Expect type in variant parameters");
+              error("Expect type in variant parameters");
             }
             if (!check(TokenType::RIGHT_PAREN)) {
               consume(TokenType::COMMA,
@@ -675,7 +657,6 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
       return std::move(typeDef);
     }
 
-    // type Name = struct { ... }
     consume(TokenType::LEFT_BRACE, "Expect '{' before struct fields");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
       const Token &fieldName =
@@ -695,8 +676,7 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
         }
       }
       if (!foundType) {
-        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-              "Expect type name for field");
+        error("Expect type name for field");
       }
       if (!check(TokenType::RIGHT_BRACE)) {
         consume(TokenType::COMMA, "Expect ',' between fields");
@@ -707,7 +687,6 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
     return std::move(typeDef);
   }
 
-  // Handle case without '=' - just use braces directly
   if (isEnum) {
     consume(TokenType::LEFT_BRACE, "Expect '{' before enum variants");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
@@ -730,8 +709,7 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
             }
           }
           if (!foundType) {
-            error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                  "Expect type in variant parameters");
+            error("Expect type in variant parameters");
           }
           if (!check(TokenType::RIGHT_PAREN)) {
             consume(TokenType::COMMA, "Expect ',' between variant parameters");
@@ -767,8 +745,7 @@ std::unique_ptr<Stmt> Parser::parseTypeDefStmt() {
         }
       }
       if (!foundType) {
-        error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-              "Expect type name for field");
+        error("Expect type name for field");
       }
       if (!check(TokenType::RIGHT_BRACE)) {
         consume(TokenType::COMMA, "Expect ',' between fields");
@@ -799,7 +776,8 @@ std::unique_ptr<Expr> Parser::parseMatchExpr() {
   }
 
   consume(TokenType::RIGHT_BRACE, "Expect '}' after match arms");
-  return std::make_unique<MatchExpr>(std::move(scrutinee), std::move(arms));
+  return factory_.createMatchExpr(std::move(scrutinee), std::move(arms),
+                                  currentLocation());
 }
 
 std::unique_ptr<Pattern> Parser::parsePattern() {
@@ -833,8 +811,7 @@ std::unique_ptr<Pattern> Parser::parsePattern() {
 
 std::unique_ptr<Pattern> Parser::parsePatternInternal() {
   if (match(TokenType::UNDERSCORE)) {
-    auto pattern = std::make_unique<Pattern>(PatternKind::WILDCARD);
-    return pattern;
+    return std::make_unique<Pattern>(PatternKind::WILDCARD);
   }
 
   if (match(TokenType::IDENTIFIER)) {
@@ -910,7 +887,7 @@ std::unique_ptr<Pattern> Parser::parsePatternInternal() {
     return pattern;
   }
 
-  error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, "Expect valid pattern");
+  error("Expect valid pattern");
   return std::make_unique<Pattern>(PatternKind::WILDCARD);
 }
 
@@ -931,6 +908,6 @@ std::unique_ptr<Expr> Parser::parseEnumVariant() {
     consume(TokenType::RIGHT_PAREN, "Expect ')' after variant arguments");
   }
 
-  return std::make_unique<EnumVariantExpr>(enumName.value, variantName.value,
-                                           std::move(args));
+  return factory_.createEnumVariantExpr(enumName.value, variantName.value,
+                                        std::move(args), currentLocation());
 }

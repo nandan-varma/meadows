@@ -2,13 +2,13 @@
 #include "ast/AST.h"
 #include "catch_amalgamated.hpp"
 #include "lexer/Lexer.h"
-#include "utils/Exceptions.h"
+#include <stdexcept>
 
 // Helper function to create parser from source
 std::unique_ptr<Parser> createParser(const std::string &source) {
   auto lexer = std::make_unique<Lexer>(source);
   auto tokens = lexer->tokenize();
-  return std::make_unique<Parser>(tokens);
+  return std::make_unique<Parser>(tokens, "<test>");
 }
 
 TEST_CASE("Parser handles variable declarations", "[parser]") {
@@ -222,22 +222,26 @@ TEST_CASE("Parser handles return statements", "[parser]") {
 TEST_CASE("Parser reports syntax errors", "[parser]") {
   SECTION("Missing semicolon") {
     auto parser = createParser("let x = 5");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors() == true);
   }
 
   SECTION("Missing expression") {
     auto parser = createParser("let x = ;");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors() == true);
   }
 
   SECTION("Missing closing brace") {
     auto parser = createParser("func test() { print 1;");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors() == true);
   }
 
   SECTION("Unexpected token") {
     auto parser = createParser("@#$");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors() == true);
   }
 }
 

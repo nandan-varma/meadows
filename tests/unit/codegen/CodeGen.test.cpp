@@ -997,7 +997,7 @@ TEST_CASE("TypeUtils helpers", "[typeutils]") {
 
 TEST_CASE("CodeGen optimization flag", "[codegen][optimization]") {
   SECTION("Create codegen with optimization disabled") {
-    CodeGen codegen(false);
+    CodeGen codegen(meadows::codegen::OptimizationLevel::DEBUG);
     auto parser = createParser("let x = 5;");
     auto stmts = parser->parse();
     REQUIRE_NOTHROW(codegen.generate(stmts));
@@ -1005,8 +1005,9 @@ TEST_CASE("CodeGen optimization flag", "[codegen][optimization]") {
   }
 
   SECTION("Create codegen with optimization enabled") {
-    CodeGen codegen(true);
-    codegen.setOptimize(true);
+    CodeGen codegen(meadows::codegen::OptimizationLevel::RELEASE);
+    codegen.setOptimizationLevel(
+        meadows::codegen::OptimizationLevel::OPTIMIZED);
     auto parser = createParser("let x = 5;");
     auto stmts = parser->parse();
     REQUIRE_NOTHROW(codegen.generate(stmts));

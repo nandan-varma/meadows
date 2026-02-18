@@ -4,6 +4,7 @@
  */
 
 #include "ModuleCompiler.h"
+
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -16,6 +17,7 @@ ModuleCompiler::ModuleCompiler(const ModuleCompileConfig &config)
   resolverConfig.projectRoot = config.projectRoot;
   resolverConfig.stdlibPath = config.stdlibPath;
   resolverConfig.cachePath = config.projectRoot + "/.meadows/cache";
+  resolver_.setConfig(resolverConfig);
 }
 
 ModuleCompileResult ModuleCompiler::compile(const std::string &entryPoint) {
@@ -41,7 +43,6 @@ ModuleCompiler::compileFromSource(const std::string &source,
                                   const std::string &moduleName) {
   doLog("Compiling source as module: " + moduleName);
 
-  DiagnosticsCollector diagnostics;
   Lexer lexer(source);
   std::vector<Token> tokens;
 
@@ -52,23 +53,20 @@ ModuleCompiler::compileFromSource(const std::string &source,
         {std::string("Lexer error: ") + e.what()});
   }
 
-  Parser parser(tokens, diagnostics);
+  Parser parser(tokens, "<memory>");
+  parser.setStdlibPath(config_.stdlibPath);
+  parser.setProjectRoot(config_.projectRoot);
   std::vector<std::unique_ptr<Stmt>> stmts;
   try {
     stmts = parser.parse();
-  } catch (const meadows::MeadowsException &e) {
-    return ModuleCompileResult::makeFailure(
-        {std::string("Parse error: ") + e.what()});
   } catch (const std::runtime_error &e) {
     return ModuleCompileResult::makeFailure(
         {std::string("Parse error: ") + e.what()});
   }
 
-  if (diagnostics.hasFatals()) {
+  if (parser.hasErrors()) {
     std::vector<std::string> errors;
-    for (const auto &diag : diagnostics.diagnostics()) {
-      errors.push_back(diag.message);
-    }
+    errors.push_back("Parse errors encountered");
     return ModuleCompileResult::makeFailure(errors);
   }
 
@@ -123,7 +121,6 @@ ModuleCompiler::resolveAndParseModule(const std::string &moduleName,
   std::string source((std::istreambuf_iterator<char>(file)),
                      std::istreambuf_iterator<char>());
 
-  DiagnosticsCollector diagnostics;
   Lexer lexer(source);
   std::vector<Token> tokens;
 
@@ -135,15 +132,15 @@ ModuleCompiler::resolveAndParseModule(const std::string &moduleName,
         {"Lexer error in " + resolution.filePath + ": " + e.what()});
   }
 
-  Parser parser(tokens, diagnostics);
+  Parser parser(tokens, resolution.filePath);
+  parser.setStdlibPath(config_.stdlibPath);
+  parser.setProjectRoot(config_.projectRoot);
   auto stmts = parser.parse();
 
-  if (diagnostics.hasFatals()) {
+  if (parser.hasErrors()) {
     currentlyCompiling_.pop_back();
     std::vector<std::string> errors;
-    for (const auto &diag : diagnostics.diagnostics()) {
-      errors.push_back(diag.message);
-    }
+    errors.push_back("Parse errors in " + resolution.filePath);
     return ModuleCompileResult::makeFailure(errors);
   }
 

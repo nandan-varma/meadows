@@ -69,7 +69,8 @@ TEST_CASE("Module dependency resolution", "[stdlib][module]") {
     config.projectRoot = "/tmp/test";
     config.stdlibPath = "/tmp/test/stdlib";
 
-    std::ofstream mathFile("/tmp/test/stdlib/math.ms");
+    std::filesystem::create_directories("/tmp/test/stdlib/std");
+    std::ofstream mathFile("/tmp/test/stdlib/std/math.ms");
     mathFile << "module std.math;\n";
     mathFile
         << "func abs(n: i32) -> i32 { if (n < 0) { return -n; } return n; }\n";

@@ -5,8 +5,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../errors/CompilationError.h"
 #include "ErrorCodes.h"
-#include "Exceptions.h"
 
 namespace meadows {
 

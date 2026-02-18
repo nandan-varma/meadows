@@ -1,6 +1,6 @@
 #include "lexer/Lexer.h"
 #include "catch_amalgamated.hpp"
-#include "utils/Exceptions.h"
+#include <stdexcept>
 
 TEST_CASE("Lexer tokenizes keywords correctly", "[lexer]") {
   SECTION("All keywords are recognized") {
@@ -82,7 +82,7 @@ TEST_CASE("Lexer handles string literals", "[lexer]") {
 
 TEST_CASE("Lexer detects unterminated strings", "[lexer]") {
   Lexer lexer("\"unterminated string");
-  REQUIRE_THROWS_AS(lexer.tokenize(), meadows::LexicalException);
+  REQUIRE_THROWS_AS(lexer.tokenize(), std::runtime_error);
 }
 
 TEST_CASE("Lexer handles identifiers", "[lexer]") {
@@ -549,7 +549,7 @@ TEST_CASE("Lexer rejects oversized numbers", "[lexer]") {
     }
 
     Lexer lexer(veryLongNumber);
-    CHECK_THROWS_AS(lexer.tokenize(), meadows::LexicalException);
+    CHECK_THROWS_AS(lexer.tokenize(), std::runtime_error);
   }
 
   SECTION("Normal large number works") {

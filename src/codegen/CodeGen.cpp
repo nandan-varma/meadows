@@ -1,4 +1,5 @@
 #include "CodeGen.h"
+#include "CodeGenStrategy.h"
 #include "StringUtils.h"
 #include "SymbolTable.h"
 #include <climits>
@@ -8,6 +9,9 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/Casting.h>
 #include <sstream>
+
+using namespace meadows;
+using namespace meadows::codegen;
 
 // Suppress strict type warnings for LLVM API calls (which require specific
 // types) These are correct usages but trigger warnings due to LLVM's type
@@ -89,7 +93,8 @@ void CodeGen::generateRuntimeError(const std::string &message) {
                                             static_cast<unsigned>(-1)));
 }
 
-CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
+CodeGen::CodeGen(codegen::OptimizationLevel level)
+    : strategy_(codegen::createStrategy(level)) {
   context = std::make_unique<llvm::LLVMContext>();
   module = std::make_unique<llvm::Module>("meadows", *context);
   builder = std::make_unique<llvm::IRBuilder<>>(*context);
@@ -452,9 +457,11 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
 
   exitScope();
 
-  if (optimize_) {
+  if (strategy_->shouldPrintIR()) {
     module->print(llvm::errs(), nullptr);
   }
+
+  strategy_->optimizeModule(module.get());
 
   // Add return to the current block (which may be entry or a block after if
   // statements)
@@ -470,6 +477,16 @@ void CodeGen::freeAllocatedStrings() {
   // this memory when the program exits. For a production compiler, we'd
   // need more sophisticated lifetime tracking.
   allocatedStrings.clear();
+}
+
+void CodeGen::setStrategy(
+    std::unique_ptr<::meadows::codegen::CodeGenStrategy> strategy) {
+  strategy_ = std::move(strategy);
+}
+
+void CodeGen::setOptimizationLevel(
+    ::meadows::codegen::OptimizationLevel level) {
+  strategy_ = ::meadows::codegen::createStrategy(level);
 }
 
 std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
