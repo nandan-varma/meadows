@@ -457,3 +457,49 @@ TEST_CASE("ModuleResolutionResult construction", "[module][result]") {
     CHECK(result.errorMessage == "Module not found");
   }
 }
+
+TEST_CASE("ModuleResolver path traversal security",
+          "[module][security][resolver]") {
+  std::string tempDir = "/tmp/module_resolver_security_test";
+  std::filesystem::create_directories(tempDir + "/src");
+
+  ModuleResolverConfig config;
+  config.projectRoot = tempDir;
+  ModuleResolver resolver(config);
+
+  SECTION("Rejects path traversal with ../") {
+    std::string mainFile = tempDir + "/src/main.ms";
+    std::ofstream(mainFile) << "module main;\n";
+
+    auto result = resolver.resolveRelative("../secret.ms", mainFile);
+    CHECK(result.resolved == false);
+    CHECK(result.errorMessage.length() > 0);
+
+    std::filesystem::remove(mainFile);
+  }
+
+  SECTION("Rejects deep path traversal") {
+    std::string mainFile = tempDir + "/src/main.ms";
+    std::ofstream(mainFile) << "module main;\n";
+
+    auto result = resolver.resolveRelative("../../../etc/passwd.ms", mainFile);
+    CHECK(result.resolved == false);
+
+    std::filesystem::remove(mainFile);
+  }
+
+  SECTION("Allows safe relative paths") {
+    std::string mainFile = tempDir + "/src/main.ms";
+    std::string helperFile = tempDir + "/src/helper.ms";
+    std::ofstream(mainFile) << "module main;\n";
+    std::ofstream(helperFile) << "module helper;\n";
+
+    auto result = resolver.resolveRelative("./helper.ms", mainFile);
+    CHECK(result.resolved == true);
+
+    std::filesystem::remove(mainFile);
+    std::filesystem::remove(helperFile);
+  }
+
+  std::filesystem::remove_all(tempDir);
+}

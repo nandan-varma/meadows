@@ -216,9 +216,19 @@ Token Lexer::number() {
   bool hasDecimal = false;
   bool hasExponent = false;
 
+  // Track digit count for overflow detection
+  size_t digitCount = 0;
+  constexpr size_t MAX_DIGITS = 39; // Max for u64 (38 digits + safety)
+
   // Parse integer part
   while (isdigit(peek())) {
+    if (digitCount >= MAX_DIGITS) {
+      meadows::SourceLocation loc("", line_, startColumn);
+      throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
+                                      "Number literal too large", loc);
+    }
     advance();
+    digitCount++;
   }
 
   // Check for decimal point
@@ -227,7 +237,13 @@ Token Lexer::number() {
     advance();
     // Parse fractional part
     while (isdigit(peek())) {
+      if (digitCount >= MAX_DIGITS) {
+        meadows::SourceLocation loc("", line_, startColumn);
+        throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
+                                        "Number literal too large", loc);
+      }
       advance();
+      digitCount++;
     }
   }
 
@@ -239,7 +255,13 @@ Token Lexer::number() {
       advance();
     }
     while (isdigit(peek())) {
+      if (digitCount >= MAX_DIGITS) {
+        meadows::SourceLocation loc("", line_, startColumn);
+        throw meadows::LexicalException(meadows::ErrorCode::LEX_NUMBER_OVERFLOW,
+                                        "Number literal too large", loc);
+      }
       advance();
+      digitCount++;
     }
   }
 

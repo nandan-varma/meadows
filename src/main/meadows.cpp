@@ -29,6 +29,16 @@ using meadows::config::BuildProfile;
 using meadows::config::Config;
 using meadows::config::LockFile;
 
+std::string getStdlibPath() {
+  auto exeDir = std::filesystem::current_path();
+  return (exeDir / "src" / "stdlib").string();
+}
+
+std::string getStdlibCPath() {
+  auto exeDir = std::filesystem::current_path();
+  return (exeDir / "src" / "stdlib" / "c" / "meadows_stdlib.c").string();
+}
+
 bool validatePathSecurity(const fs::path &filepath, std::string &errorMsg);
 
 constexpr std::uintmax_t MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -121,12 +131,8 @@ int compileWithClang(const std::string &inputFile,
   pid_t pid = fork();
   if (pid == 0) {
     const char *args[] = {
-        "clang++",
-        inputFile.c_str(),
-        "/Users/nandan/dev/meadows/src/stdlib/c/meadows_stdlib.c",
-        "-o",
-        outputFile.c_str(),
-        nullptr};
+        "clang++", inputFile.c_str(),  getStdlibCPath().c_str(),
+        "-o",      outputFile.c_str(), nullptr};
     execvp("clang++", const_cast<char *const *>(args));
     _exit(127);
   } else if (pid > 0) {
@@ -230,8 +236,10 @@ int cmdInit(bool verbose) {
   configFile.close();
 
   // Create src directory and main.ms
-  if (system("mkdir -p src") != 0) {
-    std::cerr << "Warning: Could not create src directory" << std::endl;
+  std::error_code ec;
+  if (!fs::create_directories("src", ec)) {
+    std::cerr << "Warning: Could not create src directory: " << ec.message()
+              << std::endl;
   } else {
     std::ofstream mainFile("src/main.ms");
     if (mainFile.is_open()) {
@@ -281,10 +289,10 @@ int cmdBuild(bool verbose, bool releaseMode) {
   std::string exeFile = outputDir + "/" + config.project.name;
 
   // Create output directory
-  std::string mkdirCmd = "mkdir -p " + outputDir;
-  if (system(mkdirCmd.c_str()) != 0) {
-    std::cerr << "Error: Cannot create output directory: " << outputDir
-              << std::endl;
+  std::error_code ec;
+  if (!fs::create_directories(outputDir, ec)) {
+    std::cerr << "Error: Cannot create output directory: " << outputDir << ": "
+              << ec.message() << std::endl;
     return 1;
   }
 
@@ -407,7 +415,26 @@ int cmdRun(bool verbose, bool releaseMode) {
     std::cout << "Running: " << exeFile << std::endl;
   }
 
-  return system(exeFile.c_str());
+  // Execute the program using fork+exec (secure alternative to system())
+  pid_t pid = fork();
+  if (pid == 0) {
+    // Child process
+    char *args[] = {const_cast<char *>(exeFile.c_str()), nullptr};
+    execvp(exeFile.c_str(), args);
+    _exit(127); // execvp only returns on error
+  } else if (pid > 0) {
+    // Parent process - wait for child
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+      return -1;
+    }
+    if (WIFEXITED(status)) {
+      return WEXITSTATUS(status);
+    }
+    return -1;
+  } else {
+    return -1;
+  }
 }
 
 int cmdTest(bool verbose) {
@@ -447,7 +474,7 @@ int cmdLint(const std::string &filePath) {
     // Parse
     Parser parser(tokens, diagnostics);
     parser.setSourcePath(filePath);
-    parser.setStdlibPath("/Users/nandan/dev/meadows/src/stdlib");
+    parser.setStdlibPath(getStdlibPath());
     auto statements = parser.parse();
 
     if (diagnostics.hasErrors()) {
@@ -595,7 +622,7 @@ int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
 
     Parser parser(tokens, diagnostics);
     parser.setSourcePath(filePath);
-    parser.setStdlibPath("/Users/nandan/dev/meadows/src/stdlib");
+    parser.setStdlibPath(getStdlibPath());
     auto statements = parser.parse();
 
     if (diagnostics.hasErrors()) {

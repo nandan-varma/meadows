@@ -540,3 +540,25 @@ TEST_CASE("Lexer property-based tests", "[lexer][property]") {
     }
   }
 }
+
+TEST_CASE("Lexer rejects oversized numbers", "[lexer]") {
+  SECTION("Very long integer throws exception") {
+    std::string veryLongNumber = "1";
+    for (int i = 0; i < 50; i++) {
+      veryLongNumber += "1";
+    }
+
+    Lexer lexer(veryLongNumber);
+    CHECK_THROWS_AS(lexer.tokenize(), meadows::LexicalException);
+  }
+
+  SECTION("Normal large number works") {
+    std::string largeNumber = "123456789012345678901234567890";
+
+    Lexer lexer(largeNumber);
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::NUMBER);
+  }
+}

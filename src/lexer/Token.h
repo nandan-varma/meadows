@@ -78,9 +78,6 @@ enum class TokenType {
   QUESTION,
   EXTERN,
 
-  // Comments
-  COMMENT,
-
   // End of file
   EOF_TOKEN
 };

@@ -1,4 +1,5 @@
 #include "ModuleResolver.h"
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -73,6 +74,11 @@ ModuleResolver::resolveRelative(const std::string &relativePath,
   // Handle ./ and ../ prefixes
   std::string path = relativePath;
 
+  // Reject path traversal attempts
+  if (path.find("..") != std::string::npos) {
+    return ModuleResolutionResult::makeFailure("Path traversal not allowed");
+  }
+
   // Determine base directory
   std::string baseDir;
   if (!fromPath.empty()) {
@@ -97,6 +103,23 @@ ModuleResolver::resolveRelative(const std::string &relativePath,
 
   // Normalize path (remove ./)
   fullPath = normalizePath(fullPath);
+
+  // Use canonical paths to prevent path traversal (only if baseDir is provided)
+  if (!baseDir.empty()) {
+    try {
+      std::string canonicalBaseCan =
+          std::filesystem::canonical(baseDir).string();
+      std::string canonicalFull = std::filesystem::canonical(fullPath).string();
+
+      // Check if resolved path is still under base directory
+      if (canonicalFull.find(canonicalBaseCan) != 0) {
+        return ModuleResolutionResult::makeFailure("Path traversal detected");
+      }
+    } catch (const std::filesystem::filesystem_error &) {
+      // Canonical path failed - file might not exist or other issues
+      // Fall through to fileExists check below
+    }
+  }
 
   if (fileExists(fullPath)) {
     ModuleName name = parseModuleNameFromFile(fullPath);

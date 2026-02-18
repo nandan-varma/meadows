@@ -46,6 +46,10 @@ void CodeGen::validateDivision(llvm::Value *divisor) {
 }
 
 void CodeGen::validateArrayBounds(llvm::Value *array, llvm::Value *index) {
+  if (!array || !index) {
+    error("Invalid array or index in bounds check");
+  }
+
   auto *zero = llvm::ConstantInt::get(index->getType(), 0);
   auto *isNegative = builder->CreateICmpSLT(index, zero, "idx_negative");
 

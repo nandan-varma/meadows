@@ -195,6 +195,14 @@ void Parser::synchronize() {
     case TokenType::BREAK:
     case TokenType::CONTINUE:
     case TokenType::LEFT_BRACE: // Block start
+    // Additional statement-start keywords for better recovery
+    case TokenType::MODULE:
+    case TokenType::IMPORT:
+    case TokenType::EXPORT:
+    case TokenType::TYPE:
+    case TokenType::MATCH:
+    case TokenType::ENUM:
+    case TokenType::EXTERN:
       return;
     default:
       break;
