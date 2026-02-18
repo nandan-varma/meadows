@@ -256,16 +256,6 @@ public:
    */
   void setMaxErrors(int max) { context_.maxErrors = max; }
 
-  /**
-   * @brief Create standard handler chain (counter -> limit -> console)
-   */
-  static std::unique_ptr<ErrorHandler> createStandardHandler();
-
-  /**
-   * @brief Create handler chain for IDE/LSP (collects all errors)
-   */
-  static std::unique_ptr<ErrorHandler> createLSPHandler();
-
 private:
   std::unique_ptr<ErrorProcessor> chain_;
   ErrorContext context_;

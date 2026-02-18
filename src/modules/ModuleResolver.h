@@ -63,10 +63,6 @@ public:
 
   ModuleResolutionResult resolve(const ModuleName &moduleName,
                                  const std::string &fromPath = "");
-  ModuleResolutionResult resolveRelative(const std::string &relativePath,
-                                         const std::string &fromPath);
-
-  std::vector<std::string> findModulesInDirectory(const std::string &dirPath);
   std::vector<ModuleSearchPath> getSearchOrder() const;
   void setSearchPaths(const std::vector<ModuleSearchPath> &paths);
   void setConfig(const ModuleResolverConfig &config);
@@ -87,8 +83,6 @@ private:
   ModuleResolutionResult searchInCache(const ModuleName &moduleName);
   ModuleResolutionResult searchInSystem(const ModuleName &moduleName);
 
-  std::string moduleNameToPath(const ModuleName &name) const;
-  ModuleName pathToModuleName(const std::string &path) const;
   static bool isValidComponent(const std::string &component);
 };
 

@@ -69,76 +69,6 @@ static std::string normalizePath(const std::string &path) {
   return result;
 }
 
-ModuleResolutionResult
-ModuleResolver::resolveRelative(const std::string &relativePath,
-                                const std::string &fromPath) {
-  // Handle ./ and ../ prefixes
-  std::string path = relativePath;
-
-  // Reject path traversal attempts
-  if (path.find("..") != std::string::npos) {
-    return ModuleResolutionResult::makeFailure("Path traversal not allowed");
-  }
-
-  // Determine base directory
-  std::string baseDir;
-  if (!fromPath.empty()) {
-    size_t lastSlash = fromPath.find_last_of("/\\");
-    if (lastSlash != std::string::npos) {
-      baseDir = fromPath.substr(0, lastSlash);
-    }
-  }
-
-  // Build full path
-  std::string fullPath;
-  if (!baseDir.empty()) {
-    fullPath = baseDir + "/" + path;
-  } else {
-    fullPath = path;
-  }
-
-  // Add .ms extension if not present
-  if (fullPath.size() < 3 || fullPath.substr(fullPath.size() - 3) != ".ms") {
-    fullPath += ".ms";
-  }
-
-  // Normalize path (remove ./)
-  fullPath = normalizePath(fullPath);
-
-  // Use canonical paths to prevent path traversal (only if baseDir is provided)
-  if (!baseDir.empty()) {
-    try {
-      std::string canonicalBaseCan =
-          std::filesystem::canonical(baseDir).string();
-      std::string canonicalFull = std::filesystem::canonical(fullPath).string();
-
-      // Check if resolved path is still under base directory
-      if (canonicalFull.find(canonicalBaseCan) != 0) {
-        return ModuleResolutionResult::makeFailure("Path traversal detected");
-      }
-    } catch (const std::filesystem::filesystem_error &) {
-      // Canonical path failed - file might not exist or other issues
-      // Fall through to fileExists check below
-    }
-  }
-
-  if (fileExists(fullPath)) {
-    ModuleName name = parseModuleNameFromFile(fullPath);
-    return ModuleResolutionResult::makeSuccess(fullPath, name,
-                                               ModuleSearchPath::RELATIVE);
-  }
-
-  return ModuleResolutionResult::makeFailure("Cannot find module at path: " +
-                                             fullPath);
-}
-
-std::vector<std::string> ModuleResolver::findModulesInDirectory(
-    [[maybe_unused]] const std::string &dirPath) {
-  std::vector<std::string> modules;
-  // Simplified - would use filesystem in real implementation
-  return modules;
-}
-
 std::vector<ModuleSearchPath> ModuleResolver::getSearchOrder() const {
   return searchOrder_;
 }
@@ -341,14 +271,6 @@ ModuleResolver::searchInSystem(const ModuleName &moduleName) {
   }
 
   return ModuleResolutionResult::makeFailure("Not found in system paths");
-}
-
-std::string ModuleResolver::moduleNameToPath(const ModuleName &name) const {
-  return name.toPath() + ".ms";
-}
-
-ModuleName ModuleResolver::pathToModuleName(const std::string &path) const {
-  return ModuleName::fromPath(path);
 }
 
 bool ModuleResolver::isValidComponent(const std::string &component) {

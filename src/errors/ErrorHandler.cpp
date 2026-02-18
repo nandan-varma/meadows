@@ -48,25 +48,4 @@ void ErrorHandler::reset() {
   chain_.reset();
 }
 
-std::unique_ptr<ErrorHandler> ErrorHandler::createStandardHandler() {
-  auto handler = std::make_unique<ErrorHandler>();
-
-  // Chain: Counter -> Limit -> ConsoleOutput
-  handler->addProcessor(std::make_unique<CounterProcessor>());
-  handler->addProcessor(std::make_unique<LimitProcessor>());
-  handler->addProcessor(std::make_unique<ConsoleOutputProcessor>());
-
-  return handler;
-}
-
-std::unique_ptr<ErrorHandler> ErrorHandler::createLSPHandler() {
-  auto handler = std::make_unique<ErrorHandler>();
-
-  // Chain: Counter -> Collector (no console output for LSP)
-  handler->addProcessor(std::make_unique<CounterProcessor>());
-  handler->addProcessor(std::make_unique<CollectorProcessor>());
-
-  return handler;
-}
-
 } // namespace meadows
