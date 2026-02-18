@@ -84,7 +84,6 @@ private:
   std::unordered_map<std::string, llvm::StructType *> enumTypes_;
   std::unordered_map<std::string, llvm::StructType *> structTypes_;
   std::unordered_map<std::string, std::vector<std::string>> definedEnums_;
-  llvm::Value *lastValue_ = nullptr;
 
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
@@ -143,7 +142,6 @@ private:
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;
-  llvm::BasicBlock *endifBlock = nullptr;
 
   void generateElseBranch(const std::vector<std::unique_ptr<Stmt>> &elseBranch,
                           llvm::BasicBlock *endBB);

@@ -213,8 +213,6 @@ Token Lexer::identifier() {
 Token Lexer::number() {
   int startColumn = column_;
   size_t start = pos_;
-  bool hasDecimal = false;
-  bool hasExponent = false;
 
   // Track digit count for overflow detection
   size_t digitCount = 0;
@@ -233,7 +231,6 @@ Token Lexer::number() {
 
   // Check for decimal point
   if (peek() == '.') {
-    hasDecimal = true;
     advance();
     // Parse fractional part
     while (isdigit(peek())) {
@@ -249,7 +246,6 @@ Token Lexer::number() {
 
   // Check for exponent
   if (peek() == 'e' || peek() == 'E') {
-    hasExponent = true;
     advance();
     if (peek() == '+' || peek() == '-') {
       advance();

@@ -234,7 +234,8 @@ std::vector<CompiledModuleInfo> ModuleCompiler::getCompiledModules() const {
   return compiledModules_;
 }
 
-bool ModuleCompiler::linkAndEmitOutput(const std::string &outputFile) {
+bool ModuleCompiler::linkAndEmitOutput(
+    [[maybe_unused]] const std::string &outputFile) {
   return false;
 }
 

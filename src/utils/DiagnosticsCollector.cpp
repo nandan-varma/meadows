@@ -53,15 +53,15 @@ void DiagnosticsCollector::report(const Diagnostic &diagnostic) {
 }
 
 size_t DiagnosticsCollector::errorCount() const {
-  return std::count_if(
-      diagnostics_.begin(), diagnostics_.end(),
-      [](const Diagnostic &d) { return d.severity == "error"; });
+  return static_cast<size_t>(
+      std::count_if(diagnostics_.begin(), diagnostics_.end(),
+                    [](const Diagnostic &d) { return d.severity == "error"; }));
 }
 
 size_t DiagnosticsCollector::warningCount() const {
-  return std::count_if(
+  return static_cast<size_t>(std::count_if(
       diagnostics_.begin(), diagnostics_.end(),
-      [](const Diagnostic &d) { return d.severity == "warning"; });
+      [](const Diagnostic &d) { return d.severity == "warning"; }));
 }
 
 void DiagnosticsCollector::clear() {

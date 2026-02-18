@@ -6,9 +6,10 @@
 
 LSPInterface::LSPInterface() {}
 
-void LSPInterface::emitDiagnostics(const std::string &filePath,
-                                   const std::vector<Token> &tokens,
-                                   const std::vector<std::string> &errors) {
+void LSPInterface::emitDiagnostics(
+    const std::string &filePath,
+    [[maybe_unused]] const std::vector<Token> &tokens,
+    const std::vector<std::string> &errors) {
   std::vector<meadows::Diagnostic> diagnostics;
 
   // Parse each error message
@@ -97,8 +98,9 @@ void LSPInterface::emitDiagnosticsJSON(
   std::cout << "}" << std::endl;
 }
 
-LSPDiagnostic LSPInterface::parseError(const std::string &error,
-                                       const std::string &filePath) {
+LSPDiagnostic
+LSPInterface::parseError(const std::string &error,
+                         [[maybe_unused]] const std::string &filePath) {
   LSPDiagnostic diag;
   diag.severity = static_cast<int>(LSPSeverity::Error);
   diag.source = "meadows-compiler";

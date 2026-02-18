@@ -8,6 +8,15 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/Casting.h>
 #include <sstream>
+
+// Suppress strict type warnings for LLVM API calls (which require specific
+// types) These are correct usages but trigger warnings due to LLVM's type
+// requirements
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 #include <stdexcept>
 #include <vector>
 
@@ -76,8 +85,8 @@ void CodeGen::generateRuntimeError(const std::string &message) {
   auto *errorMsg = builder->CreateGlobalStringPtr(message);
   auto *format = builder->CreateGlobalString("%s");
   builder->CreateCall(printfFunc, {format, errorMsg});
-  builder->CreateRet(
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
+  builder->CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                            static_cast<unsigned>(-1)));
 }
 
 CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
@@ -385,12 +394,11 @@ CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
 void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   variableScopeStack.clear();
 
-  bool hasUserMain = false;
-  for (const auto &stmt : statements) {
+  // Rename user-defined main function if exists
+  for (auto &stmt : statements) {
     if (auto funcStmt = dynamic_cast<FuncStmt *>(stmt.get())) {
       if (funcStmt->name == "main") {
-        hasUserMain = true;
-        break;
+        funcStmt->name = "_meadows_user_main";
       }
     }
   }
@@ -485,9 +493,9 @@ void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
             llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
       } catch (const std::out_of_range &) {
         constexpr int32_t MAX_I32_VALUE = INT32_MAX;
-        exprResult =
-            llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                   llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
+        exprResult = llvm::ConstantInt::get(
+            llvm::Type::getInt32Ty(*context),
+            llvm::APInt(INT32_BIT_WIDTH, static_cast<uint64_t>(MAX_I32_VALUE)));
       }
     }
   } else {
@@ -694,10 +702,10 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
 
   size_t fieldIndex = 0;
   if (auto objExpr = dynamic_cast<ObjectExpr *>(expr.object.get())) {
-    int i = 0;
+    size_t i = 0;
     for (auto &pair : objExpr->pairs) {
       if (pair.first == expr.fieldName) {
-        fieldIndex = i;
+        fieldIndex = static_cast<int>(i);
         break;
       }
       i++;
@@ -706,11 +714,11 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
 
   std::vector<llvm::Value *> indices = {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0),
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                             static_cast<int>(fieldIndex))};
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), fieldIndex)};
   auto fieldPtr =
       builder->CreateGEP(structType, objPtr, indices, "fieldaccess");
-  auto fieldType = structType->getElementType(fieldIndex);
+  auto fieldType =
+      structType->getElementType(static_cast<unsigned>(fieldIndex));
   exprResult = builder->CreateLoad(fieldType, fieldPtr, "fieldvalue");
 }
 
@@ -768,7 +776,7 @@ void CodeGen::visitArrayExpr(ArrayExpr &expr) {
     std::vector<llvm::Value *> indices = {
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0),
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                               static_cast<int64_t>(i))};
+                               static_cast<unsigned>(i))};
     auto elemPtr = builder->CreateGEP(arrayType, alloca, indices, "arrayelem");
     builder->CreateStore(val, elemPtr);
   }
@@ -1183,13 +1191,13 @@ void CodeGen::visitPrintStmt(PrintStmt &stmt) {
   }
 }
 
-void CodeGen::visitBreakStmt(BreakStmt &stmt) {
+void CodeGen::visitBreakStmt([[maybe_unused]] BreakStmt &stmt) {
   if (breakBlock) {
     builder->CreateBr(breakBlock);
   }
 }
 
-void CodeGen::visitContinueStmt(ContinueStmt &stmt) {
+void CodeGen::visitContinueStmt([[maybe_unused]] ContinueStmt &stmt) {
   if (continueBlock) {
     builder->CreateBr(continueBlock);
   }
@@ -1471,17 +1479,17 @@ void CodeGen::visitEnumVariantExpr(EnumVariantExpr &expr) {
   exprResult = builder->CreateLoad(enumStructType, alloc);
 }
 
-void CodeGen::visitModuleStmt(ModuleStmt &stmt) {
+void CodeGen::visitModuleStmt([[maybe_unused]] ModuleStmt &stmt) {
   // Module statements are handled at the compilation unit level
   // They don't generate LLVM IR directly
 }
 
-void CodeGen::visitImportStmt(ImportStmt &stmt) {
+void CodeGen::visitImportStmt([[maybe_unused]] ImportStmt &stmt) {
   // Import statements are resolved before code generation
   // They don't generate LLVM IR directly
 }
 
-void CodeGen::visitExportStmt(ExportStmt &stmt) {
+void CodeGen::visitExportStmt([[maybe_unused]] ExportStmt &stmt) {
   // Export statements are handled at the module level
   // They don't generate LLVM IR directly
 }
@@ -1530,3 +1538,6 @@ void CodeGen::visitExternStmt(ExternStmt &stmt) {
   func->setCallingConv(llvm::CallingConv::C);
   externNameMapping[stmt.meadowsName] = stmt.cName;
 }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif

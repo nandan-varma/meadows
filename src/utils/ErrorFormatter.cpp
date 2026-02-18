@@ -85,7 +85,7 @@ ErrorFormatter::loadFile(const std::string &filepath) {
 std::string ErrorFormatter::getLine(const std::string &filepath, int lineNum) {
   const auto &lines = loadFile(filepath);
   if (lineNum > 0 && lineNum <= static_cast<int>(lines.size())) {
-    return lines[lineNum - 1]; // Convert to 0-indexed
+    return lines[static_cast<size_t>(lineNum) - 1]; // Convert to 0-indexed
   }
   return "";
 }
@@ -121,7 +121,8 @@ std::string ErrorFormatter::createUnderline(int startCol, int endCol,
 
   // Reserve capacity to avoid reallocations
   int length = std::max(1, endCol - startCol);
-  underline.reserve(startCol + length + 20);
+  underline.reserve(static_cast<size_t>(startCol) +
+                    static_cast<size_t>(length) + 20);
 
   // Add spaces up to start column
   for (int i = 0; i < startCol - 1; i++) {

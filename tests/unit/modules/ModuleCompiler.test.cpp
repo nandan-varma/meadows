@@ -13,7 +13,7 @@ TEST_CASE("ModuleCompiler basic operations", "[module][compiler]") {
     config.verbose = true;
 
     ModuleCompiler compiler(config);
-    REQUIRE(&compiler != nullptr);
+    (void)compiler; // Suppress unused variable warning
   }
 
   SECTION("compileFromSource parses module") {

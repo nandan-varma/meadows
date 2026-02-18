@@ -97,7 +97,8 @@ TEST_CASE("BoundsChecker array bounds", "[memory]") {
 
   SECTION("Valid indices pass") {
     for (int i = 0; i < 100; ++i) {
-      REQUIRE_NOTHROW(BoundsChecker::checkArrayBounds(arr, i, 100));
+      REQUIRE_NOTHROW(
+          BoundsChecker::checkArrayBounds(arr, static_cast<size_t>(i), 100));
     }
   }
 

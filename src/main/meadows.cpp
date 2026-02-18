@@ -130,9 +130,9 @@ int compileWithClang(const std::string &inputFile,
                      const std::string &outputFile) {
   pid_t pid = fork();
   if (pid == 0) {
-    const char *args[] = {
-        "clang++", inputFile.c_str(),  getStdlibCPath().c_str(),
-        "-o",      outputFile.c_str(), nullptr};
+    std::string stdlibPath = getStdlibCPath();
+    const char *args[] = {"clang++", inputFile.c_str(),  stdlibPath.c_str(),
+                          "-o",      outputFile.c_str(), nullptr};
     execvp("clang++", const_cast<char *const *>(args));
     _exit(127);
   } else if (pid > 0) {
@@ -187,7 +187,7 @@ void printHelp() {
       << "  meadows program.ms               Compile single file (legacy)\n";
 }
 
-int cmdInit(bool verbose) {
+int cmdInit([[maybe_unused]] bool verbose) {
   std::string configPath = "./meadows.toml";
 
   // Check if already initialized
@@ -437,7 +437,7 @@ int cmdRun(bool verbose, bool releaseMode) {
   }
 }
 
-int cmdTest(bool verbose) {
+int cmdTest([[maybe_unused]] bool verbose) {
   std::cout << "Running tests..." << std::endl;
   std::cout << "Note: Test runner not yet fully implemented" << std::endl;
   return 0;
@@ -517,9 +517,9 @@ int cmdLint(const std::string &filePath) {
   }
 }
 
-int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
-                      bool dumpIr, bool lspMode,
-                      meadows::WarningManager &warningManager) {
+int compileSingleFile(
+    const std::string &filePath, bool verbose, bool dumpAst, bool dumpIr,
+    bool lspMode, [[maybe_unused]] meadows::WarningManager &warningManager) {
   // Validate input file
   std::string errorMsg;
   if (!validateInputFile(filePath, errorMsg)) {

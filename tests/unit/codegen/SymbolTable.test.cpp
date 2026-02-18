@@ -202,7 +202,8 @@ TEST_CASE("SymbolTable complex scenarios", "[symboltable]") {
     table.enterScope();
 
     for (int i = 0; i < 100; ++i) {
-      auto val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), i);
+      auto val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                        static_cast<uint64_t>(i));
       table.declare("var" + std::to_string(i), val);
     }
 

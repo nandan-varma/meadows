@@ -140,7 +140,7 @@ std::unique_ptr<Expr> Parser::parseFieldAccess(int depth) {
   return expr;
 }
 
-std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
+std::unique_ptr<Expr> Parser::parsePrimary([[maybe_unused]] int depth) {
   if (match(TokenType::STRING)) {
     return std::make_unique<LiteralExpr>(previous().value);
   }

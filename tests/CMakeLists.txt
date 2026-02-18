@@ -46,6 +46,10 @@ set(TEST_SOURCES
 # Create test executable
 add_executable(meadows_tests ${TEST_SOURCES})
 
+# Exclude Catch2 from -Wdouble-promotion (third-party code)
+set_source_files_properties(catch_amalgamated.cpp
+                          PROPERTIES COMPILE_FLAGS "-Wno-double-promotion")
+
 # Include directories
 target_include_directories(meadows_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src

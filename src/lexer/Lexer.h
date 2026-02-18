@@ -43,7 +43,7 @@ private:
   size_t pos_;
   int line_;
   int column_;
-  int currentLineStart_;
+  size_t currentLineStart_;
 
   char peek() const;
   char advance();

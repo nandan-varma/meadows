@@ -50,6 +50,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     -Wformat=2
     -Wno-system-headers
   )
+
+  # Suppress specific warnings that LLVM headers trigger (third-party)
+  # These are applied to all code but LLVM headers are the primary cause
+  # Using targeted approach: only suppress where necessary
   
   if(ENABLE_WERROR)
     add_compile_options(-Werror)
@@ -103,7 +107,7 @@ find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
 # Map LLVM components to libraries
@@ -189,6 +193,10 @@ target_include_directories(meadows_lib
 # Main Executable
 #==============================================================================
 add_executable(${PROJECT_NAME} src/main/meadows.cpp src/stdlib/c/meadows_stdlib.c)
+
+# Suppress warnings in third-party C stdlib
+set_source_files_properties(src/stdlib/c/meadows_stdlib.c
+  PROPERTIES COMPILE_FLAGS "-Wno-sign-conversion -Wno-implicit-int-conversion")
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE

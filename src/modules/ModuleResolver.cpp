@@ -34,8 +34,9 @@ ModuleResolver::ModuleResolver(const ModuleResolverConfig &config)
                   ModuleSearchPath::SYSTEM};
 }
 
-ModuleResolutionResult ModuleResolver::resolve(const ModuleName &moduleName,
-                                               const std::string &fromPath) {
+ModuleResolutionResult
+ModuleResolver::resolve(const ModuleName &moduleName,
+                        [[maybe_unused]] const std::string &fromPath) {
   for (auto path : searchOrder_) {
     auto result = searchInPath(moduleName, path);
     if (result.resolved) {
@@ -131,8 +132,8 @@ ModuleResolver::resolveRelative(const std::string &relativePath,
                                              fullPath);
 }
 
-std::vector<std::string>
-ModuleResolver::findModulesInDirectory(const std::string &dirPath) {
+std::vector<std::string> ModuleResolver::findModulesInDirectory(
+    [[maybe_unused]] const std::string &dirPath) {
   std::vector<std::string> modules;
   // Simplified - would use filesystem in real implementation
   return modules;

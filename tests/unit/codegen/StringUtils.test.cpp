@@ -219,7 +219,7 @@ TEST_CASE("StringPool basic operations", "[stringutils]") {
 
     for (int i = 0; i < 100; ++i) {
       const std::string *ptr = pool.intern("string_" + std::to_string(i));
-      CHECK(ptr == ptrs[i]);
+      CHECK(ptr == ptrs[static_cast<size_t>(i)]);
     }
   }
 }
@@ -229,7 +229,7 @@ TEST_CASE("StringPool clear", "[stringutils]") {
     auto &pool = StringPool::getInstance();
     pool.intern("test_clear");
 
-    size_t sizeBefore = pool.poolSize();
+    [[maybe_unused]] size_t sizeBefore = pool.poolSize();
     pool.clear();
 
     CHECK(pool.poolSize() == 0);
@@ -238,8 +238,8 @@ TEST_CASE("StringPool clear", "[stringutils]") {
   SECTION("After clear, new intern creates new entry") {
     auto &pool = StringPool::getInstance();
 
-    const std::string *ptr1 = pool.intern("after_clear");
-    size_t sizeAfterFirst = pool.poolSize();
+    [[maybe_unused]] const std::string *ptr1 = pool.intern("after_clear");
+    [[maybe_unused]] size_t sizeAfterFirst = pool.poolSize();
     pool.clear();
     CHECK(pool.poolSize() == 0);
 
@@ -294,7 +294,7 @@ TEST_CASE("EscapeHandler edge cases", "[stringutils]") {
 
 TEST_CASE("StringPool singleton behavior", "[stringutils]") {
   SECTION("Cannot copy construct") {
-    auto &pool = StringPool::getInstance();
+    [[maybe_unused]] auto &pool = StringPool::getInstance();
     static_assert(!std::is_copy_constructible_v<StringPool>);
   }
 
