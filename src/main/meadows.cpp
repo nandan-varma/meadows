@@ -1,3 +1,4 @@
+#include "../ast/AST.h"
 #include "../codegen/CodeGen.h"
 #include "../config/Config.h"
 #include "../lexer/Lexer.h"
@@ -174,6 +175,7 @@ void printHelp() {
   std::cout << "  meadows build --release          Build in release mode\n";
   std::cout << "  meadows run                      Build and run the project\n";
   std::cout << "  meadows test                     Run all tests\n";
+  std::cout << "  meadows lint <file>              Lint a file\n";
   std::cout << "  meadows init                     Initialize new project\n";
   std::cout
       << "  meadows program.ms               Compile single file (legacy)\n";
@@ -412,6 +414,80 @@ int cmdTest(bool verbose) {
   std::cout << "Running tests..." << std::endl;
   std::cout << "Note: Test runner not yet fully implemented" << std::endl;
   return 0;
+}
+
+int cmdLint(const std::string &filePath) {
+  std::cout << "Running linter on " << filePath << "..." << std::endl;
+
+  // Validate input file
+  std::string errorMsg;
+  if (!validateInputFile(filePath, errorMsg)) {
+    std::cerr << "Error: " << errorMsg << std::endl;
+    return 1;
+  }
+
+  // Open file
+  std::ifstream file(filePath);
+  if (!file) {
+    std::cerr << "Error: Cannot open file " << filePath << std::endl;
+    return 1;
+  }
+
+  // Read source
+  std::string source((std::istreambuf_iterator<char>(file)),
+                     std::istreambuf_iterator<char>());
+
+  meadows::DiagnosticsCollector diagnostics;
+
+  try {
+    // Lex
+    Lexer lexer(source);
+    std::vector<Token> tokens = lexer.tokenize();
+
+    // Parse
+    Parser parser(tokens, diagnostics);
+    parser.setSourcePath(filePath);
+    parser.setStdlibPath("/Users/nandan/dev/meadows/src/stdlib");
+    auto statements = parser.parse();
+
+    if (diagnostics.hasErrors()) {
+      meadows::ErrorFormatter formatter;
+      std::cerr << formatter.formatMultiple(diagnostics.diagnostics(),
+                                            filePath);
+      return 1;
+    }
+
+    // Run lint checks
+    int lintWarnings = 0;
+
+    for (const auto &stmt : statements) {
+      // Check let statements for uninitialized variables
+      if (auto *letStmt = dynamic_cast<LetStmt *>(stmt.get())) {
+        if (letStmt->initializer == nullptr) {
+          std::cout << "[lint] Warning: Variable '" << letStmt->name
+                    << "' declared but not initialized" << std::endl;
+          lintWarnings++;
+        }
+      }
+
+      // Check function statements for empty bodies
+      if (auto *funcStmt = dynamic_cast<FuncStmt *>(stmt.get())) {
+        if (funcStmt->body.empty()) {
+          std::cout << "[lint] Warning: Empty function body '" << funcStmt->name
+                    << "'" << std::endl;
+          lintWarnings++;
+        }
+      }
+    }
+
+    std::cout << "Linting complete. Found " << lintWarnings << " warnings."
+              << std::endl;
+    return 0;
+
+  } catch (const std::exception &e) {
+    std::cerr << "Error during linting: " << e.what() << std::endl;
+    return 1;
+  }
 }
 
 int compileSingleFile(const std::string &filePath, bool verbose, bool dumpAst,
@@ -681,6 +757,16 @@ int main(int argc, char *argv[]) {
         verbose = true;
     }
     return cmdTest(verbose);
+  }
+
+  // Lint command - analyze code without compilation
+  if (firstArg == "lint") {
+    if (argc < 3) {
+      std::cerr << "Error: lint requires a file path" << std::endl;
+      return 1;
+    }
+    std::string filePath = argv[2];
+    return cmdLint(filePath);
   }
 
   // Handle legacy single-file compilation
