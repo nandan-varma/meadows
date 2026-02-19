@@ -6,6 +6,17 @@
 #include "../utils/MemoryUtils.h"
 #include "Parser.h"
 
+// RAII guard to automatically pop context when leaving scope
+class ContextGuard {
+  meadows::ErrorHandler *handler_;
+
+public:
+  explicit ContextGuard(meadows::ErrorHandler *handler) : handler_(handler) {}
+  ~ContextGuard() { handler_->popContext(); }
+  ContextGuard(const ContextGuard &) = delete;
+  ContextGuard &operator=(const ContextGuard &) = delete;
+};
+
 Parser::Parser(std::vector<Token> tokens, const std::string &sourceFile)
     : tokens_(std::move(tokens)), current_(0),
       errorHandler_(std::make_unique<meadows::ErrorHandler>()),
@@ -145,8 +156,17 @@ const Token &Parser::consume(TokenType type, const std::string &message) {
 
 void Parser::error(const std::string &message) {
   auto loc = currentLocation();
-  errorHandler_->handle(meadows::ParseError(
-      meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message, loc));
+  auto parseError = meadows::ParseError(
+      meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message, loc);
+
+  // Transfer context stack to error
+  const auto &ctx = errorHandler_->getContext();
+  parseError.setCallStack(ctx.callStack);
+
+  // Capture native stack trace for debugging
+  parseError.setNativeStackTrace(meadows::captureNativeStackTrace(2));
+
+  errorHandler_->handle(parseError);
   consecutiveErrors_++;
   inErrorRecovery_ = true;
   synchronize();
@@ -228,6 +248,9 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
 std::unique_ptr<Stmt> Parser::parseLetStmt() {
   const Token &name = consume(TokenType::IDENTIFIER, "Expect variable name");
 
+  errorHandler_->pushContext("parsing let statement");
+  ContextGuard guard(errorHandler_.get());
+
   std::string typeAnnotation;
   if (match(TokenType::COLON)) {
     TokenType typeTokens[] = {TokenType::I32,       TokenType::I64,
@@ -273,6 +296,11 @@ std::unique_ptr<Stmt> Parser::parseLetStmt() {
 
 std::unique_ptr<Stmt> Parser::parseFuncStmt() {
   const Token &name = consume(TokenType::IDENTIFIER, "Expect function name");
+
+  // Push context for function parsing (auto-popped when leaving scope)
+  errorHandler_->pushContext("parsing function '" + name.value + "'");
+  ContextGuard guard(errorHandler_.get());
+
   consume(TokenType::LEFT_PAREN, "Expect '(' after function name");
 
   std::vector<FuncParam> params;
@@ -337,6 +365,9 @@ std::unique_ptr<Stmt> Parser::parseFuncStmt() {
 }
 
 std::unique_ptr<Stmt> Parser::parseIfStmt() {
+  errorHandler_->pushContext("parsing if statement");
+  ContextGuard guard(errorHandler_.get());
+
   consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'");
   auto condition = parseExpr();
   consume(TokenType::RIGHT_PAREN, "Expect ')' after condition");
@@ -361,6 +392,9 @@ std::unique_ptr<Stmt> Parser::parseIfStmt() {
 }
 
 std::unique_ptr<Stmt> Parser::parseForStmt() {
+  errorHandler_->pushContext("parsing for loop");
+  ContextGuard guard(errorHandler_.get());
+
   consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'");
   const Token &var = consume(TokenType::IDENTIFIER, "Expect variable name");
   consume(TokenType::IN, "Expect 'in' after variable");

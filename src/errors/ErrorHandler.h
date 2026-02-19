@@ -34,9 +34,29 @@ struct ErrorContext {
   int warningCount = 0;
   int maxErrors = 100; // Stop after this many errors
 
+  std::vector<std::string> callStack;
+
   void incrementError() { errorCount++; }
   void incrementWarning() { warningCount++; }
   bool shouldStop() const { return errorCount >= maxErrors; }
+
+  void pushContext(const std::string &context) { callStack.push_back(context); }
+
+  void popContext() {
+    if (!callStack.empty()) {
+      callStack.pop_back();
+    }
+  }
+
+  std::string getContextStack() const {
+    std::string result;
+    for (size_t i = 0; i < callStack.size(); ++i) {
+      if (i > 0)
+        result += " → ";
+      result += callStack[i];
+    }
+    return result;
+  }
 };
 
 /**
@@ -230,6 +250,23 @@ public:
    * @brief Get the error context.
    */
   const ErrorContext &getContext() const { return context_; }
+
+  /**
+   * @brief Get mutable context for tracking
+   */
+  ErrorContext &getMutableContext() { return context_; }
+
+  /**
+   * @brief Push a context onto the stack
+   */
+  void pushContext(const std::string &context) {
+    context_.pushContext(context);
+  }
+
+  /**
+   * @brief Pop the current context
+   */
+  void popContext() { context_.popContext(); }
 
   /**
    * @brief Get error count.

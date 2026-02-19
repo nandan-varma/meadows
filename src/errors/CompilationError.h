@@ -20,6 +20,9 @@
 
 namespace meadows {
 
+// Forward declaration for native stack trace capture
+std::string captureNativeStackTrace(int skipFrames = 0);
+
 /**
  * @brief Represents a location in source code
  */
@@ -74,6 +77,8 @@ protected:
   std::vector<RelatedInfo> relatedInfo_;
   std::string help_;
   Severity severity_;
+  std::vector<std::string> callStack_;
+  std::string nativeStackTrace_;
 
 public:
   CompilationError(ErrorCode code, const std::string &message,
@@ -105,6 +110,23 @@ public:
     help_ = help;
     return *this;
   }
+
+  // Stack trace getters/setters
+  const std::vector<std::string> &getCallStack() const { return callStack_; }
+  void setCallStack(const std::vector<std::string> &stack) {
+    callStack_ = stack;
+  }
+  void pushContext(const std::string &context) {
+    callStack_.push_back(context);
+  }
+
+  const std::string &getNativeStackTrace() const { return nativeStackTrace_; }
+  void setNativeStackTrace(const std::string &trace) {
+    nativeStackTrace_ = trace;
+  }
+
+  bool hasCallStack() const { return !callStack_.empty(); }
+  bool hasNativeStackTrace() const { return !nativeStackTrace_.empty(); }
 
   /**
    * @brief Format error as human-readable string

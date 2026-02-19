@@ -2,7 +2,62 @@
 
 #include <sstream>
 
+#ifdef __linux__
+#include <cxxabi.h>
+#include <execinfo.h>
+#include <memory>
+#endif
+
 namespace meadows {
+
+std::string captureNativeStackTrace(int skipFrames) {
+  std::string result;
+
+#ifdef __linux__
+  const int MAX_FRAMES = 32;
+  void *buffer[MAX_FRAMES];
+  int n = backtrace(buffer + skipFrames, MAX_FRAMES - skipFrames);
+  char **symbols = backtrace_symbols(buffer + skipFrames, n);
+
+  if (symbols) {
+    for (int i = 0; i < n; ++i) {
+      result += "  #" + std::to_string(i) + " ";
+
+      std::string symbol(symbols[i]);
+      size_t openParen = symbol.find('(');
+      size_t plus = symbol.find('+');
+
+      if (openParen != std::string::npos && plus != std::string::npos) {
+        std::string module = symbol.substr(0, openParen);
+        std::string funcAndOffset =
+            symbol.substr(openParen + 1, plus - openParen - 1);
+
+        int status = 0;
+        std::unique_ptr<char, decltype(&std::free)> demangled(
+            abi::__cxa_demangle(funcAndOffset.c_str(), nullptr, nullptr,
+                                &status),
+            std::free);
+
+        if (status == 0 && demangled) {
+          result += module + ": " + demangled.get();
+        } else {
+          result += symbol;
+        }
+      } else {
+        result += symbol;
+      }
+      result += "\n";
+    }
+    std::free(symbols);
+  }
+#endif
+
+#ifdef __APPLE__
+  result = "  (native stack trace not available on macOS for now)\n";
+#endif
+
+  return result;
+}
 
 std::string CompilationError::format() const {
   std::ostringstream oss;
@@ -45,6 +100,19 @@ std::string CompilationError::format() const {
     if (info.location.isValid()) {
       oss << " at " << info.location.toString();
     }
+  }
+
+  // Context stack
+  if (!callStack_.empty()) {
+    oss << "\n  Context:";
+    for (const auto &ctx : callStack_) {
+      oss << "\n    → " << ctx;
+    }
+  }
+
+  // Native stack trace (only if explicitly set)
+  if (!nativeStackTrace_.empty()) {
+    oss << "\n  Stack trace:\n" << nativeStackTrace_;
   }
 
   return oss.str();
