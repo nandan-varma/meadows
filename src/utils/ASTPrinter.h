@@ -241,14 +241,6 @@ public:
     indentLevel_--;
   }
 
-  void visitPrintStmt(PrintStmt &stmt) override {
-    indent();
-    output_ << "PrintStmt\n";
-    indentLevel_++;
-    stmt.expr->accept(*this);
-    indentLevel_--;
-  }
-
   void visitBlockStmt(BlockStmt &stmt) override {
     indent();
     output_ << "BlockStmt[" << stmt.body.size() << "]\n";

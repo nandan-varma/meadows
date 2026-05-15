@@ -1,6 +1,6 @@
 #include "codegen/CodeGen.h"
 #include "ast/AST.h"
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_all.hpp>
 #include "codegen/StringUtils.h"
 #include "codegen/TypeUtils.h"
 #include "lexer/Lexer.h"
@@ -102,7 +102,7 @@ TEST_CASE("CodeGen handles variable initialization", "[codegen]") {
 
 TEST_CASE("CodeGen handles control flow", "[codegen]") {
   SECTION("If statement") {
-    auto parser = createParser("if (1 > 0) { print 1; }");
+    auto parser = createParser("if (1 > 0) { print(1); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -115,7 +115,7 @@ TEST_CASE("CodeGen handles control flow", "[codegen]") {
   }
 
   SECTION("If-else statement") {
-    auto parser = createParser("if (1 < 0) { print 1; } else { print 2; }");
+    auto parser = createParser("if (1 < 0) { print(1); } else { print(2); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -128,7 +128,7 @@ TEST_CASE("CodeGen handles control flow", "[codegen]") {
   }
 
   SECTION("While loop") {
-    auto parser = createParser("while (0 > 1) { print 1; }");
+    auto parser = createParser("while (0 > 1) { print(1); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -141,7 +141,7 @@ TEST_CASE("CodeGen handles control flow", "[codegen]") {
   }
 
   SECTION("For loop") {
-    auto parser = createParser("for (i in range(0, 5)) { print i; }");
+    auto parser = createParser("for (i in range(0, 5)) { print(i); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -268,7 +268,7 @@ TEST_CASE("CodeGen handles comparisons", "[codegen]") {
 
 TEST_CASE("CodeGen handles print statements", "[codegen]") {
   SECTION("Print number") {
-    auto parser = createParser("print 42;");
+    auto parser = createParser("print(42);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -281,7 +281,7 @@ TEST_CASE("CodeGen handles print statements", "[codegen]") {
   }
 
   SECTION("Print variable") {
-    auto parser = createParser("let x = 5; print x;");
+    auto parser = createParser("let x = 5; print(x);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 2);
@@ -296,7 +296,7 @@ TEST_CASE("CodeGen handles print statements", "[codegen]") {
 
 TEST_CASE("CodeGen throws on undefined references", "[codegen]") {
   SECTION("Undefined variable") {
-    auto parser = createParser("print undefined_var;");
+    auto parser = createParser("print(undefined_var);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -425,7 +425,7 @@ TEST_CASE("CodeGen handles break and continue", "[codegen][loops]") {
 
 TEST_CASE("CodeGen handles nested control flow", "[codegen]") {
   SECTION("Nested if statements") {
-    auto parser = createParser("if (1 > 0) { if (2 > 1) { print 1; } }");
+    auto parser = createParser("if (1 > 0) { if (2 > 1) { print(1); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -439,7 +439,7 @@ TEST_CASE("CodeGen handles nested control flow", "[codegen]") {
 
   SECTION("If-else if chain") {
     auto parser = createParser(
-        "if (0 > 1) { print 1; } else { if (1 > 0) { print 2; } }");
+        "if (0 > 1) { print(1); } else { if (1 > 0) { print(2); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -453,7 +453,7 @@ TEST_CASE("CodeGen handles nested control flow", "[codegen]") {
 
   SECTION("Nested while in for") {
     auto parser =
-        createParser("for (i in range(0, 2)) { while (i < 1) { print i; } }");
+        createParser("for (i in range(0, 2)) { while (i < 1) { print(i); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -467,7 +467,7 @@ TEST_CASE("CodeGen handles nested control flow", "[codegen]") {
 
   SECTION("For in while") {
     auto parser =
-        createParser("while (true) { for (i in range(0, 1)) { print i; } }");
+        createParser("while (true) { for (i in range(0, 1)) { print(i); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -481,7 +481,7 @@ TEST_CASE("CodeGen handles nested control flow", "[codegen]") {
 
   SECTION("Deep nesting") {
     auto parser = createParser(
-        "if (true) { while (false) { for (i in range(0, 1)) { print 1; } } }");
+        "if (true) { while (false) { for (i in range(0, 1)) { print(1); } } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -538,7 +538,7 @@ TEST_CASE("CodeGen handles empty blocks", "[codegen]") {
 
 TEST_CASE("CodeGen handles variable shadowing", "[codegen]") {
   SECTION("Shadowed variables") {
-    auto parser = createParser("let x = 1; { let x = 2; print x; } print x;");
+    auto parser = createParser("let x = 1; { let x = 2; print(x); } print(x);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 3);
@@ -719,7 +719,7 @@ TEST_CASE("CodeGen handles multiple statements", "[codegen]") {
   }
 
   SECTION("Mixed statements") {
-    auto parser = createParser("let x = 5; print x; let y = 10;");
+    auto parser = createParser("let x = 5; print(x); let y = 10;");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 3);
     CodeGen codegen;
@@ -791,7 +791,7 @@ TEST_CASE("CodeGen handles string printing", "[codegen][print][strings]") {
   }
 
   SECTION("Print string variable") {
-    auto parser = createParser("let msg = \"hello world\"; print msg;");
+    auto parser = createParser("let msg = \"hello world\"; print(msg);");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 2);
     CodeGen codegen;
@@ -801,7 +801,7 @@ TEST_CASE("CodeGen handles string printing", "[codegen][print][strings]") {
   }
 
   SECTION("Print empty string") {
-    auto parser = createParser("let empty = \"\"; print empty;");
+    auto parser = createParser("let empty = \"\"; print(empty);");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 2);
     CodeGen codegen;
@@ -1016,7 +1016,7 @@ TEST_CASE("CodeGen optimization flag", "[codegen][optimization]") {
 
 TEST_CASE("CodeGen module verification", "[codegen][verification]") {
   SECTION("Generated module verifies successfully") {
-    auto parser = createParser("let x = 1 + 2; print x;");
+    auto parser = createParser("let x = 1 + 2; print(x);");
     auto stmts = parser->parse();
     CodeGen codegen;
     codegen.generate(stmts);
@@ -1035,7 +1035,7 @@ TEST_CASE("CodeGen module verification", "[codegen][verification]") {
                                "  return fib(n - 1) + fib(n - 2); "
                                "} "
                                "let result = fib(5); "
-                               "print result;");
+                               "print(result);");
     auto stmts = parser->parse();
     CodeGen codegen;
     codegen.generate(stmts);
@@ -1056,11 +1056,11 @@ TEST_CASE("CodeGen scope management", "[codegen][scope]") {
                                "  let x = 2; "
                                "  { "
                                "    let x = 3; "
-                               "    print x; "
+                               "    print(x); "
                                "  } "
-                               "  print x; "
+                               "  print(x); "
                                "} "
-                               "print x;");
+                               "print(x);");
     auto stmts = parser->parse();
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
@@ -1074,7 +1074,7 @@ TEST_CASE("CodeGen scope management", "[codegen][scope]") {
                                "  return y; "
                                "} "
                                "let result = outer(5); "
-                               "print result;");
+                               "print(result);");
     auto stmts = parser->parse();
     CodeGen codegen;
     REQUIRE_NOTHROW(codegen.generate(stmts));
@@ -1084,7 +1084,7 @@ TEST_CASE("CodeGen scope management", "[codegen][scope]") {
   SECTION("Loop variable shadows outer variable") {
     auto parser = createParser("let x = 0; "
                                "for (x in range(0, 5)) { "
-                               "  print x; "
+                               "  print(x); "
                                "}");
     auto stmts = parser->parse();
     CodeGen codegen;

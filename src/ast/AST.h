@@ -1,20 +1,6 @@
 #ifndef AST_H
 #define AST_H
 
-/**
- * @file AST.h
- * @brief Abstract Syntax Tree node definitions for the Meadows language.
- *
- * This file defines the AST node classes used to represent the syntactic
- * structure of Meadows programs. The AST is built by the Parser and used
- * by the CodeGen to generate LLVM IR.
- *
- * @ Architecture
- * - Expression nodes (Expr) represent values and computations
- * - Statement nodes (Stmt) represent program statements
- * - Visitor pattern is used for traversing and processing the AST
- */
-
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -25,33 +11,20 @@ class Stmt;
 class ExprVisitor;
 class StmtVisitor;
 
-/**
- * @brief Base class for all expression nodes.
- *
- * Expressions produce values and can be evaluated, combined, or used
- * as sub-expressions in larger expressions.
- */
 class Expr {
 public:
+  int line = 0, column = 0;
   virtual ~Expr() = default;
   virtual void accept(ExprVisitor &visitor) = 0;
 };
 
-/**
- * @brief Base class for all statement nodes.
- *
- * Statements perform actions but do not produce values directly.
- * They include variable declarations, control flow, function definitions, etc.
- */
 class Stmt {
 public:
+  int line = 0, column = 0;
   virtual ~Stmt() = default;
   virtual void accept(StmtVisitor &visitor) = 0;
 };
 
-/**
- * @brief Represents a literal value (number or string).
- */
 class LiteralExpr : public Expr {
 public:
   std::string value;
@@ -59,9 +32,6 @@ public:
   void accept(ExprVisitor &visitor) override;
 };
 
-/**
- * @brief Represents a variable reference.
- */
 class VarExpr : public Expr {
 public:
   std::string name;
@@ -238,13 +208,6 @@ public:
   void accept(StmtVisitor &visitor) override;
 };
 
-class PrintStmt : public Stmt {
-public:
-  std::unique_ptr<Expr> expr;
-  PrintStmt(std::unique_ptr<Expr> e) : expr(std::move(e)) {}
-  void accept(StmtVisitor &visitor) override;
-};
-
 class ExprVisitor {
 public:
   virtual ~ExprVisitor() = default;
@@ -274,7 +237,6 @@ public:
   virtual void visitBreakStmt(BreakStmt &stmt) = 0;
   virtual void visitContinueStmt(ContinueStmt &stmt) = 0;
   virtual void visitBlockStmt(BlockStmt &stmt) = 0;
-  virtual void visitPrintStmt(PrintStmt &stmt) = 0;
 };
 
 #endif

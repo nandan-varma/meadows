@@ -64,9 +64,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Load LLVM detection helpers
+source "$SCRIPT_DIR/scripts/dev/detect_llvm.sh"
+
 # Detect LLVM if not provided
 if [[ -z "$LLVM_DIR" ]]; then
-    source "$SCRIPT_DIR/scripts/dev/detect_llvm.sh"
     LLVM_DIR=$(get_llvm_dir)
 fi
 
@@ -85,14 +87,38 @@ echo
 echo "LLVM: $LLVM_DIR"
 echo
 
+# Build a cmake target in the given build directory.
+# Args: label build_type build_dir cmake_target binary_check
+build_variant() {
+    local label="$1" build_type="$2" build_dir="$SCRIPT_DIR/$3"
+    local cmake_target="$4" binary_check="$5"
+    local njobs="${JOBS:-$(get_cmake_jobs)}"
+
+    echo -e "${BLUE}Building ${label}...${NC}"
+    mkdir -p "$build_dir"
+    (
+        cd "$build_dir"
+        cmake_flags=(-DCMAKE_BUILD_TYPE="$build_type" -DLLVM_DIR="$LLVM_DIR" -DBUILD_TESTS=ON)
+        [[ $VERBOSE -eq 1 ]] && cmake_flags+=(--log-level=VERBOSE)
+        cmake .. "${cmake_flags[@]}"
+        cmake --build . --parallel "$njobs" --target "$cmake_target"
+    )
+
+    if [[ ! -f "$build_dir/$binary_check" ]]; then
+        echo -e "${RED}Error: ${label} build failed${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}${label} complete: ${build_dir}/${binary_check}${NC}"
+}
+
 case $TARGET in
     all)
         echo -e "${YELLOW}Building all targets...${NC}"
-        "$SCRIPT_DIR/scripts/build/build_debug.sh"
+        build_variant "Debug"   Debug   build-debug  Meadows       bin/Meadows
         echo
-        "$SCRIPT_DIR/scripts/build/build_release.sh"
+        build_variant "Release" Release build-release Meadows      bin/Meadows
         echo
-        "$SCRIPT_DIR/scripts/build/build_tests.sh"
+        build_variant "Tests"   Debug   build        meadows_tests tests/meadows_tests
         echo
         echo -e "${GREEN}========================================${NC}"
         echo -e "${GREEN}   All builds complete!${NC}"
@@ -102,17 +128,22 @@ case $TARGET in
         echo "  Tests:   build/tests/meadows_tests"
         ;;
     debug)
-        "$SCRIPT_DIR/scripts/build/build_debug.sh"
+        build_variant "Debug" Debug build-debug Meadows bin/Meadows
         ;;
     release)
-        "$SCRIPT_DIR/scripts/build/build_release.sh"
+        build_variant "Release" Release build-release Meadows bin/Meadows
         ;;
     tests)
-        "$SCRIPT_DIR/scripts/build/build_tests.sh"
+        build_variant "Tests" Debug build meadows_tests tests/meadows_tests
         ;;
     clean)
-        rm -rf build build-debug build-release
-        echo -e "${GREEN}Build directories cleaned${NC}"
+        echo -e "${YELLOW}Cleaning build artifacts...${NC}"
+        for d in build build-debug build-release; do
+            [[ -d "$SCRIPT_DIR/$d" ]] && echo "  Removing $d/" && rm -rf "$SCRIPT_DIR/$d"
+        done
+        find "$SCRIPT_DIR" -name "*.ms.ll" -o -name "*.ms.out" | xargs rm -f 2>/dev/null || true
+        [[ -f "$SCRIPT_DIR/compile_commands.json" ]] && rm -f "$SCRIPT_DIR/compile_commands.json"
+        echo -e "${GREEN}Clean complete${NC}"
         ;;
     *)
         echo -e "${RED}Error: Unknown target '$TARGET'${NC}"

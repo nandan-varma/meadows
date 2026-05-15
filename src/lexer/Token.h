@@ -12,7 +12,6 @@ enum class TokenType {
   FOR,
   WHILE,
   RETURN,
-  PRINT,
   IN,
   RANGE,
   TRUE,

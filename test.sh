@@ -81,44 +81,69 @@ fi
 FAILED=0
 PASSED=0
 
-run_test_suite() {
-    local suite=$1
-    local script="$SCRIPT_DIR/scripts/test/run_${suite}_tests.sh"
-    local name="$2"
-    
-    if [ -f "$script" ]; then
-        echo -e "${YELLOW}Running ${name}...${NC}"
-        if "$script" $VERBOSE $FAIL_FAST 2>/dev/null; then
-            echo -e "${GREEN}${name} passed${NC}"
-            PASSED=$((PASSED + 1))
-        else
-            echo -e "${RED}${name} failed${NC}"
-            FAILED=$((FAILED + 1))
-            if [ -n "$FAIL_FAST" ]; then
-                return 1
-            fi
-        fi
-        echo
+# Run unit tests directly via the Catch2 binary.
+run_unit_tests() {
+    local test_bin="$SCRIPT_DIR/build/tests/meadows_tests"
+    echo -e "${YELLOW}Running Unit tests...${NC}"
+
+    if [[ ! -f "$test_bin" ]]; then
+        echo -e "${RED}Error: test executable not found: $test_bin${NC}"
+        echo "Run: ./build.sh tests"
+        return 1
+    fi
+
+    local catch_args=(--reporter console)
+    [[ -n "$VERBOSE" ]] && catch_args+=(--verbosity high)
+    [[ -n "$FAIL_FAST" ]] && catch_args+=(-x)
+
+    if "$test_bin" "${catch_args[@]}"; then
+        echo -e "${GREEN}Unit tests passed${NC}"
+        PASSED=$((PASSED + 1))
     else
+        echo -e "${RED}Unit tests failed${NC}"
+        FAILED=$((FAILED + 1))
+        [[ -n "$FAIL_FAST" ]] && return 1
+    fi
+    echo
+}
+
+# Run an external test suite script (integration, security, etc.).
+run_suite_script() {
+    local suite=$1 name="$2"
+    local script="$SCRIPT_DIR/scripts/test/run_${suite}_tests.sh"
+
+    if [[ ! -f "$script" ]]; then
         echo -e "${YELLOW}Warning: Test script not found: $script${NC}"
         echo
+        return 0
     fi
+
+    echo -e "${YELLOW}Running ${name}...${NC}"
+    if "$script" $VERBOSE $FAIL_FAST 2>/dev/null; then
+        echo -e "${GREEN}${name} passed${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "${RED}${name} failed${NC}"
+        FAILED=$((FAILED + 1))
+        [[ -n "$FAIL_FAST" ]] && return 1
+    fi
+    echo
 }
 
 case $SUITE in
     all)
-        run_test_suite "unit" "Unit tests"
-        run_test_suite "integration" "Integration tests"
-        run_test_suite "security" "Security tests"
+        run_unit_tests
+        run_suite_script "integration" "Integration tests"
+        run_suite_script "security"    "Security tests"
         ;;
     unit)
-        run_test_suite "unit" "Unit tests"
+        run_unit_tests
         ;;
     integration)
-        run_test_suite "integration" "Integration tests"
+        run_suite_script "integration" "Integration tests"
         ;;
     security)
-        run_test_suite "security" "Security tests"
+        run_suite_script "security" "Security tests"
         ;;
     coverage)
         "$SCRIPT_DIR/scripts/test/run_coverage.sh"

@@ -27,11 +27,14 @@
 #include "StringUtils.h"
 #include "SymbolTable.h"
 #include "TypeUtils.h"
+#include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -53,16 +56,16 @@
  */
 class CodeGen : public ExprVisitor, public StmtVisitor {
 public:
-  CodeGen(bool optimize = false);
+  explicit CodeGen(int optLevel = 0);
 
-  void setOptimize(bool optimize) { optimize_ = optimize; }
+  void setOptLevel(int level) { optLevel_ = level; }
 
   void generate(const std::vector<std::unique_ptr<Stmt>> &statements);
 
   std::unique_ptr<llvm::Module> getModule();
 
 private:
-  bool optimize_ = false;
+  int optLevel_ = 0;
   std::unique_ptr<llvm::LLVMContext> context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::IRBuilder<>> builder;
@@ -84,6 +87,8 @@ private:
   void validateArrayBounds(llvm::Value *array, llvm::Value *index);
   void validateDivision(llvm::Value *divisor);
   void generateRuntimeError(const std::string &message);
+  void emitPrint(llvm::Value *val);
+  void runOptimizationPasses();
 
   void enterScope();
   void exitScope();
@@ -117,7 +122,6 @@ private:
   void visitWhileStmt(WhileStmt &stmt) override;
   void visitReturnStmt(ReturnStmt &stmt) override;
   void visitBlockStmt(BlockStmt &stmt) override;
-  void visitPrintStmt(PrintStmt &stmt) override;
   void visitBreakStmt(BreakStmt &stmt) override;
   void visitContinueStmt(ContinueStmt &stmt) override;
 
