@@ -28,8 +28,11 @@ jobs:
         env:
           # LLVM_PATH is set by KyleMayes/install-llvm-action
           LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
-          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
-          DYLD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+          # LD_LIBRARY_PATH needed on Linux for dynamic LLVM libs; omitted on
+          # macOS because the KyleMayes prebuilt uses static libs and setting
+          # DYLD_LIBRARY_PATH globally poisons bash startup with LLVM's older
+          # libc++abi.dylib, causing symbol-missing crashes in system frameworks.
+          LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('{0}/lib', env.LLVM_PATH) || '' }}
           MEADOWS_CLANG: ${{ env.LLVM_PATH }}/bin/clang++
         run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
 
