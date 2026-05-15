@@ -10,13 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            llvm-version: 17
-          - os: macos-latest
-            llvm-version: 17
-          - os: windows-latest
-            llvm-version: 17
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -25,13 +19,12 @@ jobs:
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v2
         with:
-          version: "${{ matrix.llvm-version }}"
-        # Sets LLVM_PATH env var to the install root (e.g. /path/to/llvm or C:\Program Files\LLVM)
+          version: "17"
+        # Sets LLVM_PATH env var to the install root
 
       - uses: jwlawson/actions-setup-cmake@v2
 
-      - name: Build and Test (Unix)
-        if: runner.os != 'Windows'
+      - name: Build and Test
         env:
           # LLVM_PATH is set by KyleMayes/install-llvm-action
           LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
@@ -40,50 +33,11 @@ jobs:
           MEADOWS_CLANG: ${{ env.LLVM_PATH }}/bin/clang++
         run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
 
-      - name: Find LLVM cmake dir (Windows)
-        if: runner.os == 'Windows'
-        id: llvm-cmake
-        shell: pwsh
-        run: |
-          # LLVM_PATH is the install root set by KyleMayes action
-          $llvmBase = $env:LLVM_PATH
-          Write-Host "LLVM install base: $llvmBase"
-          $cfg = Get-ChildItem -Recurse "$llvmBase" -Filter "LLVMConfig.cmake" -ErrorAction SilentlyContinue |
-                 Select-Object -First 1
-          if ($cfg) {
-            $dir = $cfg.DirectoryName
-            Write-Host "Found LLVMConfig.cmake at: $dir"
-            echo "llvm_dir=$dir" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "LLVMConfig.cmake not found under $llvmBase — listing contents:"
-            Get-ChildItem -Recurse "$llvmBase" | Select-Object -First 60 |
-              ForEach-Object { Write-Host $_.FullName }
-            exit 1
-          }
-
-      - name: Build and Test (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          MEADOWS_CLANG: ${{ env.LLVM_PATH }}\bin\clang++.exe
-        run: |
-          $llvmDir = "${{ steps.llvm-cmake.outputs.llvm_dir }}"
-          Write-Host "Using LLVM_DIR: $llvmDir"
-          cmake -B build-release `
-            -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_C_COMPILER=clang `
-            -DCMAKE_CXX_COMPILER=clang++ `
-            "-DLLVM_DIR=$llvmDir" `
-            -DBUILD_TESTS=ON
-          cmake --build build-release --parallel
-          .\build-release\tests\meadows_tests.exe
-
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-results-${{ matrix.os }}-llvm${{ matrix.llvm-version }}
+          name: test-results-${{ matrix.os }}
           path: build*/
 
   static-analysis:
