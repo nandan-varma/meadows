@@ -56,6 +56,40 @@ jobs:
           version: "17"
       - run: ./scripts/dev/run_static_analysis.sh
 
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17"
+
+      - uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Build with ASan + UBSan
+        env:
+          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
+          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+        run: |
+          cmake -B build-san \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-san --parallel
+
+      - name: Run unit tests under sanitizers
+        env:
+          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+          ASAN_OPTIONS: halt_on_error=1:detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./build-san/tests/meadows_tests
+
   security:
     runs-on: ubuntu-latest
     steps:

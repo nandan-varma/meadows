@@ -82,6 +82,9 @@ Token Lexer::handleOperator(char c, int startColumn) {
   case '/':
     advance();
     return Token(TokenType::SLASH, "/", line_, startColumn);
+  case '%':
+    advance();
+    return Token(TokenType::PERCENT, "%", line_, startColumn);
   case '=':
     advance();
     if (peek() == '=') {

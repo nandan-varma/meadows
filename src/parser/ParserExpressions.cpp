@@ -80,7 +80,7 @@ std::unique_ptr<Expr> Parser::parseTerm(int depth) {
 
 std::unique_ptr<Expr> Parser::parseFactor(int depth) {
   auto expr = parseUnary(depth);
-  while (match(TokenType::STAR) || match(TokenType::SLASH)) {
+  while (match(TokenType::STAR) || match(TokenType::SLASH) || match(TokenType::PERCENT)) {
     std::string op = previous().value;
     auto right = parseUnary(depth);
     expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
