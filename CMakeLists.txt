@@ -11,6 +11,8 @@ FetchContent_Declare(
   GIT_TAG        v2.4.2
   GIT_SHALLOW    TRUE
 )
+set(CLI11_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(CLI11)
 
 #==============================================================================
