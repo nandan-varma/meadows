@@ -231,8 +231,11 @@ std::unique_ptr<Stmt> Parser::parseWhileStmt() {
 }
 
 std::unique_ptr<Stmt> Parser::parseReturnStmt() {
-  auto value = parseExpr();
-  consume(TokenType::SEMICOLON, "Expect ';' after return value");
+  std::unique_ptr<Expr> value;
+  if (!check(TokenType::SEMICOLON)) {
+    value = parseExpr();
+  }
+  consume(TokenType::SEMICOLON, "Expect ';' after return statement");
   return std::make_unique<ReturnStmt>(std::move(value));
 }
 
