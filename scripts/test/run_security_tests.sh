@@ -53,7 +53,7 @@ test_command_injection() {
     
     # Create malicious filename that attempts command injection
     local malicious_file="$TEST_DIR/test; rm -rf /.ms"
-    echo 'print "test";' > "$malicious_file"
+    echo 'print("test");' > "$malicious_file"
     
     if $COMPILER "$malicious_file" 2>&1 | grep -qE "(Invalid characters|Error:|invalid)"; then
         log_pass "Command injection attempt blocked: semicolon in filename"
@@ -65,7 +65,7 @@ test_command_injection() {
     
     # Test with pipe character
     malicious_file="$TEST_DIR/test|whoami.ms"
-    echo 'print "test";' > "$malicious_file"
+    echo 'print("test");' > "$malicious_file"
     
     if $COMPILER "$malicious_file" 2>&1 | grep -qE "(Invalid characters|Error:|invalid)"; then
         log_pass "Command injection attempt blocked: pipe in filename"
@@ -77,7 +77,7 @@ test_command_injection() {
     
     # Test with backtick
     malicious_file="$TEST_DIR/test\`whoami\`.ms"
-    echo 'print "test";' > "$malicious_file"
+    echo 'print("test");' > "$malicious_file"
     
     if $COMPILER "$malicious_file" 2>&1 | grep -qE "(Invalid characters|Error:|invalid)"; then
         log_pass "Command injection attempt blocked: backtick in filename"
@@ -103,7 +103,7 @@ test_path_traversal() {
     
     # Test current directory file (should work)
     local valid_file="$TEST_DIR/valid_test.ms"
-    echo 'print "hello";' > "$valid_file"
+    echo 'print("hello");' > "$valid_file"
     
     if $COMPILER "$valid_file" > /dev/null 2>&1; then
         log_pass "Valid file in current directory accepted"
@@ -120,7 +120,7 @@ test_extension_validation() {
     
     # Test file without .ms extension
     local wrong_ext="$TEST_DIR/test.txt"
-    echo 'print "test";' > "$wrong_ext"
+    echo 'print("test");' > "$wrong_ext"
     
     if $COMPILER "$wrong_ext" 2>&1 | grep -qE "(must have .ms extension|Error:|invalid)"; then
         log_pass "Non-.ms extension rejected"
@@ -132,7 +132,7 @@ test_extension_validation() {
     
     # Test file with .ms extension (should work)
     local correct_ext="$TEST_DIR/test.ms"
-    echo 'print "test";' > "$correct_ext"
+    echo 'print("test");' > "$correct_ext"
     
     if $COMPILER "$correct_ext" > /dev/null 2>&1; then
         log_pass ".ms extension accepted"
@@ -156,7 +156,7 @@ with open('$large_file', 'w') as f:
     # Write 11MB of valid Meadows code
     for i in range(1150000):
         f.write('let x = 1;\n')
-    f.write('print 1;\n')
+    f.write('print(1);\n')
 " 2>/dev/null || dd if=/dev/zero of="$large_file" bs=1024 count=11264 2>/dev/null
     
     if [ -f "$large_file" ]; then
@@ -176,7 +176,7 @@ test_unterminated_string() {
     log_info "Test 5: Unterminated String Error Handling"
     
     local test_file="$TEST_DIR/unterminated.ms"
-    echo 'print "hello;' > "$test_file"
+    echo 'print("hello;' > "$test_file"
     
     if $COMPILER "$test_file" 2>&1 | grep -qiE "(unterminated|Lexical error|error)"; then
         log_pass "Unterminated string produces error"
@@ -192,7 +192,7 @@ test_undefined_variable() {
     log_info "Test 6: Undefined Variable Error Handling"
     
     local test_file="$TEST_DIR/undefined_var.ms"
-    echo 'print x;' > "$test_file"
+    echo 'print(x);' > "$test_file"
     
     if $COMPILER "$test_file" 2>&1 | grep -qiE "(undefined|Code generation error|error|Undefined variable)"; then
         log_pass "Undefined variable produces error"

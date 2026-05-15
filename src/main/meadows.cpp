@@ -9,14 +9,15 @@
 #include "../utils/Timer.h"
 #include "../utils/WarningManager.h"
 #include <CLI/CLI.hpp>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Support/Program.h>
 #include <llvm/Support/raw_ostream.h>
+#include <optional>
 #include <string>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <unordered_map>
 #include <vector>
 
@@ -41,7 +42,10 @@ static const std::unordered_map<std::string, meadows::ErrorCode> WARNING_NAMES =
 // ── Path validation ───────────────────────────────────────────────────────────
 
 static bool hasDangerousChars(const std::string &s) {
-  static constexpr const char *DANGEROUS = ";|&`$(){}[]<>!\\\"'\n\r\t";
+  // Excludes () so paths like "Program Files (x86)" are valid.
+  // Shell metacharacters are harmless here because we use exec-style
+  // invocation (never system()), but we still reject obvious injection chars.
+  static constexpr const char *DANGEROUS = ";|&`${}[]<>!\\\"'\n\r\t";
   return s.find_first_of(DANGEROUS) != std::string::npos;
 }
 
@@ -72,18 +76,31 @@ static bool validateOutputPath(const std::string &path, std::string &err) {
 
 // ── Clang invocation ──────────────────────────────────────────────────────────
 
-static int compileWithClang(const std::string &llFile, const std::string &outFile) {
-  pid_t pid = fork();
-  if (pid == 0) {
-    const char *args[] = {"clang++", llFile.c_str(), "-o", outFile.c_str(), nullptr};
-    execvp("clang++", const_cast<char *const *>(args));
-    _exit(127);
-  } else if (pid > 0) {
-    int status;
-    if (waitpid(pid, &status, 0) == -1) return -1;
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+static std::string findClangPlusPlus() {
+  // Explicit override via environment variable
+  if (const char *env = std::getenv("MEADOWS_CLANG"))
+    return env;
+
+  // Try versioned names first so we pick the right LLVM version
+  for (const char *candidate :
+       {"clang++-17", "clang++-18", "clang++-16", "clang++"}) {
+    auto found = llvm::sys::findProgramByName(candidate);
+    if (found)
+      return std::move(*found);
   }
-  return -1;
+  return {};
+}
+
+static int compileWithClang(const std::string &llFile, const std::string &outFile) {
+  std::string clangPath = findClangPlusPlus();
+  if (clangPath.empty()) return 127;
+
+  std::vector<llvm::StringRef> args = {clangPath, llFile, "-o", outFile};
+  std::string errMsg;
+  bool execFailed = false;
+  int ret = llvm::sys::ExecuteAndWait(clangPath, args, std::nullopt, {},
+                                      0, 0, &errMsg, &execFailed);
+  return execFailed ? 127 : ret;
 }
 
 // ── Warning flag processing ───────────────────────────────────────────────────

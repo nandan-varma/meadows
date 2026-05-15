@@ -40,18 +40,19 @@ jobs:
 
       - name: Build and Test (Windows)
         if: runner.os == 'Windows'
-        shell: bash
-        env:
-          LLVM_DIR: ${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm
+        shell: pwsh
         run: |
-          cmake -B build-release \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_DIR="$LLVM_DIR" \
+          # Use PowerShell paths to avoid bash drive-letter mangling
+          $llvmDir = "${{ steps.install-llvm.outputs.llvm-path }}\lib\cmake\llvm"
+          cmake -B build-release `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=clang `
+            -DCMAKE_CXX_COMPILER=clang++ `
+            "-DLLVM_DIR=$llvmDir" `
             -DBUILD_TESTS=ON
           cmake --build build-release --parallel
-          ./build-release/tests/meadows_tests.exe
+          .\build-release\tests\meadows_tests.exe
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4

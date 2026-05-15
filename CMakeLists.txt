@@ -196,9 +196,13 @@ target_link_libraries(${PROJECT_NAME}
     ${LLVM_LIBS}
 )
 
-# Set output directory
+# Set output directory and embed LLVM library path so the binary works
+# without DYLD_LIBRARY_PATH / LD_LIBRARY_PATH being set at runtime.
 set_target_properties(${PROJECT_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+  BUILD_RPATH  "${LLVM_LIBRARY_DIRS}"
+  INSTALL_RPATH "${LLVM_LIBRARY_DIRS}"
+  INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
 #==============================================================================
