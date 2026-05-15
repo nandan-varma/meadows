@@ -54,7 +54,7 @@ TEST_CASE("Parser handles variable declarations", "[parser]") {
 
 TEST_CASE("Parser handles function definitions", "[parser]") {
   SECTION("Function without parameters") {
-    auto parser = createParser("func greet() { print \"hello\"; }");
+    auto parser = createParser("func greet() { print(\"hello\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -91,7 +91,7 @@ TEST_CASE("Parser handles function definitions", "[parser]") {
 
 TEST_CASE("Parser handles if statements", "[parser]") {
   SECTION("If without else") {
-    auto parser = createParser("if (x > 0) { print \"positive\"; }");
+    auto parser = createParser("if (x > 0) { print(\"positive\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -103,7 +103,7 @@ TEST_CASE("Parser handles if statements", "[parser]") {
 
   SECTION("If with else") {
     auto parser = createParser(
-        "if (x > 0) { print \"positive\"; } else { print \"non-positive\"; }");
+        "if (x > 0) { print(\"positive\"); } else { print(\"non-positive\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
