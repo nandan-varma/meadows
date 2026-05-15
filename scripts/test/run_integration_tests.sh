@@ -72,7 +72,7 @@ echo
 if [ $NO_BUILD -eq 0 ]; then
     if [ ! -f "$COMPILER" ]; then
         echo -e "${YELLOW}Compiler not found. Building...${NC}"
-        "$SCRIPT_DIR/../build/build_debug.sh"
+        "$PROJECT_ROOT/build.sh" debug
     fi
 fi
 

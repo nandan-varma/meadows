@@ -1,6 +1,6 @@
 #include "parser/Parser.h"
 #include "ast/AST.h"
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_all.hpp>
 #include "lexer/Lexer.h"
 #include "utils/Exceptions.h"
 
@@ -54,7 +54,7 @@ TEST_CASE("Parser handles variable declarations", "[parser]") {
 
 TEST_CASE("Parser handles function definitions", "[parser]") {
   SECTION("Function without parameters") {
-    auto parser = createParser("func greet() { print \"hello\"; }");
+    auto parser = createParser("func greet() { print(\"hello\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -91,7 +91,7 @@ TEST_CASE("Parser handles function definitions", "[parser]") {
 
 TEST_CASE("Parser handles if statements", "[parser]") {
   SECTION("If without else") {
-    auto parser = createParser("if (x > 0) { print \"positive\"; }");
+    auto parser = createParser("if (x > 0) { print(\"positive\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -103,7 +103,7 @@ TEST_CASE("Parser handles if statements", "[parser]") {
 
   SECTION("If with else") {
     auto parser = createParser(
-        "if (x > 0) { print \"positive\"; } else { print \"non-positive\"; }");
+        "if (x > 0) { print(\"positive\"); } else { print(\"non-positive\"); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -116,7 +116,7 @@ TEST_CASE("Parser handles if statements", "[parser]") {
 
 TEST_CASE("Parser handles loops", "[parser]") {
   SECTION("For loop") {
-    auto parser = createParser("for (i in range(0, 10)) { print i; }");
+    auto parser = createParser("for (i in range(0, 10)) { print(i); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -127,7 +127,7 @@ TEST_CASE("Parser handles loops", "[parser]") {
   }
 
   SECTION("While loop") {
-    auto parser = createParser("while (x > 0) { print x; }");
+    auto parser = createParser("while (x > 0) { print(x); }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -179,23 +179,31 @@ TEST_CASE("Parser handles expressions", "[parser]") {
   }
 }
 
-TEST_CASE("Parser handles print statements", "[parser]") {
-  SECTION("Print expression") {
-    auto parser = createParser("print 42;");
+TEST_CASE("Parser handles print() as function call", "[parser]") {
+  SECTION("print(number)") {
+    auto parser = createParser("print(42);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
-    auto printStmt = dynamic_cast<PrintStmt *>(stmts[0].get());
-    REQUIRE(printStmt != nullptr);
+    auto *exprStmt = dynamic_cast<ExprStmt *>(stmts[0].get());
+    REQUIRE(exprStmt != nullptr);
+    auto *call = dynamic_cast<CallExpr *>(exprStmt->expr.get());
+    REQUIRE(call != nullptr);
+    auto *callee = dynamic_cast<VarExpr *>(call->callee.get());
+    REQUIRE(callee != nullptr);
+    CHECK(callee->name == "print");
   }
 
-  SECTION("Print variable") {
-    auto parser = createParser("print x;");
+  SECTION("print(variable)") {
+    auto parser = createParser("print(x);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
-    auto printStmt = dynamic_cast<PrintStmt *>(stmts[0].get());
-    REQUIRE(printStmt != nullptr);
+    auto *exprStmt = dynamic_cast<ExprStmt *>(stmts[0].get());
+    REQUIRE(exprStmt != nullptr);
+    auto *call = dynamic_cast<CallExpr *>(exprStmt->expr.get());
+    REQUIRE(call != nullptr);
+    REQUIRE(call->args.size() == 1);
   }
 }
 
@@ -231,7 +239,7 @@ TEST_CASE("Parser reports syntax errors", "[parser]") {
   }
 
   SECTION("Missing closing brace") {
-    auto parser = createParser("func test() { print 1;");
+    auto parser = createParser("func test() { print(1);");
     REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
   }
 
@@ -252,7 +260,7 @@ TEST_CASE("Parser handles multiple statements", "[parser]") {
   auto parser = createParser(R"(
         let x = 5;
         let y = 10;
-        print x + y;
+        print(x + y);
     )");
   auto stmts = parser->parse();
 
@@ -264,7 +272,7 @@ TEST_CASE("Parser handles nested blocks", "[parser]") {
         func outer() {
             if (true) {
                 while (false) {
-                    print 1;
+                    print(1);
                 }
             }
         }
@@ -410,7 +418,7 @@ TEST_CASE("Parser handles long string literals", "[parser]") {
 
 TEST_CASE("Parser handles nested if statements", "[parser]") {
   SECTION("Nested if without else") {
-    auto parser = createParser("if (true) { if (false) { print 1; } }");
+    auto parser = createParser("if (true) { if (false) { print(1); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -423,7 +431,7 @@ TEST_CASE("Parser handles nested if statements", "[parser]") {
 
   SECTION("If with nested if-else") {
     auto parser =
-        createParser("if (true) { if (false) { print 1; } else { print 2; } }");
+        createParser("if (true) { if (false) { print(1); } else { print(2); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -472,7 +480,7 @@ TEST_CASE("Parser handles empty blocks", "[parser]") {
 TEST_CASE("Parser handles nested loops", "[parser]") {
   SECTION("For inside while") {
     auto parser =
-        createParser("while (true) { for (i in range(0, 1)) { print i; } }");
+        createParser("while (true) { for (i in range(0, 1)) { print(i); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -486,7 +494,7 @@ TEST_CASE("Parser handles nested loops", "[parser]") {
 
   SECTION("While inside for") {
     auto parser =
-        createParser("for (i in range(0, 1)) { while (false) { print i; } }");
+        createParser("for (i in range(0, 1)) { while (false) { print(i); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -500,7 +508,7 @@ TEST_CASE("Parser handles nested loops", "[parser]") {
 
   SECTION("Nested for loops") {
     auto parser = createParser(
-        "for (i in range(0, 2)) { for (j in range(0, 2)) { print i; } }");
+        "for (i in range(0, 2)) { for (j in range(0, 2)) { print(i); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -516,7 +524,7 @@ TEST_CASE("Parser handles nested loops", "[parser]") {
 TEST_CASE("Parser handles if-else if chains", "[parser]") {
   SECTION("If-else if pattern") {
     auto parser =
-        createParser("if (false) { print 1; } else { if (true) { print 2; } }");
+        createParser("if (false) { print(1); } else { if (true) { print(2); } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);
@@ -596,7 +604,7 @@ TEST_CASE("Parser handles multiple expressions", "[parser]") {
   }
 
   SECTION("Mixed statements") {
-    auto parser = createParser("let x = 1; x; x + 1; print x;");
+    auto parser = createParser("let x = 1; x; x + 1; print(x);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 4);
@@ -605,7 +613,7 @@ TEST_CASE("Parser handles multiple expressions", "[parser]") {
 
 TEST_CASE("Parser handles variable shadowing", "[parser]") {
   SECTION("Shadowing in nested block") {
-    auto parser = createParser("let x = 1; { let x = 2; print x; } print x;");
+    auto parser = createParser("let x = 1; { let x = 2; print(x); } print(x);");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 3);
@@ -627,7 +635,7 @@ TEST_CASE("Parser handles deep nesting", "[parser]") {
 
   SECTION("Deep nested if-while-for") {
     auto parser = createParser(
-        "if (true) { while (true) { for (i in range(0, 1)) { print 1; } } }");
+        "if (true) { while (true) { for (i in range(0, 1)) { print(1); } } }");
     auto stmts = parser->parse();
 
     REQUIRE(stmts.size() == 1);

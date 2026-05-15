@@ -1,1 +1,1 @@
-print "Error handling test passed";
+print("Error handling test passed");

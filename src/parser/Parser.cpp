@@ -115,11 +115,10 @@ void Parser::synchronize() {
     case TokenType::IF:
     case TokenType::FOR:
     case TokenType::WHILE:
-    case TokenType::PRINT:
     case TokenType::RETURN:
     case TokenType::BREAK:
     case TokenType::CONTINUE:
-    case TokenType::LEFT_BRACE: // Block start
+    case TokenType::LEFT_BRACE:
       return;
     default:
       break;
@@ -134,27 +133,30 @@ bool Parser::shouldAbortRecovery() const {
 }
 
 std::unique_ptr<Stmt> Parser::parseStmt() {
+  int stmtLine = peek().line, stmtCol = peek().column;
+  std::unique_ptr<Stmt> stmt;
   if (match(TokenType::LET))
-    return parseLetStmt();
-  if (match(TokenType::FUNC))
-    return parseFuncStmt();
-  if (match(TokenType::IF))
-    return parseIfStmt();
-  if (match(TokenType::FOR))
-    return parseForStmt();
-  if (match(TokenType::WHILE))
-    return parseWhileStmt();
-  if (match(TokenType::PRINT))
-    return parsePrintStmt();
-  if (match(TokenType::RETURN))
-    return parseReturnStmt();
-  if (match(TokenType::BREAK))
-    return parseBreakStmt();
-  if (match(TokenType::CONTINUE))
-    return parseContinueStmt();
-  if (match(TokenType::LEFT_BRACE))
-    return parseBlockStmt();
-  return parseExprStmt();
+    stmt = parseLetStmt();
+  else if (match(TokenType::FUNC))
+    stmt = parseFuncStmt();
+  else if (match(TokenType::IF))
+    stmt = parseIfStmt();
+  else if (match(TokenType::FOR))
+    stmt = parseForStmt();
+  else if (match(TokenType::WHILE))
+    stmt = parseWhileStmt();
+  else if (match(TokenType::RETURN))
+    stmt = parseReturnStmt();
+  else if (match(TokenType::BREAK))
+    stmt = parseBreakStmt();
+  else if (match(TokenType::CONTINUE))
+    stmt = parseContinueStmt();
+  else if (match(TokenType::LEFT_BRACE))
+    stmt = parseBlockStmt();
+  else
+    stmt = parseExprStmt();
+  if (stmt) { stmt->line = stmtLine; stmt->column = stmtCol; }
+  return stmt;
 }
 
 std::unique_ptr<Stmt> Parser::parseLetStmt() {
@@ -232,12 +234,6 @@ std::unique_ptr<Stmt> Parser::parseReturnStmt() {
   auto value = parseExpr();
   consume(TokenType::SEMICOLON, "Expect ';' after return value");
   return std::make_unique<ReturnStmt>(std::move(value));
-}
-
-std::unique_ptr<Stmt> Parser::parsePrintStmt() {
-  auto expr = parseExpr();
-  consume(TokenType::SEMICOLON, "Expect ';' after print");
-  return std::make_unique<PrintStmt>(std::move(expr));
 }
 
 std::unique_ptr<Stmt> Parser::parseExprStmt() {

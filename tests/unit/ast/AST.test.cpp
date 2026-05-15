@@ -1,5 +1,5 @@
 #include "ast/AST.h"
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_all.hpp>
 #include <memory>
 
 TEST_CASE("AST node types are correct", "[ast]") {
@@ -96,7 +96,7 @@ TEST_CASE("IfStmt branches", "[ast]") {
     auto condition = std::make_unique<LiteralExpr>("1");
     std::vector<std::unique_ptr<Stmt>> thenBranch;
     thenBranch.push_back(
-        std::make_unique<PrintStmt>(std::make_unique<LiteralExpr>("true")));
+        std::make_unique<ExprStmt>(std::make_unique<LiteralExpr>("true")));
 
     auto ifStmt = std::make_unique<IfStmt>(std::move(condition),
                                            std::move(thenBranch), {});
@@ -108,10 +108,10 @@ TEST_CASE("IfStmt branches", "[ast]") {
     auto condition = std::make_unique<LiteralExpr>("1");
     std::vector<std::unique_ptr<Stmt>> thenBranch;
     thenBranch.push_back(
-        std::make_unique<PrintStmt>(std::make_unique<LiteralExpr>("then")));
+        std::make_unique<ExprStmt>(std::make_unique<LiteralExpr>("then")));
     std::vector<std::unique_ptr<Stmt>> elseBranch;
     elseBranch.push_back(
-        std::make_unique<PrintStmt>(std::make_unique<LiteralExpr>("else")));
+        std::make_unique<ExprStmt>(std::make_unique<LiteralExpr>("else")));
 
     auto ifStmt = std::make_unique<IfStmt>(
         std::move(condition), std::move(thenBranch), std::move(elseBranch));
@@ -135,7 +135,7 @@ TEST_CASE("Loop constructs", "[ast]") {
     auto condition = std::make_unique<LiteralExpr>("1");
     std::vector<std::unique_ptr<Stmt>> body;
     body.push_back(
-        std::make_unique<PrintStmt>(std::make_unique<LiteralExpr>("loop")));
+        std::make_unique<ExprStmt>(std::make_unique<LiteralExpr>("loop")));
 
     auto whileStmt =
         std::make_unique<WhileStmt>(std::move(condition), std::move(body));
