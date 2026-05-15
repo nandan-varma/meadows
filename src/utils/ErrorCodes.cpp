@@ -65,6 +65,8 @@ std::string errorCodeToString(ErrorCode code) {
     return "E3010";
   case ErrorCode::SEM_RETURN_OUTSIDE_FUNCTION:
     return "E3011";
+  case ErrorCode::SEM_UNKNOWN_FIELD:
+    return "E3012";
 
   // Code generation errors
   case ErrorCode::CODEGEN_UNSUPPORTED_OPERATION:

@@ -193,3 +193,60 @@ TEST_CASE("SemanticAnalyzer: filename appears in error location", "[sema]") {
   REQUIRE(diag.errorCount() >= 1);
   CHECK(diag.diagnostics()[0].location.file == "myfile.ms");
 }
+
+// ── Built-ins ────────────────────────────────────────────────────────────────
+
+TEST_CASE("SemanticAnalyzer: len() accepts 1 argument", "[sema]") {
+  auto [diag, ok] = analyze("let s = \"hello\"; print(len(s));");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: len() rejects wrong arg count", "[sema]") {
+  auto [diag, ok] = analyze("len();");
+  CHECK_FALSE(ok);
+  CHECK(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_INVALID_ARGUMENT_COUNT);
+}
+
+TEST_CASE("SemanticAnalyzer: str() accepts 1 argument", "[sema]") {
+  auto [diag, ok] = analyze("let n = 42; print(str(n));");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+// ── Empty return ─────────────────────────────────────────────────────────────
+
+TEST_CASE("SemanticAnalyzer: bare return inside function is valid", "[sema]") {
+  auto [diag, ok] = analyze("func f() { return; }");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: bare return at top level is an error", "[sema]") {
+  auto [diag, ok] = analyze("return;");
+  CHECK_FALSE(ok);
+  CHECK(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_RETURN_OUTSIDE_FUNCTION);
+}
+
+// ── Field access validation ──────────────────────────────────────────────────
+
+TEST_CASE("SemanticAnalyzer: unknown field on object literal is an error",
+          "[sema]") {
+  auto [diag, ok] = analyze("let v = {a: 1, b: 2}.c;");
+  CHECK_FALSE(ok);
+  REQUIRE(diag.errorCount() >= 1);
+  bool found = false;
+  for (const auto &d : diag.diagnostics()) {
+    if (d.code == ErrorCode::SEM_UNKNOWN_FIELD) { found = true; break; }
+  }
+  CHECK(found);
+}
+
+TEST_CASE("SemanticAnalyzer: known field on object literal accepted",
+          "[sema]") {
+  auto [diag, ok] = analyze("let v = {a: 1, b: 2}.a; print(v);");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}

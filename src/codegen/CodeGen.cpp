@@ -121,6 +121,15 @@ CodeGen::CodeGen(int optLevel) : optLevel_(optLevel) {
   freeFunc = llvm::cast<llvm::Function>(
       module->getOrInsertFunction("free", freeType).getCallee());
 
+  // snprintf(buf, size, fmt, ...) — used by the str() builtin to format ints.
+  auto snprintfType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::Type::getInt64Ty(*context),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      true);
+  module->getOrInsertFunction("snprintf", snprintfType);
+
   currentFunction = nullptr;
   exprResult = nullptr;
   currentBlock = nullptr;
@@ -430,6 +439,48 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
     return;
   }
 
+  // Built-in: len(value) — returns i32 length of a string. (Array length is
+  // not yet runtime-tracked, so only strings are supported here.)
+  if (varExpr->name == "len") {
+    if (expr.args.size() != 1)
+      error("len() takes exactly 1 argument");
+    expr.args[0]->accept(*this);
+    auto val = exprResult;
+    if (!val->getType()->isPointerTy())
+      error("len() argument must be a string");
+    auto i64Len = getStringLength(val);
+    exprResult = builder->CreateTrunc(i64Len, llvm::Type::getInt32Ty(*context),
+                                      "lenresult");
+    return;
+  }
+
+  // Built-in: str(int) — formats an integer as a decimal string at runtime.
+  // Allocates a 16-byte buffer via malloc, calls snprintf(buf, 16, "%d", n).
+  // The pointer is tracked for cleanup like other allocated strings.
+  if (varExpr->name == "str") {
+    if (expr.args.size() != 1)
+      error("str() takes exactly 1 argument");
+    expr.args[0]->accept(*this);
+    auto intVal = exprResult;
+    if (!intVal->getType()->isIntegerTy())
+      error("str() argument must be an integer");
+
+    constexpr int64_t BUF_SIZE = 16; // enough for any i32 + sign + null
+    auto buf = builder->CreateCall(
+        mallocFunc,
+        {llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), BUF_SIZE)},
+        "strbuf");
+    auto fmt = builder->CreateGlobalStringPtr("%d");
+    auto snprintfFunc = module->getFunction("snprintf");
+    builder->CreateCall(
+        snprintfFunc,
+        {buf, llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), BUF_SIZE),
+         fmt, intVal});
+    allocatedStrings.push_back(buf);
+    exprResult = buf;
+    return;
+  }
+
   auto func = module->getFunction(varExpr->name);
   if (!func)
     error("Undefined function: ", varExpr->name);
@@ -729,14 +780,20 @@ void CodeGen::visitWhileStmt(WhileStmt &stmt) {
 }
 
 void CodeGen::visitReturnStmt(ReturnStmt &stmt) {
-  stmt.value->accept(*this);
-  auto val = exprResult;
-  // Caller takes ownership of any returned string pointer — remove it from the
-  // free-list so we don't free memory we just handed back, then release all
-  // other temporaries accumulated in this scope before the early return.
-  allocatedStrings.erase(
-      std::remove(allocatedStrings.begin(), allocatedStrings.end(), val),
-      allocatedStrings.end());
+  llvm::Value *val;
+  if (stmt.value) {
+    stmt.value->accept(*this);
+    val = exprResult;
+    // Caller takes ownership of any returned string pointer — remove it from
+    // the free-list so we don't free memory we just handed back, then release
+    // all other temporaries accumulated in this scope before the early return.
+    allocatedStrings.erase(
+        std::remove(allocatedStrings.begin(), allocatedStrings.end(), val),
+        allocatedStrings.end());
+  } else {
+    // Bare `return;` — emit `return 0` since all functions currently return i32.
+    val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
+  }
   freeAllocatedStrings();
   builder->CreateRet(val);
 }
