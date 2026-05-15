@@ -757,7 +757,7 @@ TEST_CASE("CodeGen handles string concatenation", "[codegen][strings]") {
   }
 
   SECTION("Concatenation in print") {
-    auto parser = createParser("print \"hello\" + \" world\";");
+    auto parser = createParser("print(\"hello\" + \" world\");");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 1);
     CodeGen codegen;
@@ -777,7 +777,7 @@ TEST_CASE("CodeGen handles string concatenation", "[codegen][strings]") {
 
 TEST_CASE("CodeGen handles string printing", "[codegen][print][strings]") {
   SECTION("Print string literal") {
-    auto parser = createParser("print \"hello\";");
+    auto parser = createParser("print(\"hello\");");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 1);
     CodeGen codegen;
@@ -811,7 +811,7 @@ TEST_CASE("CodeGen handles string printing", "[codegen][print][strings]") {
   }
 
   SECTION("Print string concatenation") {
-    auto parser = createParser("print \"hello\" + \" world\";");
+    auto parser = createParser("print(\"hello\" + \" world\");");
     auto stmts = parser->parse();
     REQUIRE(stmts.size() == 1);
     CodeGen codegen;
