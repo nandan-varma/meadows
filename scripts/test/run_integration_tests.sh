@@ -1,153 +1,146 @@
 #!/bin/bash
-# Run integration tests (.ms files)
-
-# Don't exit on error - we handle failures ourselves
-# set -e
+# Run integration tests for all .ms files in examples/ and tests/integration/.
+#
+# Expected-output lookup:
+#   examples/foo.ms        → examples/foo.ms.expected     (sidecar)
+#   tests/integration/foo.ms → tests/integration/expected/foo.expected (subdirectory)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$PROJECT_ROOT/build"
-COMPILER=""
 
-# Find compiler in order of preference
-for dir in "$BUILD_DIR/bin" "$BUILD_DIR" "$PROJECT_ROOT/build-debug/bin" "$PROJECT_ROOT/build-release/bin"; do
-    if [ -f "$dir/Meadows" ]; then
-        COMPILER="$dir/Meadows"
-        break
-    fi
-done
-
-# Fallback to any Meadows binary
-if [ -z "$COMPILER" ]; then
-    COMPILER=$(find "$PROJECT_ROOT" -name "Meadows" -type f -executable 2>/dev/null | head -1)
-fi
-
-if [ -z "$COMPILER" ] || [ ! -f "$COMPILER" ]; then
-    echo -e "${RED}Error: Compiler not found${NC}"
-    echo "Searched in:"
-    echo "  $BUILD_DIR/bin/Meadows"
-    echo "  $BUILD_DIR/Meadows"
-    echo "  $PROJECT_ROOT/build-debug/bin/Meadows"
-    echo "  $PROJECT_ROOT/build-release/bin/Meadows"
-    exit 1
-fi
-
-echo -e "${YELLOW}Using compiler: $COMPILER${NC}"
-
-TEST_DIR="$PROJECT_ROOT/examples"
-
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Parse arguments
 VERBOSE=0
 NO_BUILD=0
 
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    -v|--verbose)
-      VERBOSE=1
-      shift
-      ;;
-    --no-build)
-      NO_BUILD=1
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
+    case $1 in
+        -v|--verbose) VERBOSE=1; shift ;;
+        --no-build)   NO_BUILD=1; shift ;;
+        *) shift ;;
+    esac
 done
+
+# ── Locate compiler ───────────────────────────────────────────────────────────
+
+COMPILER=""
+for dir in \
+    "$PROJECT_ROOT/build/bin" \
+    "$PROJECT_ROOT/build" \
+    "$PROJECT_ROOT/build-debug/bin" \
+    "$PROJECT_ROOT/build-release/bin"; do
+    if [[ -f "$dir/Meadows" ]]; then
+        COMPILER="$dir/Meadows"
+        break
+    fi
+done
+
+if [[ -z "$COMPILER" ]]; then
+    COMPILER=$(find "$PROJECT_ROOT" -name "Meadows" -type f -executable 2>/dev/null | head -1)
+fi
+
+if [[ -z "$COMPILER" ]]; then
+    if [[ $NO_BUILD -eq 0 ]]; then
+        echo -e "${YELLOW}Compiler not found — building…${NC}"
+        "$PROJECT_ROOT/build.sh" debug
+        COMPILER="$PROJECT_ROOT/build-debug/bin/Meadows"
+    else
+        echo -e "${RED}Error: Compiler not found. Run ./build.sh first.${NC}"
+        exit 1
+    fi
+fi
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}   Meadows Integration Tests${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo -e "Compiler: $COMPILER"
 echo
 
-# Build if needed
-if [ $NO_BUILD -eq 0 ]; then
-    if [ ! -f "$COMPILER" ]; then
-        echo -e "${YELLOW}Compiler not found. Building...${NC}"
-        "$PROJECT_ROOT/build.sh" debug
-    fi
-fi
+# ── Test runner ───────────────────────────────────────────────────────────────
+# run_tests_in_dir <ms_dir> [expected_dir]
+#   ms_dir       directory containing *.ms files
+#   expected_dir if set, expected files live here as <stem>.expected;
+#                if unset, expected files live alongside as <file>.ms.expected
 
-# Clean up any existing generated files
-rm -f "$TEST_DIR"/*.ll "$TEST_DIR"/*.out
+TOTAL=0
+PASSED=0
+FAILED=0
 
-total_tests=0
-passed=0
+run_tests_in_dir() {
+    local ms_dir="$1"
+    local expected_dir="${2:-}"
 
-for file in "$TEST_DIR"/*.ms; do
-    expected_file="${file}.expected"
-    if [ ! -f "$expected_file" ]; then
-        continue
-    fi
+    shopt -s nullglob
+    local files=("$ms_dir"/*.ms)
+    shopt -u nullglob
 
-    ((total_tests++))
-    test_name=$(basename "$file")
+    [[ ${#files[@]} -eq 0 ]] && return
 
-    if [ $VERBOSE -eq 1 ]; then
-        echo -n "Testing $test_name: "
-    fi
+    for ms_file in "${files[@]}"; do
+        local stem
+        stem=$(basename "${ms_file%.ms}")
 
-    # Compile the .ms file
-    if ! "$COMPILER" "$file" > /dev/null 2>&1; then
-        if [ $VERBOSE -eq 1 ]; then
-            echo -e "${RED}COMPILATION FAILED${NC}"
+        local expected_file
+        if [[ -n "$expected_dir" ]]; then
+            expected_file="$expected_dir/${stem}.expected"
         else
-            echo -e "${RED}FAIL${NC} $test_name (compilation)"
+            expected_file="${ms_file}.expected"
         fi
-        continue
-    fi
 
-    # Run the compiled executable and capture output
-    output=$("${file}.out" 2>&1)
-    expected=$(cat "$expected_file")
+        [[ -f "$expected_file" ]] || continue
 
-    if [ "$output" == "$expected" ]; then
-        if [ $VERBOSE -eq 1 ]; then
-            echo -e "${GREEN}PASS${NC}"
+        TOTAL=$((TOTAL + 1))
+
+        # Compile
+        if ! "$COMPILER" "$ms_file" -o "${ms_file%.ms}.out" > /dev/null 2>&1; then
+            echo -e "${RED}✗${NC} ${stem} (compilation failed)"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+
+        # Run
+        local actual
+        actual=$("${ms_file%.ms}.out" 2>&1)
+        local expected
+        expected=$(cat "$expected_file")
+
+        # Clean up
+        rm -f "${ms_file%.ms}.out" "${ms_file}.ll"
+
+        if [[ "$actual" == "$expected" ]]; then
+            [[ $VERBOSE -eq 1 ]] && echo -e "${GREEN}✓${NC} ${stem}"
+            PASSED=$((PASSED + 1))
         else
-            echo -e "${GREEN}✓${NC} $test_name"
+            echo -e "${RED}✗${NC} ${stem}"
+            if [[ $VERBOSE -eq 1 ]]; then
+                echo "  expected: $(echo "$expected" | head -3)"
+                echo "  got:      $(echo "$actual"   | head -3)"
+            fi
+            FAILED=$((FAILED + 1))
         fi
-        ((passed++))
-    else
-        if [ $VERBOSE -eq 1 ]; then
-            echo -e "${RED}FAIL${NC}"
-            echo "  Expected: '$expected'"
-            echo "  Got:      '$output'"
-        else
-            echo -e "${RED}✗${NC} $test_name"
-        fi
-    fi
+    done
+}
 
-    # Clean up generated files
-    rm -f "${file}.ll" "${file}.out"
-done
+run_tests_in_dir "$PROJECT_ROOT/examples"
+run_tests_in_dir "$PROJECT_ROOT/tests/integration" "$PROJECT_ROOT/tests/integration/expected"
 
-if [ $total_tests -eq 0 ]; then
-    echo -e "${YELLOW}No test cases found (missing .expected files)${NC}"
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+echo
+echo -e "${BLUE}========================================${NC}"
+if [[ $TOTAL -eq 0 ]]; then
+    echo -e "${YELLOW}No integration tests found${NC}"
     exit 1
-fi
-
-percentage=$((passed * 100 / total_tests))
-
-echo
-echo -e "${BLUE}========================================${NC}"
-if [ $passed -eq $total_tests ]; then
-    echo -e "${GREEN}   All $total_tests tests passed (100%)${NC}"
-else
-    echo -e "${RED}   $passed/$total_tests tests passed ($percentage%)${NC}"
-fi
-echo -e "${BLUE}========================================${NC}"
-
-if [ $passed -eq $total_tests ]; then
+elif [[ $FAILED -eq 0 ]]; then
+    echo -e "${GREEN}   All $TOTAL tests passed${NC}"
+    echo -e "${BLUE}========================================${NC}"
     exit 0
 else
+    echo -e "${RED}   $PASSED/$TOTAL passed, $FAILED failed${NC}"
+    echo -e "${BLUE}========================================${NC}"
     exit 1
 fi

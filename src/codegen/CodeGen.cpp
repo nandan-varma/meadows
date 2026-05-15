@@ -1,6 +1,7 @@
 #include "CodeGen.h"
 #include "StringUtils.h"
 #include "SymbolTable.h"
+#include <algorithm>
 #include <climits>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
@@ -718,6 +719,13 @@ void CodeGen::visitWhileStmt(WhileStmt &stmt) {
 void CodeGen::visitReturnStmt(ReturnStmt &stmt) {
   stmt.value->accept(*this);
   auto val = exprResult;
+  // Caller takes ownership of any returned string pointer — remove it from the
+  // free-list so we don't free memory we just handed back, then release all
+  // other temporaries accumulated in this scope before the early return.
+  allocatedStrings.erase(
+      std::remove(allocatedStrings.begin(), allocatedStrings.end(), val),
+      allocatedStrings.end());
+  freeAllocatedStrings();
   builder->CreateRet(val);
 }
 

@@ -151,9 +151,9 @@ int main(int argc, char *argv[]) {
   // ── LSP mode ─────────────────────────────────────────────────────────────────
 
   if (lspMode) {
+    LSPInterface lsp;
     std::ifstream f(inputFile);
     if (!f) {
-      LSPInterface lsp;
       lsp.emitDiagnostics(inputFile, {}, {"Cannot open file: " + inputFile});
       return 0;
     }
@@ -174,7 +174,6 @@ int main(int argc, char *argv[]) {
       diag.reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
                        e.what(), loc);
     }
-    LSPInterface lsp;
     lsp.emitDiagnostics(inputFile, diag.diagnostics());
     return 0;
   }
