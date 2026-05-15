@@ -6,35 +6,47 @@ on:
     branches: [main, master]
 
 jobs:
-  # Matrix build across platforms/LLVM versions
   build:
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            llvm-version: 17
-          - os: macos-latest
-            llvm-version: 17
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v2
+        # Sets LLVM_PATH env var to the install root
+
+      - uses: jwlawson/actions-setup-cmake@v2
+
       - name: Build and Test
-        run: ./scripts/ci/run_ci.sh --quick
+        env:
+          # LLVM_PATH is set by KyleMayes/install-llvm-action
+          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
+          # LD_LIBRARY_PATH: Linux needs it for dynamic LLVM libs.
+          # macOS: omitted — KyleMayes prebuilt uses static libs, and setting
+          # DYLD_LIBRARY_PATH globally poisons bash with LLVM's older libc++abi.
+          LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('{0}/lib', env.LLVM_PATH) || '' }}
+          # MEADOWS_CLANG: which clang++ to invoke for the final .ll → binary step.
+          # Linux: use LLVM 17 clang++ (matches the IR version).
+          # macOS: use system Apple Clang — LLVM 17's clang++ doesn't know the
+          #        Xcode 16+ SDK paths (macOS 15 runner), so linking fails.
+          #        Apple Clang can read LLVM 17 IR and knows its own SDK.
+          MEADOWS_CLANG: ${{ runner.os == 'macOS' && '/usr/bin/clang++' || format('{0}/bin/clang++', env.LLVM_PATH) }}
+        run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
+
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-results-${{ matrix.os }}-llvm${{ matrix.llvm-version }}
-          path: build/
+          name: test-results-${{ matrix.os }}
+          path: build*/
 
-  # Static analysis (only on Ubuntu)
   static-analysis:
     runs-on: ubuntu-latest
     steps:
@@ -44,20 +56,66 @@ jobs:
           version: "17"
       - run: ./scripts/dev/run_static_analysis.sh
 
-  # Security scanning
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17"
+
+      - uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Build with ASan + UBSan
+        env:
+          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
+          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+        run: |
+          cmake -B build-san \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DBUILD_TESTS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build-san --parallel
+
+      - name: Run unit tests under sanitizers
+        env:
+          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+          ASAN_OPTIONS: halt_on_error=1:detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./build-san/tests/meadows_tests
+
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: KyleMayes/install-llvm-action@v2
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
+
       - uses: jwlawson/actions-setup-cmake@v2
-      - uses: github/codeql-action/init@v3
+
+      - uses: github/codeql-action/init@v4
         with:
           languages: cpp
+
       - name: Build for CodeQL
+        env:
+          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTS=OFF
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DBUILD_TESTS=OFF
           cmake --build build --parallel
-      - uses: github/codeql-action/analyze@v3
+
+      - uses: github/codeql-action/analyze@v4

@@ -9,16 +9,22 @@
 #include "../utils/Timer.h"
 #include "../utils/WarningManager.h"
 #include <CLI/CLI.hpp>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Support/Program.h>
 #include <llvm/Support/raw_ostream.h>
 #include <string>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <unordered_map>
 #include <vector>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -41,7 +47,10 @@ static const std::unordered_map<std::string, meadows::ErrorCode> WARNING_NAMES =
 // ── Path validation ───────────────────────────────────────────────────────────
 
 static bool hasDangerousChars(const std::string &s) {
-  static constexpr const char *DANGEROUS = ";|&`$(){}[]<>!\\\"'\n\r\t";
+  // Excludes () so paths like "Program Files (x86)" are valid.
+  // Shell metacharacters are harmless here because we use exec-style
+  // invocation (never system()), but we still reject obvious injection chars.
+  static constexpr const char *DANGEROUS = ";|&`${}[]<>!\\\"'\n\r\t";
   return s.find_first_of(DANGEROUS) != std::string::npos;
 }
 
@@ -72,18 +81,41 @@ static bool validateOutputPath(const std::string &path, std::string &err) {
 
 // ── Clang invocation ──────────────────────────────────────────────────────────
 
-static int compileWithClang(const std::string &llFile, const std::string &outFile) {
-  pid_t pid = fork();
-  if (pid == 0) {
-    const char *args[] = {"clang++", llFile.c_str(), "-o", outFile.c_str(), nullptr};
-    execvp("clang++", const_cast<char *const *>(args));
-    _exit(127);
-  } else if (pid > 0) {
-    int status;
-    if (waitpid(pid, &status, 0) == -1) return -1;
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+static std::string findClangPlusPlus() {
+  // Explicit override via environment variable
+  if (const char *env = std::getenv("MEADOWS_CLANG"))
+    return env;
+
+  // Try versioned names first so we pick the right LLVM version
+  for (const char *candidate :
+       {"clang++-17", "clang++-18", "clang++-16", "clang++"}) {
+    auto found = llvm::sys::findProgramByName(candidate);
+    if (found)
+      return std::move(*found);
   }
-  return -1;
+  return {};
+}
+
+static int compileWithClang(const std::string &llFile, const std::string &outFile) {
+  std::string clangPath = findClangPlusPlus();
+  if (clangPath.empty()) return 127;
+
+#ifdef _WIN32
+  const char *args[] = {clangPath.c_str(), llFile.c_str(), "-o", outFile.c_str(), nullptr};
+  int ret = static_cast<int>(_spawnvp(_P_WAIT, clangPath.c_str(), args));
+  return (ret == -1) ? -1 : ret;
+#else
+  pid_t pid = fork();
+  if (pid < 0) return -1;
+  if (pid == 0) {
+    const char *args[] = {clangPath.c_str(), llFile.c_str(), "-o", outFile.c_str(), nullptr};
+    execvp(clangPath.c_str(), const_cast<char *const *>(args));
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) == -1) return -1;
+  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 }
 
 // ── Warning flag processing ───────────────────────────────────────────────────
@@ -108,7 +140,7 @@ static void applyWarningFlags(const std::vector<std::string> &flags,
 
 int main(int argc, char *argv[]) {
   CLI::App app{"Meadows Compiler", "meadows"};
-  app.set_version_flag("-V,--version", "1.0.1");
+  app.set_version_flag("-V,--version", MEADOWS_VERSION);
 
   std::string inputFile;
   std::string outputFile;
@@ -151,9 +183,9 @@ int main(int argc, char *argv[]) {
   // ── LSP mode ─────────────────────────────────────────────────────────────────
 
   if (lspMode) {
+    LSPInterface lsp;
     std::ifstream f(inputFile);
     if (!f) {
-      LSPInterface lsp;
       lsp.emitDiagnostics(inputFile, {}, {"Cannot open file: " + inputFile});
       return 0;
     }
@@ -174,7 +206,6 @@ int main(int argc, char *argv[]) {
       diag.reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
                        e.what(), loc);
     }
-    LSPInterface lsp;
     lsp.emitDiagnostics(inputFile, diag.diagnostics());
     return 0;
   }

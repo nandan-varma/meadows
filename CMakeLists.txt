@@ -23,7 +23,7 @@ file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION)
 project(Meadows
   VERSION ${PROJECT_VERSION}
   DESCRIPTION "A simple compiled programming language"
-  HOMEPAGE_URL "https://github.com/yourusername/meadows"
+  HOMEPAGE_URL "https://github.com/nandan-varma/meadows"
   LANGUAGES C CXX
 )
 
@@ -196,10 +196,24 @@ target_link_libraries(${PROJECT_NAME}
     ${LLVM_LIBS}
 )
 
-# Set output directory
+target_compile_definitions(${PROJECT_NAME}
+  PRIVATE MEADOWS_VERSION="${PROJECT_VERSION}"
+)
+
+# Set output directory.
+# On Linux, embed RPATH so the binary finds LLVM shared libs without LD_LIBRARY_PATH.
+# Skip macOS: embedding LLVM's lib dir as RPATH causes dyld to load LLVM's
+# libc++.dylib before the system one, producing symbol conflicts.
 set_target_properties(${PROJECT_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_target_properties(${PROJECT_NAME} PROPERTIES
+    BUILD_RPATH  "${LLVM_LIBRARY_DIRS}"
+    INSTALL_RPATH "${LLVM_LIBRARY_DIRS}"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+endif()
 
 #==============================================================================
 # Installation
