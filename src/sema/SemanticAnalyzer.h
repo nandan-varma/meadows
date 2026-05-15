@@ -17,6 +17,8 @@ namespace meadows {
  *
  * Detects:
  *  - Undefined variables and functions
+ *  - Duplicate function definitions (SEM_REDEFINED_FUNCTION)
+ *  - Duplicate variable declarations in the same scope (SEM_REDEFINED_VARIABLE)
  *  - break/continue outside a loop
  *  - return outside a function
  *  - Variable shadowing (warning)
@@ -25,7 +27,8 @@ namespace meadows {
  */
 class SemanticAnalyzer : public ExprVisitor, public StmtVisitor {
 public:
-  SemanticAnalyzer(DiagnosticsCollector &diagnostics, WarningManager &warnings);
+  SemanticAnalyzer(DiagnosticsCollector &diagnostics, WarningManager &warnings,
+                   const std::string &filename = "");
 
   /** Returns true if analysis completed with no errors. */
   bool analyze(const std::vector<std::unique_ptr<Stmt>> &stmts);
@@ -33,6 +36,7 @@ public:
 private:
   DiagnosticsCollector &diag_;
   WarningManager &warnings_;
+  std::string filename_;
 
   // ── Scope stack ─────────────────────────────────────────────────────────────
   struct VarInfo {

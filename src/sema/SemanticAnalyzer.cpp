@@ -3,8 +3,9 @@
 namespace meadows {
 
 SemanticAnalyzer::SemanticAnalyzer(DiagnosticsCollector &diagnostics,
-                                   WarningManager &warnings)
-    : diag_(diagnostics), warnings_(warnings) {}
+                                   WarningManager &warnings,
+                                   const std::string &filename)
+    : diag_(diagnostics), warnings_(warnings), filename_(filename) {}
 
 bool SemanticAnalyzer::analyze(
     const std::vector<std::unique_ptr<Stmt>> &stmts) {
@@ -16,10 +17,17 @@ bool SemanticAnalyzer::analyze(
 
   enterScope();
 
-  // Pre-pass: register all top-level function names so mutual/forward calls work
+  // Pre-pass: register all top-level function names so mutual/forward calls work.
+  // Also detect duplicate definitions here so forward-declared names are checked.
   for (const auto &stmt : stmts) {
     if (auto *fn = dynamic_cast<FuncStmt *>(stmt.get())) {
-      functions_[fn->name] = fn->params.size();
+      if (functions_.count(fn->name)) {
+        SourceLocation loc(filename_, fn->line, fn->column);
+        reportError(ErrorCode::SEM_REDEFINED_FUNCTION,
+                    "Function '" + fn->name + "' is already defined", loc);
+      } else {
+        functions_[fn->name] = fn->params.size();
+      }
     }
   }
 
@@ -48,6 +56,12 @@ void SemanticAnalyzer::exitScope() {
 
 void SemanticAnalyzer::declareVar(const std::string &name,
                                   const SourceLocation &loc, bool isParam) {
+  // Redeclaration in the current scope is an error (not just a warning)
+  if (scopes_.back().count(name)) {
+    reportError(ErrorCode::SEM_REDEFINED_VARIABLE,
+                "Variable '" + name + "' is already declared in this scope", loc);
+    return;
+  }
   // Check for shadowing in an outer scope
   for (int i = static_cast<int>(scopes_.size()) - 2; i >= 0; --i) {
     if (scopes_[static_cast<size_t>(i)].count(name)) {
@@ -102,7 +116,7 @@ void SemanticAnalyzer::analyzeBlock(
 
   for (const auto &stmt : stmts) {
     if (unreachable_) {
-      SourceLocation loc("", stmt->line, stmt->column);
+      SourceLocation loc(filename_, stmt->line, stmt->column);
       reportWarning(ErrorCode::WARN_UNREACHABLE_CODE,
                     "Unreachable statement", loc);
       break;
@@ -121,7 +135,7 @@ void SemanticAnalyzer::visitVarExpr(VarExpr &expr) {
   // Check if it's a known function name first (functions aren't in var scopes)
   if (functions_.count(expr.name)) return;
 
-  SourceLocation loc("", expr.line, expr.column);
+  SourceLocation loc(filename_, expr.line, expr.column);
   if (!lookupVar(expr.name)) {
     reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
                 "Undefined variable '" + expr.name + "'", loc);
@@ -131,7 +145,7 @@ void SemanticAnalyzer::visitVarExpr(VarExpr &expr) {
 }
 
 void SemanticAnalyzer::visitAssignExpr(AssignExpr &expr) {
-  SourceLocation loc("", expr.line, expr.column);
+  SourceLocation loc(filename_, expr.line, expr.column);
   if (!lookupVar(expr.name)) {
     reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
                 "Assignment to undefined variable '" + expr.name + "'", loc);
@@ -167,13 +181,13 @@ void SemanticAnalyzer::visitFieldAccessExpr(FieldAccessExpr &expr) {
 void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
   auto *varExpr = dynamic_cast<VarExpr *>(expr.callee.get());
   if (!varExpr) {
-    SourceLocation loc("", expr.line, expr.column);
+    SourceLocation loc(filename_, expr.line, expr.column);
     reportError(ErrorCode::SEM_INVALID_CALL_TARGET,
                 "Callee must be a function name", loc);
     return;
   }
 
-  SourceLocation loc("", varExpr->line, varExpr->column);
+  SourceLocation loc(filename_, varExpr->line, varExpr->column);
 
   // print is a built-in; validate arg count but skip function table lookup
   if (varExpr->name == "print") {
@@ -215,7 +229,7 @@ void SemanticAnalyzer::visitExprStmt(ExprStmt &stmt) {
 
 void SemanticAnalyzer::visitLetStmt(LetStmt &stmt) {
   stmt.initializer->accept(*this);
-  SourceLocation loc("", stmt.line, stmt.column);
+  SourceLocation loc(filename_, stmt.line, stmt.column);
   declareVar(stmt.name, loc);
 }
 
@@ -232,7 +246,7 @@ void SemanticAnalyzer::visitFuncStmt(FuncStmt &stmt) {
   unreachable_ = false;
 
   enterScope();
-  SourceLocation funcLoc("", stmt.line, stmt.column);
+  SourceLocation funcLoc(filename_, stmt.line, stmt.column);
   for (const auto &param : stmt.params) {
     declareVar(param, funcLoc, /*isParam=*/true);
   }
@@ -275,7 +289,7 @@ void SemanticAnalyzer::visitForStmt(ForStmt &stmt) {
   unreachable_ = false;
 
   enterScope();
-  SourceLocation loc("", stmt.line, stmt.column);
+  SourceLocation loc(filename_, stmt.line, stmt.column);
   declareVar(stmt.var, loc);
   analyzeBlock(stmt.body);
   exitScope();
@@ -301,7 +315,7 @@ void SemanticAnalyzer::visitWhileStmt(WhileStmt &stmt) {
 }
 
 void SemanticAnalyzer::visitReturnStmt(ReturnStmt &stmt) {
-  SourceLocation loc("", stmt.line, stmt.column);
+  SourceLocation loc(filename_, stmt.line, stmt.column);
   if (!inFunction_) {
     reportError(ErrorCode::SEM_RETURN_OUTSIDE_FUNCTION,
                 "'return' outside function", loc);
@@ -311,7 +325,7 @@ void SemanticAnalyzer::visitReturnStmt(ReturnStmt &stmt) {
 }
 
 void SemanticAnalyzer::visitBreakStmt(BreakStmt &stmt) {
-  SourceLocation loc("", stmt.line, stmt.column);
+  SourceLocation loc(filename_, stmt.line, stmt.column);
   if (!inLoop_) {
     reportError(ErrorCode::SEM_BREAK_OUTSIDE_LOOP, "'break' outside loop", loc);
   }
@@ -319,7 +333,7 @@ void SemanticAnalyzer::visitBreakStmt(BreakStmt &stmt) {
 }
 
 void SemanticAnalyzer::visitContinueStmt(ContinueStmt &stmt) {
-  SourceLocation loc("", stmt.line, stmt.column);
+  SourceLocation loc(filename_, stmt.line, stmt.column);
   if (!inLoop_) {
     reportError(ErrorCode::SEM_CONTINUE_OUTSIDE_LOOP,
                 "'continue' outside loop", loc);

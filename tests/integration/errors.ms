@@ -1,1 +1,3 @@
-print("Error handling test passed");
+let x = 10;
+let y = 5;
+print(x / y);

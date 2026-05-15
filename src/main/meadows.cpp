@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
       Parser parser(tokens, diag);
       auto stmts = parser.parse();
       if (!diag.hasErrors()) {
-        meadows::SemanticAnalyzer sema(diag, warningManager);
+        meadows::SemanticAnalyzer sema(diag, warningManager, inputFile);
         sema.analyze(stmts);
       }
     } catch (const std::exception &e) {
@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
     meadows::Timer semaTimer;
     if (verbose) { std::cerr << "[sema] Starting...\n"; semaTimer.start(); }
 
-    meadows::SemanticAnalyzer sema(diag, warningManager);
+    meadows::SemanticAnalyzer sema(diag, warningManager, inputFile);
     sema.analyze(stmts);
 
     // Emit warnings even when continuing
