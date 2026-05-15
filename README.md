@@ -19,11 +19,11 @@ A simple compiled programming language called "Meadows" that compiles to LLVM IR
 ## Features
 
 - **Variables**: `let name = "Alice"; let age = 30;`
-- **Functions**: `func greet(person) { print "Hello, " + person; }`
-- **Conditionals**: `if (age > 18) { print "Adult"; } else { print "Minor"; }`
-- **Loops**: `for (i in range(0, 5)) { print i; }` and `while` loops
+- **Functions**: `func greet(person) { print("Hello, " + person); }`
+- **Conditionals**: `if (age > 18) { print("Adult"); } else { print("Minor"); }`
+- **Loops**: `for (i in range(0, 5)) { print(i); }` and `while` loops
 - **Comments**: `# comment` or `// comment`
-- **Print**: `print "Hello, world";`
+- **Print**: `print("Hello, world");`
 
 ## Building
 
@@ -175,7 +175,7 @@ Meadows is a C-style compiled language with simple syntax.
 
 ```meadows
 let x = 42;           # Variable declaration (ends with ;)
-print "Hello";        # Print statement
+print("Hello");       # Print statement
 // This is a comment
 ```
 
@@ -213,18 +213,18 @@ let le = 5 <= 10;         # Less or equal
 
 ```meadows
 if (age > 18) {
-    print "Adult";
+    print("Adult");
 } else {
-    print "Minor";
+    print("Minor");
 }
 
 while (count > 0) {
-    print count;
+    print(count);
     count = count - 1;
 }
 
 for (i in range(0, 5)) {
-    print i;  # Prints 0, 1, 2, 3, 4
+    print(i);  # Prints 0, 1, 2, 3, 4
 }
 ```
 
@@ -268,12 +268,11 @@ print result;
 
 ## Testing Status
 
-| Test Type | Count | Status |
-|-----------|-------|--------|
-| Unit Tests | 23 | ✅ Passing |
-| Integration Tests | 4 | ✅ Passing |
-| Security Tests | 12 | ✅ Passing |
-| **Total** | **39** | **✅ All Pass** |
+| Test Type | Status |
+|-----------|--------|
+| Unit Tests (Catch2) | ✅ Passing |
+| Integration Tests | ✅ Passing |
+| Security Tests | ✅ Passing |
 
 ## Continuous Integration
 
@@ -305,12 +304,11 @@ Automated releases are created when version tags (e.g., `v1.0.0`) are pushed:
 ## Documentation
 
 - [TESTING.md](TESTING.md) - Detailed testing guide
-- [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) - Implementation details
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview
+- [LANGUAGE.md](LANGUAGE.md) - Language reference
 
 ## License
 
-[Your License Here]
+MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 

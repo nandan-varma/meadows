@@ -23,7 +23,7 @@ file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION)
 project(Meadows
   VERSION ${PROJECT_VERSION}
   DESCRIPTION "A simple compiled programming language"
-  HOMEPAGE_URL "https://github.com/yourusername/meadows"
+  HOMEPAGE_URL "https://github.com/nandan-varma/meadows"
   LANGUAGES C CXX
 )
 
@@ -194,6 +194,10 @@ target_link_libraries(${PROJECT_NAME}
     meadows_lib
     CLI11::CLI11
     ${LLVM_LIBS}
+)
+
+target_compile_definitions(${PROJECT_NAME}
+  PRIVATE MEADOWS_VERSION="${PROJECT_VERSION}"
 )
 
 # Set output directory.

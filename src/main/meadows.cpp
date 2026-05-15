@@ -140,7 +140,7 @@ static void applyWarningFlags(const std::vector<std::string> &flags,
 
 int main(int argc, char *argv[]) {
   CLI::App app{"Meadows Compiler", "meadows"};
-  app.set_version_flag("-V,--version", "1.0.1");
+  app.set_version_flag("-V,--version", MEADOWS_VERSION);
 
   std::string inputFile;
   std::string outputFile;
