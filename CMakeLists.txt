@@ -196,14 +196,20 @@ target_link_libraries(${PROJECT_NAME}
     ${LLVM_LIBS}
 )
 
-# Set output directory and embed LLVM library path so the binary works
-# without DYLD_LIBRARY_PATH / LD_LIBRARY_PATH being set at runtime.
+# Set output directory.
+# On Linux, embed RPATH so the binary finds LLVM shared libs without LD_LIBRARY_PATH.
+# Skip macOS: embedding LLVM's lib dir as RPATH causes dyld to load LLVM's
+# libc++.dylib before the system one, producing symbol conflicts.
 set_target_properties(${PROJECT_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-  BUILD_RPATH  "${LLVM_LIBRARY_DIRS}"
-  INSTALL_RPATH "${LLVM_LIBRARY_DIRS}"
-  INSTALL_RPATH_USE_LINK_PATH TRUE
 )
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_target_properties(${PROJECT_NAME} PROPERTIES
+    BUILD_RPATH  "${LLVM_LIBRARY_DIRS}"
+    INSTALL_RPATH "${LLVM_LIBRARY_DIRS}"
+    INSTALL_RPATH_USE_LINK_PATH TRUE
+  )
+endif()
 
 #==============================================================================
 # Installation
