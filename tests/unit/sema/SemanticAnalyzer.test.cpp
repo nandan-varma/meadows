@@ -11,7 +11,8 @@ using namespace meadows;
 
 static std::pair<DiagnosticsCollector, bool>
 analyze(const std::string &src,
-        WarningManager::Level level = WarningManager::Level::ALL) {
+        WarningManager::Level level = WarningManager::Level::ALL,
+        const std::string &filename = "") {
   Lexer lexer(src);
   auto tokens = lexer.tokenize();
 
@@ -22,7 +23,7 @@ analyze(const std::string &src,
   WarningManager wm;
   wm.setLevel(level);
 
-  SemanticAnalyzer sema(diag, wm);
+  SemanticAnalyzer sema(diag, wm, filename);
   bool ok = sema.analyze(stmts);
   return {std::move(diag), ok};
 }
@@ -159,4 +160,36 @@ TEST_CASE("SemanticAnalyzer: print() arg count validated", "[sema]") {
     auto [diag, ok] = analyze("print(42);");
     CHECK(ok);
   }
+}
+
+// ── Redefinition detection ────────────────────────────────────────────────────
+
+TEST_CASE("SemanticAnalyzer: duplicate function definition is an error", "[sema]") {
+  auto [diag, ok] = analyze("func add(a) { return a; } func add(b) { return b; }");
+  CHECK_FALSE(ok);
+  CHECK(diag.errorCount() >= 1);
+  bool found = false;
+  for (const auto &d : diag.diagnostics()) {
+    if (d.code == ErrorCode::SEM_REDEFINED_FUNCTION) { found = true; break; }
+  }
+  CHECK(found);
+}
+
+TEST_CASE("SemanticAnalyzer: duplicate variable in same scope is an error", "[sema]") {
+  auto [diag, ok] = analyze("let x = 1; let x = 2;");
+  CHECK_FALSE(ok);
+  CHECK(diag.errorCount() >= 1);
+  bool found = false;
+  for (const auto &d : diag.diagnostics()) {
+    if (d.code == ErrorCode::SEM_REDEFINED_VARIABLE) { found = true; break; }
+  }
+  CHECK(found);
+}
+
+TEST_CASE("SemanticAnalyzer: filename appears in error location", "[sema]") {
+  auto [diag, ok] = analyze("print(unknown_var);",
+                             WarningManager::Level::ALL, "myfile.ms");
+  CHECK_FALSE(ok);
+  REQUIRE(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].location.file == "myfile.ms");
 }

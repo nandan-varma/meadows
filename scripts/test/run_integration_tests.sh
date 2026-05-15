@@ -125,8 +125,61 @@ run_tests_in_dir() {
     done
 }
 
+# run_error_tests_in_dir <dir>
+# Each .ms file is expected to FAIL compilation (exit != 0).
+# If a <stem>.expected_err sidecar exists, its content must appear in stderr.
+
+run_error_tests_in_dir() {
+    local dir="$1"
+
+    shopt -s nullglob
+    local files=("$dir"/*.ms)
+    shopt -u nullglob
+
+    [[ ${#files[@]} -eq 0 ]] && return
+
+    for ms_file in "${files[@]}"; do
+        local stem
+        stem=$(basename "${ms_file%.ms}")
+
+        TOTAL=$((TOTAL + 1))
+
+        local stderr_out
+        stderr_out=$("$COMPILER" "$ms_file" 2>&1 >/dev/null)
+        local exit_code=$?
+
+        # Clean up any partial output
+        rm -f "${ms_file%.ms}.out" "${ms_file%.ms}.ll"
+
+        if [[ $exit_code -eq 0 ]]; then
+            echo -e "${RED}✗${NC} ${stem} (expected compilation failure, but it succeeded)"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+
+        # If a .expected_err sidecar exists, check that stderr contains it
+        local expected_err_file="${ms_file%.ms}.expected_err"
+        if [[ -f "$expected_err_file" ]]; then
+            local expected_substr
+            expected_substr=$(cat "$expected_err_file")
+            if [[ "$stderr_out" != *"$expected_substr"* ]]; then
+                echo -e "${RED}✗${NC} ${stem} (wrong error: expected '${expected_substr}' in stderr)"
+                if [[ $VERBOSE -eq 1 ]]; then
+                    echo "  stderr: $(echo "$stderr_out" | head -3)"
+                fi
+                FAILED=$((FAILED + 1))
+                continue
+            fi
+        fi
+
+        [[ $VERBOSE -eq 1 ]] && echo -e "${GREEN}✓${NC} ${stem} (correctly rejected)"
+        PASSED=$((PASSED + 1))
+    done
+}
+
 run_tests_in_dir "$PROJECT_ROOT/examples"
 run_tests_in_dir "$PROJECT_ROOT/tests/integration" "$PROJECT_ROOT/tests/integration/expected"
+run_error_tests_in_dir "$PROJECT_ROOT/tests/integration/errors"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

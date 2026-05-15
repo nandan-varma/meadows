@@ -55,9 +55,9 @@ Examples:
 
 ### Build Outputs
 
-- **Debug**: `build-debug/meadows`
-- **Release**: `build-release/meadows`
-- **Tests**: `build/tests/meadows_tests`
+- **Debug**: `build-debug/bin/Meadows`
+- **Release**: `build-release/bin/Meadows`
+- **Tests**: `build-debug/tests/meadows_tests`
 
 ## Testing
 
