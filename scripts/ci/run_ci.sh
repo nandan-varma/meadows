@@ -50,8 +50,9 @@ echo -e "${BLUE}========================================${NC}"
 echo
 
 # Detect LLVM if not provided
+# Always source so helper functions (get_cmake_jobs, get_llvm_runtime_dir) are available.
+source "$SCRIPT_DIR/../dev/detect_llvm.sh"
 if [[ -z "$LLVM_DIR" ]]; then
-    source "$SCRIPT_DIR/../dev/detect_llvm.sh"
     LLVM_DIR=$(get_llvm_dir)
 fi
 

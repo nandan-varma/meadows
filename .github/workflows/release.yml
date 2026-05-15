@@ -6,6 +6,7 @@ on:
 jobs:
   build-release:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -18,16 +19,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: KyleMayes/install-llvm-action@v2
+
+      - name: Install LLVM
+        id: install-llvm
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
+
       - uses: jwlawson/actions-setup-cmake@v2
+
       - name: Build Release
+        shell: bash
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTS=ON
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm" \
+            -DBUILD_TESTS=OFF
           cmake --build build --parallel
+
       - name: Package
+        shell: bash
         run: ./scripts/ci/package_release.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: meadows-${{ matrix.artifact }}
@@ -40,6 +55,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/
+
       - uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}

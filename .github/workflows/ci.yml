@@ -6,35 +6,60 @@ on:
     branches: [main, master]
 
 jobs:
-  # Matrix build across platforms/LLVM versions
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             llvm-version: 17
           - os: macos-latest
             llvm-version: 17
+          - os: windows-latest
+            llvm-version: 17
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Install LLVM
+        id: install-llvm
         uses: KyleMayes/install-llvm-action@v2
         with:
-          version: "17"
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v2
-      - name: Build and Test
-        run: ./scripts/ci/run_ci.sh --quick
+          version: "${{ matrix.llvm-version }}"
+
+      - uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Build and Test (Unix)
+        if: runner.os != 'Windows'
+        env:
+          LLVM_DIR: ${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm
+          LD_LIBRARY_PATH: ${{ steps.install-llvm.outputs.llvm-path }}/lib
+          DYLD_LIBRARY_PATH: ${{ steps.install-llvm.outputs.llvm-path }}/lib
+        run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
+
+      - name: Build and Test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          LLVM_DIR: ${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm
+        run: |
+          cmake -B build-release \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DBUILD_TESTS=ON
+          cmake --build build-release --parallel
+          ./build-release/tests/meadows_tests.exe
+
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-results-${{ matrix.os }}-llvm${{ matrix.llvm-version }}
-          path: build/
+          path: build*/
 
-  # Static analysis (only on Ubuntu)
   static-analysis:
     runs-on: ubuntu-latest
     steps:
@@ -44,20 +69,31 @@ jobs:
           version: "17"
       - run: ./scripts/dev/run_static_analysis.sh
 
-  # Security scanning
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: KyleMayes/install-llvm-action@v2
+
+      - name: Install LLVM
+        id: install-llvm
+        uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
+
       - uses: jwlawson/actions-setup-cmake@v2
-      - uses: github/codeql-action/init@v3
+
+      - uses: github/codeql-action/init@v4
         with:
           languages: cpp
+
       - name: Build for CodeQL
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTS=OFF
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_DIR="${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm" \
+            -DBUILD_TESTS=OFF
           cmake --build build --parallel
-      - uses: github/codeql-action/analyze@v3
+
+      - uses: github/codeql-action/analyze@v4
