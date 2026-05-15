@@ -16,10 +16,15 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/Program.h>
 #include <llvm/Support/raw_ostream.h>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -95,12 +100,22 @@ static int compileWithClang(const std::string &llFile, const std::string &outFil
   std::string clangPath = findClangPlusPlus();
   if (clangPath.empty()) return 127;
 
-  std::vector<llvm::StringRef> args = {clangPath, llFile, "-o", outFile};
-  std::string errMsg;
-  bool execFailed = false;
-  int ret = llvm::sys::ExecuteAndWait(clangPath, args, std::nullopt, {},
-                                      0, 0, &errMsg, &execFailed);
-  return execFailed ? 127 : ret;
+#ifdef _WIN32
+  const char *args[] = {clangPath.c_str(), llFile.c_str(), "-o", outFile.c_str(), nullptr};
+  int ret = static_cast<int>(_spawnvp(_P_WAIT, clangPath.c_str(), args));
+  return (ret == -1) ? -1 : ret;
+#else
+  pid_t pid = fork();
+  if (pid < 0) return -1;
+  if (pid == 0) {
+    const char *args[] = {clangPath.c_str(), llFile.c_str(), "-o", outFile.c_str(), nullptr};
+    execvp(clangPath.c_str(), const_cast<char *const *>(args));
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) == -1) return -1;
+  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 }
 
 // ── Warning flag processing ───────────────────────────────────────────────────
