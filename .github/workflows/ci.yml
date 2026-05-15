@@ -28,12 +28,16 @@ jobs:
         env:
           # LLVM_PATH is set by KyleMayes/install-llvm-action
           LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
-          # LD_LIBRARY_PATH needed on Linux for dynamic LLVM libs; omitted on
-          # macOS because the KyleMayes prebuilt uses static libs and setting
-          # DYLD_LIBRARY_PATH globally poisons bash startup with LLVM's older
-          # libc++abi.dylib, causing symbol-missing crashes in system frameworks.
+          # LD_LIBRARY_PATH: Linux needs it for dynamic LLVM libs.
+          # macOS: omitted — KyleMayes prebuilt uses static libs, and setting
+          # DYLD_LIBRARY_PATH globally poisons bash with LLVM's older libc++abi.
           LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('{0}/lib', env.LLVM_PATH) || '' }}
-          MEADOWS_CLANG: ${{ env.LLVM_PATH }}/bin/clang++
+          # MEADOWS_CLANG: which clang++ to invoke for the final .ll → binary step.
+          # Linux: use LLVM 17 clang++ (matches the IR version).
+          # macOS: use system Apple Clang — LLVM 17's clang++ doesn't know the
+          #        Xcode 16+ SDK paths (macOS 15 runner), so linking fails.
+          #        Apple Clang can read LLVM 17 IR and knows its own SDK.
+          MEADOWS_CLANG: ${{ runner.os == 'macOS' && '/usr/bin/clang++' || format('{0}/bin/clang++', env.LLVM_PATH) }}
         run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
 
       - name: Upload Test Results
