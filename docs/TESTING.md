@@ -16,7 +16,9 @@ tests/
 │   ├── factorial.ms
 │   ├── hello.ms
 │   ├── loop.ms
-│   └── variables.ms
+│   ├── variables.ms
+│   ├── errors/        # Programs expected to fail compilation
+│   └── expected/      # Expected output files (<stem>.expected)
 └── security/          # Security and fuzz tests
 ```
 
@@ -87,15 +89,15 @@ Add `.ms` files to `tests/integration/`:
 
 ```meadows
 // Example: factorial.ms
-fn factorial(n: int) -> int {
-    if n <= 1 {
+func factorial(n) {
+    if (n <= 1) {
         return 1;
     }
     return n * factorial(n - 1);
 }
 
 let result = factorial(5);
-print result;
+print(result);
 ```
 
 ## Security Tests
