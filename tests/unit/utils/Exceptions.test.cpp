@@ -1,5 +1,5 @@
 #include "utils/Exceptions.h"
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_all.hpp>
 
 using namespace meadows;
 

@@ -1,13 +1,13 @@
 #include "lexer/Lexer.h"
-#include "catch_amalgamated.hpp"
+#include <catch2/catch_all.hpp>
 #include "utils/Exceptions.h"
 
 TEST_CASE("Lexer tokenizes keywords correctly", "[lexer]") {
   SECTION("All keywords are recognized") {
-    Lexer lexer("let func if else for while return print in range");
+    Lexer lexer("let func if else for while return in range");
     auto tokens = lexer.tokenize();
 
-    REQUIRE(tokens.size() == 11); // 10 keywords + EOF
+    REQUIRE(tokens.size() == 10); // 9 keywords + EOF
     CHECK(tokens[0].type == TokenType::LET);
     CHECK(tokens[1].type == TokenType::FUNC);
     CHECK(tokens[2].type == TokenType::IF);
@@ -15,10 +15,17 @@ TEST_CASE("Lexer tokenizes keywords correctly", "[lexer]") {
     CHECK(tokens[4].type == TokenType::FOR);
     CHECK(tokens[5].type == TokenType::WHILE);
     CHECK(tokens[6].type == TokenType::RETURN);
-    CHECK(tokens[7].type == TokenType::PRINT);
-    CHECK(tokens[8].type == TokenType::IN);
-    CHECK(tokens[9].type == TokenType::RANGE);
-    CHECK(tokens[10].type == TokenType::EOF_TOKEN);
+    CHECK(tokens[7].type == TokenType::IN);
+    CHECK(tokens[8].type == TokenType::RANGE);
+    CHECK(tokens[9].type == TokenType::EOF_TOKEN);
+  }
+
+  SECTION("print is an identifier, not a keyword") {
+    Lexer lexer("print");
+    auto tokens = lexer.tokenize();
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::IDENTIFIER);
+    CHECK(tokens[0].value == "print");
   }
 }
 
@@ -165,13 +172,12 @@ TEST_CASE("Lexer handles punctuation", "[lexer]") {
 
 TEST_CASE("Lexer handles comments", "[lexer]") {
   SECTION("Single-line comment with #") {
-    Lexer lexer("let x = 5; # this is a comment\nprint x;");
+    Lexer lexer("let x = 5; # this is a comment\nprint(x);");
     auto tokens = lexer.tokenize();
 
-    // Should tokenize without including the comment
     bool foundPrint = false;
     for (const auto &token : tokens) {
-      if (token.type == TokenType::PRINT) {
+      if (token.type == TokenType::IDENTIFIER && token.value == "print") {
         foundPrint = true;
         break;
       }
@@ -180,12 +186,12 @@ TEST_CASE("Lexer handles comments", "[lexer]") {
   }
 
   SECTION("Single-line comment with //") {
-    Lexer lexer("let x = 5; // this is a comment\nprint x;");
+    Lexer lexer("let x = 5; // this is a comment\nprint(x);");
     auto tokens = lexer.tokenize();
 
     bool foundPrint = false;
     for (const auto &token : tokens) {
-      if (token.type == TokenType::PRINT) {
+      if (token.type == TokenType::IDENTIFIER && token.value == "print") {
         foundPrint = true;
         break;
       }

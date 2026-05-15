@@ -3,6 +3,15 @@
 #==============================================================================
 
 cmake_minimum_required(VERSION 3.16)
+include(FetchContent)
+
+FetchContent_Declare(
+  CLI11
+  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+  GIT_TAG        v2.4.2
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(CLI11)
 
 #==============================================================================
 # Project Declaration
@@ -113,6 +122,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
   irreader
   native
   nativecodegen
+  passes
 )
 
 #==============================================================================
@@ -126,6 +136,7 @@ set(MEADOWS_LIB_SOURCES
   src/codegen/CodeGen.cpp
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
+  src/sema/SemanticAnalyzer.cpp
   src/lsp/LSPInterface.cpp
   src/utils/ErrorCodes.cpp
   src/utils/Exceptions.cpp
@@ -179,6 +190,7 @@ add_executable(${PROJECT_NAME} src/main/meadows.cpp)
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
     meadows_lib
+    CLI11::CLI11
     ${LLVM_LIBS}
 )
 

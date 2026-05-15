@@ -4,8 +4,10 @@
 #include <climits>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/Casting.h>
 #include <sstream>
 #include <stdexcept>
@@ -75,7 +77,7 @@ void CodeGen::generateRuntimeError(const std::string &message) {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), -1));
 }
 
-CodeGen::CodeGen(bool optimize) : optimize_(optimize) {
+CodeGen::CodeGen(int optLevel) : optLevel_(optLevel) {
   context = std::make_unique<llvm::LLVMContext>();
   module = std::make_unique<llvm::Module>("meadows", *context);
   builder = std::make_unique<llvm::IRBuilder<>>(*context);
@@ -145,12 +147,31 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
 
   freeAllocatedStrings();
 
-  if (optimize_) {
-    module->print(llvm::errs(), nullptr);
-  }
-
   builder->CreateRet(
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
+
+  if (optLevel_ > 0) {
+    runOptimizationPasses();
+  }
+}
+
+void CodeGen::runOptimizationPasses() {
+  llvm::OptimizationLevel level = llvm::OptimizationLevel::O1;
+  if (optLevel_ == 2) level = llvm::OptimizationLevel::O2;
+  else if (optLevel_ >= 3) level = llvm::OptimizationLevel::O3;
+
+  llvm::PassBuilder pb;
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::ModuleAnalysisManager mam;
+  pb.registerModuleAnalyses(mam);
+  pb.registerCGSCCAnalyses(cgam);
+  pb.registerFunctionAnalyses(fam);
+  pb.registerLoopAnalyses(lam);
+  pb.crossRegisterProxies(lam, fam, cgam, mam);
+  auto mpm = pb.buildPerModuleDefaultPipeline(level);
+  mpm.run(*module, mam);
 }
 
 void CodeGen::freeAllocatedStrings() {
@@ -378,19 +399,40 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
   exprResult = builder->CreateLoad(fieldType, fieldPtr, "fieldvalue");
 }
 
+void CodeGen::emitPrint(llvm::Value *val) {
+  if (val->getType()->isIntegerTy()) {
+    auto format = builder->CreateGlobalString("%d\n");
+    builder->CreateCall(printfFunc, {format, val});
+  } else if (val->getType()->isPointerTy()) {
+    auto format = builder->CreateGlobalString("%s\n");
+    builder->CreateCall(printfFunc, {format, val});
+  } else {
+    error("Unsupported type in print()");
+  }
+}
+
 void CodeGen::visitCallExpr(CallExpr &expr) {
   auto varExpr = dynamic_cast<VarExpr *>(expr.callee.get());
   if (!varExpr)
-    error("Only variable calls supported");
+    error("Only direct function calls supported");
+
+  // Built-in: print(value)
+  if (varExpr->name == "print") {
+    if (expr.args.size() != 1)
+      error("print() takes exactly 1 argument");
+    expr.args[0]->accept(*this);
+    emitPrint(exprResult);
+    exprResult = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
+    return;
+  }
 
   auto func = module->getFunction(varExpr->name);
-  if (!func) {
+  if (!func)
     error("Undefined function: ", varExpr->name);
-  }
 
   if (func->arg_size() != expr.args.size()) {
     std::ostringstream oss;
-    oss << "Function " << varExpr->name << " expects " << func->arg_size()
+    oss << "Function '" << varExpr->name << "' expects " << func->arg_size()
         << " arguments, got " << expr.args.size();
     error(oss.str());
   }
@@ -398,9 +440,8 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
   std::vector<llvm::Value *> args;
   for (auto &arg : expr.args) {
     arg->accept(*this);
-    if (!exprResult) {
-      error("Failed to generate argument code for function: ", varExpr->name);
-    }
+    if (!exprResult)
+      error("Failed to generate argument for call to '", varExpr->name, "'");
     args.push_back(exprResult);
   }
   exprResult = builder->CreateCall(func, args);
@@ -683,20 +724,6 @@ void CodeGen::visitReturnStmt(ReturnStmt &stmt) {
 void CodeGen::visitBlockStmt(BlockStmt &stmt) {
   for (auto &s : stmt.body) {
     s->accept(*this);
-  }
-}
-
-void CodeGen::visitPrintStmt(PrintStmt &stmt) {
-  stmt.expr->accept(*this);
-  auto val = exprResult;
-  if (val->getType()->isIntegerTy()) {
-    auto format = builder->CreateGlobalString("%d\n");
-    builder->CreateCall(printfFunc, {format, val});
-  } else if (val->getType()->isPointerTy()) {
-    auto format = builder->CreateGlobalString("%s\n");
-    builder->CreateCall(printfFunc, {format, val});
-  } else {
-    error("Unsupported type in print statement");
   }
 }
 

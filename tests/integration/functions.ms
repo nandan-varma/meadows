@@ -13,6 +13,6 @@ func recursive(n) {
     return n + recursive(n - 1);
 }
 
-print add(5, 3);
-print multiply(4, 7);
-print recursive(10);
+print(add(5, 3));
+print(multiply(4, 7));
+print(recursive(10));

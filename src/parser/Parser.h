@@ -97,10 +97,18 @@ private:
   std::unique_ptr<Stmt> parseWhileStmt();
   std::unique_ptr<Stmt> parseReturnStmt();
   std::unique_ptr<Stmt> parseBlockStmt();
-  std::unique_ptr<Stmt> parsePrintStmt();
   std::unique_ptr<Stmt> parseExprStmt();
   std::unique_ptr<Stmt> parseBreakStmt();
   std::unique_ptr<Stmt> parseContinueStmt();
+
+  template <typename T>
+  std::unique_ptr<T> withLocation(std::unique_ptr<T> node) {
+    if (node) {
+      node->line = peek().line;
+      node->column = peek().column;
+    }
+    return node;
+  }
 
   std::unique_ptr<Expr> parseExpr();
   std::unique_ptr<Expr> parseAssignment(int depth = 0);

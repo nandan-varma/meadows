@@ -38,4 +38,3 @@ void ContinueStmt::accept(StmtVisitor &visitor) {
   visitor.visitContinueStmt(*this);
 }
 void BlockStmt::accept(StmtVisitor &visitor) { visitor.visitBlockStmt(*this); }
-void PrintStmt::accept(StmtVisitor &visitor) { visitor.visitPrintStmt(*this); }

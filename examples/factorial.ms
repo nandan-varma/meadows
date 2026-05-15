@@ -7,4 +7,4 @@ func factorial(n) {
 }
 
 let result = factorial(5);
-print result;
+print(result);
