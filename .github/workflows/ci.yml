@@ -36,14 +36,38 @@ jobs:
           LLVM_DIR: ${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm
           LD_LIBRARY_PATH: ${{ steps.install-llvm.outputs.llvm-path }}/lib
           DYLD_LIBRARY_PATH: ${{ steps.install-llvm.outputs.llvm-path }}/lib
+          # Tell Meadows exactly which clang++ to use for compiling .ms files
+          MEADOWS_CLANG: ${{ steps.install-llvm.outputs.llvm-path }}/bin/clang++
         run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
+
+      - name: Find LLVM cmake dir (Windows)
+        if: runner.os == 'Windows'
+        id: llvm-cmake
+        shell: pwsh
+        run: |
+          $llvmBase = "${{ steps.install-llvm.outputs.llvm-path }}"
+          Write-Host "LLVM install base: $llvmBase"
+          # Search for LLVMConfig.cmake under the install tree
+          $cfg = Get-ChildItem -Recurse "$llvmBase" -Filter "LLVMConfig.cmake" -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+          if ($cfg) {
+            $dir = $cfg.DirectoryName
+            Write-Host "Found LLVMConfig.cmake at: $dir"
+            echo "llvm_dir=$dir" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "LLVMConfig.cmake not found under $llvmBase — listing tree:"
+            Get-ChildItem -Recurse "$llvmBase" | Select-Object -First 60 | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
 
       - name: Build and Test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          MEADOWS_CLANG: ${{ steps.install-llvm.outputs.llvm-path }}\bin\clang++.exe
         run: |
-          # Use PowerShell paths to avoid bash drive-letter mangling
-          $llvmDir = "${{ steps.install-llvm.outputs.llvm-path }}\lib\cmake\llvm"
+          $llvmDir = "${{ steps.llvm-cmake.outputs.llvm_dir }}"
+          Write-Host "Using LLVM_DIR: $llvmDir"
           cmake -B build-release `
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
