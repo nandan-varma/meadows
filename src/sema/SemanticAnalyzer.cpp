@@ -176,6 +176,15 @@ void SemanticAnalyzer::visitIndexExpr(IndexExpr &expr) {
 
 void SemanticAnalyzer::visitFieldAccessExpr(FieldAccessExpr &expr) {
   expr.object->accept(*this);
+  // If the object is a literal `{a: 1, b: 2}`, we can statically verify
+  // the field exists. For computed/dynamic objects we can't check here.
+  if (auto *obj = dynamic_cast<ObjectExpr *>(expr.object.get())) {
+    if (obj->pairs.find(expr.fieldName) == obj->pairs.end()) {
+      SourceLocation loc(filename_, expr.line, expr.column);
+      reportError(ErrorCode::SEM_UNKNOWN_FIELD,
+                  "Object has no field '" + expr.fieldName + "'", loc);
+    }
+  }
 }
 
 void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
@@ -189,11 +198,16 @@ void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
 
   SourceLocation loc(filename_, varExpr->line, varExpr->column);
 
-  // print is a built-in; validate arg count but skip function table lookup
-  if (varExpr->name == "print") {
-    if (expr.args.size() != 1) {
+  // Built-ins: validate arg count but skip the user-function table.
+  static const std::unordered_map<std::string, size_t> kBuiltins = {
+      {"print", 1}, {"len", 1}, {"str", 1},
+  };
+  if (auto bi = kBuiltins.find(varExpr->name); bi != kBuiltins.end()) {
+    if (expr.args.size() != bi->second) {
       reportError(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
-                  "print() takes exactly 1 argument", loc);
+                  varExpr->name + "() takes exactly " +
+                      std::to_string(bi->second) + " argument(s)",
+                  loc);
     }
     for (auto &arg : expr.args) arg->accept(*this);
     return;

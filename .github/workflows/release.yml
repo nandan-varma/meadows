@@ -21,21 +21,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install LLVM
-        id: install-llvm
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
+        # Sets LLVM_PATH env var to the install root
 
       - uses: jwlawson/actions-setup-cmake@v2
 
       - name: Build Release
         shell: bash
+        env:
+          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_DIR="${{ steps.install-llvm.outputs.llvm-path }}/lib/cmake/llvm" \
+            -DLLVM_DIR="$LLVM_DIR" \
             -DBUILD_TESTS=OFF
           cmake --build build --parallel
 

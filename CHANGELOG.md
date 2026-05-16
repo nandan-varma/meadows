@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.2] — 2025
+
+### Added
+- `len(s)` built-in: returns the length of a string as i32
+- `str(n)` built-in: formats an integer as a decimal string (runtime `snprintf`)
+- Bare `return;` is now allowed in functions; returns 0
+- Field access on object literals is statically validated; unknown fields
+  produce `E3012 SEM_UNKNOWN_FIELD` at compile time
+
+### Fixed
+- `release.yml` was using a stale `steps.install-llvm.outputs.llvm-path`
+  reference that no longer resolves; switched to `env.LLVM_PATH` to match
+  `ci.yml`. Tag-triggered releases work again.
+
+### Documentation
+- `docs/LANGUAGE.md` rewritten for accuracy: documents `%`, `break`/`continue`,
+  built-ins, error codes, and the current limitations honestly
+
 ## [1.0.1] — 2025
 
 ### Added
