@@ -42,17 +42,6 @@ llvm::Value *SymbolTable::lookup(const std::string &name) {
   return nullptr;
 }
 
-llvm::Value *SymbolTable::lookupCurrentScope(const std::string &name) {
-  if (scopeStack_.empty()) {
-    auto globalIt = globalScope_.find(name);
-    return globalIt != globalScope_.end() ? globalIt->second.value : nullptr;
-  }
-
-  auto &currentScope = scopeStack_.back();
-  auto it = currentScope.find(name);
-  return it != currentScope.end() ? it->second.value : nullptr;
-}
-
 bool SymbolTable::exists(const std::string &name) {
   for (const auto &scope : scopeStack_) {
     if (scope.find(name) != scope.end()) {

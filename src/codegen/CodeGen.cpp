@@ -165,8 +165,6 @@ void CodeGen::declareFunctionSignatures(
 }
 
 void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
-  variableScopeStack.clear();
-
   auto mainType =
       llvm::FunctionType::get(llvm::Type::getInt32Ty(*context), {}, false);
   auto mainFunc = llvm::Function::Create(

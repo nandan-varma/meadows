@@ -109,9 +109,6 @@ private:
   llvm::Value *exprResult;
   llvm::BasicBlock *currentBlock;
 
-  std::vector<std::unordered_map<std::string, llvm::Value *>>
-      variableScopeStack;
-
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
   llvm::Value *compareStrings(llvm::Value *left, llvm::Value *right, bool equal);

@@ -14,21 +14,8 @@ inline bool isPointerType(llvm::Value *val) {
   return val->getType()->isPointerTy();
 }
 
-inline bool isStringType(llvm::Value *val) {
-  return val->getType()->isPointerTy();
-}
-
-inline bool isArrayType(llvm::Value *val) {
-  return val->getType()->isArrayTy();
-}
-
 inline bool isBooleanType(llvm::Value *val) {
   return val->getType()->isIntegerTy(1);
-}
-
-inline bool isIntegerOrPointer(llvm::Value *val) {
-  auto *type = val->getType();
-  return type->isIntegerTy() || type->isPointerTy();
 }
 
 } // namespace TypeUtils
