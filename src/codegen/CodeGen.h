@@ -74,9 +74,16 @@ private:
 
   // Arrays are fixed-size, so a variable's element count is always known at
   // compile time — this tracks it per variable name (set on `let`, copied on
-  // `let b = a;`) so len() can return it as a constant instead of needing a
-  // runtime length that arrays don't otherwise carry.
+  // `let b = a;` or `arr = push(arr, x);`) so len() can return it as a
+  // constant instead of needing a runtime length that arrays don't
+  // otherwise carry. push() relies on the same fact: since it always grows
+  // by exactly one element, its result's length is old length + 1, known at
+  // compile time too — see visitCallExpr's "push" case.
   std::unordered_map<std::string, size_t> arrayLengths_;
+  // Set by the "push" case in visitCallExpr; consumed by visitLetStmt /
+  // visitAssignExpr right after evaluating a `push(...)` initializer/value,
+  // to keep arrayLengths_ accurate across a rebind.
+  size_t lastPushedArrayLength_ = 0;
 
   // Object literals don't carry a name for their LLVM struct type, and a
   // plain llvm::Value* has no runtime record of which fields it has (opaque
@@ -116,6 +123,18 @@ private:
   // (non-double) type.
   bool promoteToFloatIfMixed(llvm::Value *&left, llvm::Value *&right);
 
+  // Resolves `arg` to an array's element count and generates its pointer
+  // value, when `arg` is an inline array literal or a variable known (via
+  // arrayLengths_) to hold one. Returns false — leaving outLen/outPtr
+  // untouched and *not* generating `arg` — for anything else (e.g. a
+  // string), so callers can fall back to their own handling. Shared by
+  // len() and push() so their array-resolution logic can't drift apart.
+  bool resolveArrayLength(Expr &arg, size_t &outLen, llvm::Value *&outPtr);
+
+  // True if `e` is a call to the push() builtin — used by visitLetStmt and
+  // visitAssignExpr to know when to consume lastPushedArrayLength_.
+  static bool isPushCall(Expr *e);
+
   // Resolves a FieldAccessExpr's struct type and field index, whether its
   // object is an inline literal or a variable declared from one. Shared by
   // the read path (visitFieldAccessExpr) and the write path
@@ -126,7 +145,14 @@ private:
   // only supported cases; see visitFieldAccessExpr's doc comment.
   void resolveFieldAccess(FieldAccessExpr &expr, llvm::StructType *&structType,
                           size_t &fieldIndex);
-  void validateArrayBounds(llvm::Value *array, llvm::Value *index);
+  // `arrayLen` is the array's compile-time-known element count (from
+  // resolveArrayLength/arrayLengths_), not something read from the array's
+  // memory — arrays don't carry a runtime length header. An earlier version
+  // of this function loaded the first i32 at `array`'s address expecting it
+  // to be a length prefix that was never actually written there, so it was
+  // silently comparing the index against the array's *first element's
+  // value* instead of its length.
+  void validateArrayBounds(llvm::Value *index, llvm::Value *arrayLen);
   void validateDivision(llvm::Value *divisor);
   void generateRuntimeError(const std::string &message);
   void emitPrint(llvm::Value *val);

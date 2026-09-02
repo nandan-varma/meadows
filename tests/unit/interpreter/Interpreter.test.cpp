@@ -323,3 +323,36 @@ TEST_CASE("Interpreter: str() and print() output for floats matches "
   CHECK(run("print(str(3.14));").output == "3.14\n");
   CHECK(run(R"(print("pi = " + 3.14159);)").output == "pi = 3.14159\n");
 }
+
+TEST_CASE("Interpreter: push() grows an array without mutating the original",
+         "[interpreter][push]") {
+  auto r = run(R"(
+    let a = [1, 2, 3];
+    let b = a;
+    let c = push(a, 4);
+    print(len(a));
+    print(len(b));
+    print(len(c));
+    print(c[0]);
+    print(c[3]);
+  )");
+  CHECK(r.output == "3\n3\n4\n1\n4\n");
+}
+
+TEST_CASE("Interpreter: rebinding via `arr = push(arr, x);`", "[interpreter][push]") {
+  auto r = run(R"(
+    let arr = [1, 2, 3];
+    arr = push(arr, 4);
+    arr = push(arr, 5);
+    print(len(arr));
+    print(arr[3]);
+    print(arr[4]);
+  )");
+  CHECK(r.output == "5\n4\n5\n");
+}
+
+TEST_CASE("Interpreter: push() on a non-array is a runtime error", "[interpreter][push]") {
+  auto r = run("let x = 5; push(x, 1);");
+  CHECK(r.exitCode == -1);
+  CHECK(r.output.find("RuntimeError") != std::string::npos);
+}

@@ -209,7 +209,7 @@ void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
 
   // Built-ins: validate arg count but skip the user-function table.
   static const std::unordered_map<std::string, size_t> kBuiltins = {
-      {"print", 1}, {"len", 1}, {"str", 1},
+      {"print", 1}, {"len", 1}, {"str", 1}, {"push", 2},
   };
   if (auto bi = kBuiltins.find(varExpr->name); bi != kBuiltins.end()) {
     if (expr.args.size() != bi->second) {

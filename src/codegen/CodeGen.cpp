@@ -54,12 +54,9 @@ void CodeGen::validateDivision(llvm::Value *divisor) {
   builder->SetInsertPoint(continueBB);
 }
 
-void CodeGen::validateArrayBounds(llvm::Value *array, llvm::Value *index) {
+void CodeGen::validateArrayBounds(llvm::Value *index, llvm::Value *arrayLen) {
   auto *zero = llvm::ConstantInt::get(index->getType(), 0);
   auto *isNegative = builder->CreateICmpSLT(index, zero, "idx_negative");
-
-  auto *arrayLen =
-      builder->CreateLoad(llvm::Type::getInt32Ty(*context), array, "array_len");
   auto *isOutOfBounds = builder->CreateICmpSGE(index, arrayLen, "idx_oob");
 
   auto *isInvalid = builder->CreateOr(isNegative, isOutOfBounds, "idx_invalid");
@@ -277,15 +274,26 @@ void CodeGen::visitAssignExpr(AssignExpr &expr) {
 
     builder->CreateStore(val, var);
     exprResult = val;
+
+    // `arr = push(arr, x);` — keep arrayLengths_ accurate across the rebind.
+    if (isPushCall(expr.value.get())) {
+      arrayLengths_[varTarget->name] = lastPushedArrayLength_;
+    }
     return;
   }
 
   if (auto *indexTarget = dynamic_cast<IndexExpr *>(expr.target.get())) {
-    indexTarget->array->accept(*this);
-    auto arrayPtr = exprResult;
+    size_t arrLen;
+    llvm::Value *arrayPtr;
+    if (!resolveArrayLength(*indexTarget->array, arrLen, arrayPtr)) {
+      error("Cannot index-assign into an expression that isn't an array "
+            "literal or a variable declared from one");
+    }
     indexTarget->index->accept(*this);
     auto indexVal = exprResult;
-    validateArrayBounds(arrayPtr, indexVal);
+    auto arrayLenConst = llvm::ConstantInt::get(indexVal->getType(),
+                                                static_cast<uint64_t>(arrLen));
+    validateArrayBounds(indexVal, arrayLenConst);
 
     expr.value->accept(*this);
     auto val = exprResult;
@@ -472,13 +480,19 @@ void CodeGen::visitLogicalExpr(LogicalExpr &expr) {
 }
 
 void CodeGen::visitIndexExpr(IndexExpr &expr) {
-  expr.array->accept(*this);
-  auto arrayPtr = exprResult;
+  size_t arrLen;
+  llvm::Value *arrayPtr;
+  if (!resolveArrayLength(*expr.array, arrLen, arrayPtr)) {
+    error("Cannot index an expression that isn't an array literal or a "
+          "variable declared from one");
+  }
 
   expr.index->accept(*this);
   auto indexVal = exprResult;
 
-  validateArrayBounds(arrayPtr, indexVal);
+  auto arrayLenConst = llvm::ConstantInt::get(indexVal->getType(),
+                                              static_cast<uint64_t>(arrLen));
+  validateArrayBounds(indexVal, arrayLenConst);
 
   auto arrayType = llvm::ArrayType::get(llvm::Type::getInt32Ty(*context), 0);
   auto zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
@@ -580,21 +594,12 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
     if (expr.args.size() != 1)
       error("len() takes exactly 1 argument");
 
-    if (auto *litArr = dynamic_cast<ArrayExpr *>(expr.args[0].get())) {
-      expr.args[0]->accept(*this); // still generate it for side effects
-      exprResult = llvm::ConstantInt::get(
-          llvm::Type::getInt32Ty(*context),
-          static_cast<uint64_t>(litArr->elements.size()));
+    size_t arrLen;
+    llvm::Value *arrPtr;
+    if (resolveArrayLength(*expr.args[0], arrLen, arrPtr)) {
+      exprResult = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                          static_cast<uint64_t>(arrLen));
       return;
-    }
-    if (auto *varArg = dynamic_cast<VarExpr *>(expr.args[0].get())) {
-      auto it = arrayLengths_.find(varArg->name);
-      if (it != arrayLengths_.end()) {
-        expr.args[0]->accept(*this);
-        exprResult = llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(*context), static_cast<uint64_t>(it->second));
-        return;
-      }
     }
 
     expr.args[0]->accept(*this);
@@ -604,6 +609,56 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
     auto i64Len = getStringLength(val);
     exprResult = builder->CreateTrunc(i64Len, llvm::Type::getInt32Ty(*context),
                                       "lenresult");
+    return;
+  }
+
+  // Built-in: push(arr, value) — returns a *new* array one element longer
+  // (arrays are fixed-size, so this can't grow `arr` in place). Since it
+  // always grows by exactly one, the result's length is old length + 1,
+  // known at compile time from the same tracking len() uses — no runtime
+  // length header needed. Usage: `arr = push(arr, x);`.
+  if (varExpr->name == "push") {
+    if (expr.args.size() != 2)
+      error("push() takes exactly 2 arguments");
+
+    size_t oldLen;
+    llvm::Value *oldArrPtr;
+    if (!resolveArrayLength(*expr.args[0], oldLen, oldArrPtr)) {
+      error("push() first argument must be an array literal or a variable "
+            "declared from one");
+    }
+
+    expr.args[1]->accept(*this);
+    auto newVal = exprResult;
+
+    size_t newLen = oldLen + 1;
+    auto elemType = llvm::Type::getInt32Ty(*context);
+    auto oldArrType = llvm::ArrayType::get(elemType, 0);
+    auto newArrType = llvm::ArrayType::get(elemType, newLen);
+    auto zero = llvm::ConstantInt::get(elemType, 0);
+
+    // Heap-allocated, not alloca'd — the result can outlive this scope via
+    // `arr = push(arr, x);`, unlike a fixed-size array literal.
+    auto totalBytes = llvm::ConstantInt::get(
+        llvm::Type::getInt64Ty(*context), static_cast<uint64_t>(newLen) * 4);
+    auto newBuf = builder->CreateCall(mallocFunc, {totalBytes}, "pusharr");
+
+    for (size_t i = 0; i < oldLen; i++) {
+      auto idx = llvm::ConstantInt::get(elemType, static_cast<uint64_t>(i));
+      auto srcPtr =
+          builder->CreateGEP(oldArrType, oldArrPtr, {zero, idx}, "pushsrc");
+      auto elem = builder->CreateLoad(elemType, srcPtr, "pushval");
+      auto dstPtr =
+          builder->CreateGEP(newArrType, newBuf, {zero, idx}, "pushdst");
+      builder->CreateStore(elem, dstPtr);
+    }
+    auto lastIdx = llvm::ConstantInt::get(elemType, static_cast<uint64_t>(oldLen));
+    auto lastPtr =
+        builder->CreateGEP(newArrType, newBuf, {zero, lastIdx}, "pushlast");
+    builder->CreateStore(newVal, lastPtr);
+
+    exprResult = newBuf;
+    lastPushedArrayLength_ = newLen;
     return;
   }
 
@@ -698,6 +753,33 @@ llvm::Value *CodeGen::compareStrings(llvm::Value *left, llvm::Value *right,
   auto zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
   return equal ? builder->CreateICmpEQ(cmp, zero, "streq")
                : builder->CreateICmpNE(cmp, zero, "strneq");
+}
+
+bool CodeGen::isPushCall(Expr *e) {
+  auto *call = dynamic_cast<CallExpr *>(e);
+  if (!call) return false;
+  auto *callee = dynamic_cast<VarExpr *>(call->callee.get());
+  return callee && callee->name == "push";
+}
+
+bool CodeGen::resolveArrayLength(Expr &arg, size_t &outLen,
+                                 llvm::Value *&outPtr) {
+  if (auto *litArr = dynamic_cast<ArrayExpr *>(&arg)) {
+    arg.accept(*this);
+    outPtr = exprResult;
+    outLen = litArr->elements.size();
+    return true;
+  }
+  if (auto *varArg = dynamic_cast<VarExpr *>(&arg)) {
+    auto it = arrayLengths_.find(varArg->name);
+    if (it != arrayLengths_.end()) {
+      arg.accept(*this);
+      outPtr = exprResult;
+      outLen = it->second;
+      return true;
+    }
+  }
+  return false;
 }
 
 bool CodeGen::promoteToFloatIfMixed(llvm::Value *&left, llvm::Value *&right) {
@@ -840,6 +922,8 @@ void CodeGen::visitLetStmt(LetStmt &stmt) {
     arrayLengths_[stmt.name] = arrExpr->elements.size();
   } else if (dynamic_cast<ObjectExpr *>(stmt.initializer.get())) {
     objectShapes_[stmt.name] = lastObjectShape_;
+  } else if (isPushCall(stmt.initializer.get())) {
+    arrayLengths_[stmt.name] = lastPushedArrayLength_;
   } else if (auto *varExpr = dynamic_cast<VarExpr *>(stmt.initializer.get())) {
     // `let b = a;` — thread whatever compile-time shape metadata `a` has
     // through the alias, matching the pointer aliasing this produces at

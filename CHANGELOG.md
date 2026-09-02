@@ -3,6 +3,28 @@
 ## [1.0.2] — 2025
 
 ### Added
+- `push(arr, value)` in both backends — returns a new array one element
+  longer (`arr = push(arr, value);` to keep using the same name). Arrays
+  stay fixed-size once created; push allocates a new one rather than
+  growing in place. Since it always grows by exactly one, and CodeGen
+  already tracks each array-typed variable's length at compile time (see
+  the field-access-through-a-variable and array-len() entries above), the
+  result's length is knowable at compile time too — no runtime length
+  header needed, keeping the array representation exactly as before.
+
+### Fixed
+- **Array bounds checking was comparing the index against the array's
+  first element's *value*, not its length.** `CodeGen::validateArrayBounds`
+  loaded the first i32 at the array's address expecting a runtime length
+  header that was never actually written there (array literals have always
+  been plain element storage, no header) — so `arr[i]` was bounds-checked
+  against `arr[0]`'s value. This went unnoticed because every existing
+  test's first element happened to be numerically larger than any tested
+  index, e.g. `[100, 2, 3, 4, 500]` masks the bug for any index 0–4. Adding
+  `push()` surfaced it immediately (`push([1,2,3], 4)` has a first element
+  of `1`, rejecting index 3 as "out of bounds" on a valid 4-element array).
+  Fixed by passing the compile-time-known length directly instead of
+  reading it from memory.
 - Floats (`f64`, IEEE 754 double) in both backends: literals (`3.14`),
   arithmetic (`+ - * / %`), comparisons, `print`/`str`, and constant string
   concatenation. `1 + 2.5` promotes the Int operand and yields `3.5`; `1 ==

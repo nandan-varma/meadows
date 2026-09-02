@@ -1509,3 +1509,59 @@ TEST_CASE("CodeGen handles float literals and arithmetic", "[codegen][float]") {
     REQUIRE(llvm::verifyModule(*module, &os) == false);
   }
 }
+
+TEST_CASE("CodeGen handles push() as a compile-time-sized array grow",
+         "[codegen][arrays][push]") {
+  SECTION("push() on a literal") {
+    auto parser = createParser("let arr = push([1, 2, 3], 4); print(arr[3]);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Rebinding via `arr = push(arr, x);` keeps len() accurate") {
+    auto parser = createParser(
+        "let arr = [1, 2, 3]; arr = push(arr, 4); print(len(arr));"
+        "print(arr[3]);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("A pushed-and-reassigned array's last valid index passes bounds "
+         "checking — regression for the array_len bug where the bounds "
+         "check compared against the array's first element instead of its "
+         "true length") {
+    auto parser =
+        createParser("let arr = [1, 2, 3]; arr = push(arr, 4); print(arr[3]);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    // The regression specifically involved a runtime load of the array's
+    // first element as a fake "length" — assert that's gone.
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("array_len") == std::string::npos);
+  }
+
+  SECTION("push() on a non-array is a compile-time error") {
+    auto parser = createParser(R"(let x = 5; push(x, 1);)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_THROWS_AS(codegen.generate(stmts), std::runtime_error);
+  }
+}

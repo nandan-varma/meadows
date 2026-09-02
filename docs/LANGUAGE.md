@@ -46,9 +46,17 @@ explicit type annotations. The five kinds of values are:
 
 ### Array
 
-- Fixed-size, allocated at the declaration site
+- Fixed-size once created, allocated at the declaration site
 - Element type: i32 only
 - Literals: `[1, 2, 3]`
+- `push(arr, value)` returns a *new* array one element longer — it doesn't
+  grow `arr` in place (arrays are fixed-size; growing means allocating a new
+  one). Reassign to keep using the same name: `arr = push(arr, value);`.
+  `push()`'s argument must itself be an array literal or a variable
+  declared (directly, or through a chain of `let`/`push` reassignment) from
+  one — `push(push(arr, 1), 2)` isn't resolvable without an intermediate
+  `let`, since the compiler tracks each array's length at compile time
+  rather than carrying one at runtime.
 
 ### Object
 
@@ -190,6 +198,7 @@ func square(x) {
 | `print(value)` | Print an integer or string, followed by a newline        |
 | `len(s)`       | Length of a string, or of an array (i32)                 |
 | `str(n)`       | Format an Int or Float as a string (heap-allocated), `%g` for Float |
+| `push(arr, v)` | Returns a new array with `v` appended (doesn't mutate `arr`) |
 
 Built-ins are validated by the semantic analyzer; calling them with the wrong
 arg count is an error (`E3006`).
@@ -279,11 +288,13 @@ exits with code -1:
 These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++`):
 
 - Array and string elements are i32-only at the value level (no Float arrays)
-- Function parameters are i32-only — strings and floats cannot be passed to
-  user functions
-- No dynamic resizable arrays
+- Function parameters are i32-only — strings, floats, and arrays cannot be
+  passed to user functions
+- Arrays can only grow via `push()`, which returns a new array rather than
+  growing in place, and only when the source array's length is statically
+  resolvable — see the Array section above
 - No imports / multi-file modules
-- No standard library beyond `print`, `len`, `str`
+- No standard library beyond `print`, `len`, `str`, `push`
 - Field access requires the object be an inline literal, or a variable
   declared directly from one (including through a chain of `let b = a;`
   aliases) — chained access (`a.b.c`) and anything else isn't supported

@@ -356,7 +356,7 @@ void Interpreter::visitCallExpr(CallExpr &expr) {
   for (auto &arg : expr.args) args.push_back(eval(*arg));
 
   static const std::unordered_map<std::string, bool> kBuiltins = {
-      {"print", true}, {"len", true}, {"str", true}};
+      {"print", true}, {"len", true}, {"str", true}, {"push", true}};
   if (kBuiltins.count(varExpr->name)) {
     result_ = callBuiltin(varExpr->name, std::move(args));
     return;
@@ -388,6 +388,18 @@ Value Interpreter::callBuiltin(const std::string &name, std::vector<Value> args)
     if (!v.isNumeric())
       runtimeError("RuntimeError: str() argument must be a number");
     return Value::ofStr(v.displayString());
+  }
+  if (name == "push") {
+    const Value &arr = args[0];
+    if (!arr.isArray())
+      runtimeError("RuntimeError: push() first argument must be an array");
+    // Returns a *new* array rather than mutating in place — matches
+    // CodeGen, which can't grow a fixed-size array's storage in place
+    // either. Mutating here instead would let an alias observe the change
+    // (arrays are shared_ptr-backed) in a way the compiled binary can't.
+    auto result = std::make_shared<ValueArray>(arr.asArray());
+    result->push_back(args[1]);
+    return Value::ofArray(std::move(result));
   }
   runtimeError("RuntimeError: unknown builtin '" + name + "'");
 }
