@@ -71,6 +71,28 @@ private:
   std::unique_ptr<llvm::IRBuilder<>> builder;
   SymbolTable symbolTable;
   std::unordered_map<std::string, llvm::Type *> variableTypes;
+
+  // Arrays are fixed-size, so a variable's element count is always known at
+  // compile time — this tracks it per variable name (set on `let`, copied on
+  // `let b = a;`) so len() can return it as a constant instead of needing a
+  // runtime length that arrays don't otherwise carry.
+  std::unordered_map<std::string, size_t> arrayLengths_;
+
+  // Object literals don't carry a name for their LLVM struct type, and a
+  // plain llvm::Value* has no runtime record of which fields it has (opaque
+  // pointers carry no pointee type). This records the shape a `let` bound to
+  // an object literal (or another variable with a known shape), so field
+  // access through a variable — not just an inline literal — can resolve.
+  struct ObjectShape {
+    llvm::StructType *type = nullptr;
+    std::unordered_map<std::string, size_t> fieldIndex;
+  };
+  std::unordered_map<std::string, ObjectShape> objectShapes_;
+  // Shape of the most recently generated inline ObjectExpr — visitLetStmt
+  // and visitFieldAccessExpr read this immediately after visiting an
+  // ObjectExpr node, before anything else can overwrite it.
+  ObjectShape lastObjectShape_;
+
   llvm::Function *printfFunc;
   llvm::Function *mallocFunc;
   llvm::Function *freeFunc;

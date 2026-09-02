@@ -415,26 +415,35 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
   expr.object->accept(*this);
   auto objPtr = exprResult;
 
-  auto structType = llvm::StructType::get(*context);
-  if (auto objExpr = dynamic_cast<ObjectExpr *>(expr.object.get())) {
-    std::vector<llvm::Type *> fieldTypes;
-    for (auto &pair : objExpr->pairs) {
-      pair.second->accept(*this);
-      fieldTypes.push_back(exprResult->getType());
-    }
-    structType = llvm::StructType::get(*context, fieldTypes);
-  }
-
+  llvm::StructType *structType = nullptr;
   size_t fieldIndex = 0;
-  if (auto objExpr = dynamic_cast<ObjectExpr *>(expr.object.get())) {
-    int i = 0;
-    for (auto &pair : objExpr->pairs) {
-      if (pair.first == expr.fieldName) {
-        fieldIndex = i;
-        break;
-      }
-      i++;
+
+  if (dynamic_cast<ObjectExpr *>(expr.object.get())) {
+    // Inline literal: expr.object->accept() above just ran visitObjectExpr,
+    // which left this literal's shape in lastObjectShape_.
+    structType = lastObjectShape_.type;
+    auto it = lastObjectShape_.fieldIndex.find(expr.fieldName);
+    if (it == lastObjectShape_.fieldIndex.end()) {
+      error("Object has no field '", expr.fieldName, "'");
     }
+    fieldIndex = it->second;
+  } else if (auto *varExpr = dynamic_cast<VarExpr *>(expr.object.get())) {
+    auto shapeIt = objectShapes_.find(varExpr->name);
+    if (shapeIt == objectShapes_.end()) {
+      error("Cannot resolve field access on '", varExpr->name,
+            "': not declared directly from an object literal");
+    }
+    auto fieldIt = shapeIt->second.fieldIndex.find(expr.fieldName);
+    if (fieldIt == shapeIt->second.fieldIndex.end()) {
+      error("Object has no field '", expr.fieldName, "'");
+    }
+    structType = shapeIt->second.type;
+    fieldIndex = fieldIt->second;
+  } else {
+    // e.g. chained access `a.b.c` — resolving the shape of an intermediate
+    // field access result isn't supported yet.
+    error("Field access is only supported on an object literal or a "
+          "variable declared directly from one");
   }
 
   std::vector<llvm::Value *> indices = {
@@ -474,15 +483,34 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
     return;
   }
 
-  // Built-in: len(value) — returns i32 length of a string. (Array length is
-  // not yet runtime-tracked, so only strings are supported here.)
+  // Built-in: len(value) — i32 length of a string (runtime strlen) or an
+  // array (compile-time constant: arrays are fixed-size, so the element
+  // count is always known from the literal or the variable that aliases it).
   if (varExpr->name == "len") {
     if (expr.args.size() != 1)
       error("len() takes exactly 1 argument");
+
+    if (auto *litArr = dynamic_cast<ArrayExpr *>(expr.args[0].get())) {
+      expr.args[0]->accept(*this); // still generate it for side effects
+      exprResult = llvm::ConstantInt::get(
+          llvm::Type::getInt32Ty(*context),
+          static_cast<uint64_t>(litArr->elements.size()));
+      return;
+    }
+    if (auto *varArg = dynamic_cast<VarExpr *>(expr.args[0].get())) {
+      auto it = arrayLengths_.find(varArg->name);
+      if (it != arrayLengths_.end()) {
+        expr.args[0]->accept(*this);
+        exprResult = llvm::ConstantInt::get(
+            llvm::Type::getInt32Ty(*context), static_cast<uint64_t>(it->second));
+        return;
+      }
+    }
+
     expr.args[0]->accept(*this);
     auto val = exprResult;
     if (!val->getType()->isPointerTy())
-      error("len() argument must be a string");
+      error("len() argument must be a string or array");
     auto i64Len = getStringLength(val);
     exprResult = builder->CreateTrunc(i64Len, llvm::Type::getInt32Ty(*context),
                                       "lenresult");
@@ -657,32 +685,41 @@ void CodeGen::visitObjectExpr(ObjectExpr &expr) {
     auto structType = llvm::StructType::get(*context);
     auto alloca = builder->CreateAlloca(structType, nullptr, "empty_obj");
     exprResult = alloca;
+    lastObjectShape_ = ObjectShape{structType, {}};
     return;
   }
 
+  // Single pass: each field initializer is evaluated exactly once (the
+  // previous two-pass version — once to collect types, again to store
+  // values — ran every field initializer's side effects twice).
   std::vector<llvm::Type *> fieldTypes;
+  std::vector<std::pair<std::string, llvm::Value *>> fieldValues;
+  fieldTypes.reserve(expr.pairs.size());
+  fieldValues.reserve(expr.pairs.size());
   for (auto &pair : expr.pairs) {
     pair.second->accept(*this);
     fieldTypes.push_back(exprResult->getType());
+    fieldValues.emplace_back(pair.first, exprResult);
   }
 
   auto structType = llvm::StructType::create(*context, fieldTypes, "object");
   auto alloca = builder->CreateAlloca(structType, nullptr, "object");
 
-  size_t i = 0;
-  for (auto &pair : expr.pairs) {
-    pair.second->accept(*this);
-    auto val = exprResult;
+  ObjectShape shape;
+  shape.type = structType;
+  for (size_t i = 0; i < fieldValues.size(); i++) {
+    const auto &[name, val] = fieldValues[i];
     std::vector<llvm::Value *> indices = {
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0),
         llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
                                static_cast<int>(i))};
     auto fieldPtr = builder->CreateGEP(structType, alloca, indices, "field");
     builder->CreateStore(val, fieldPtr);
-    i++;
+    shape.fieldIndex[name] = i;
   }
 
   exprResult = alloca;
+  lastObjectShape_ = shape;
 }
 
 void CodeGen::visitExprStmt(ExprStmt &stmt) { stmt.expr->accept(*this); }
@@ -694,6 +731,20 @@ void CodeGen::visitLetStmt(LetStmt &stmt) {
   builder->CreateStore(val, alloca);
   declareVariable(stmt.name, alloca);
   variableTypes[stmt.name] = val->getType();
+
+  if (auto *arrExpr = dynamic_cast<ArrayExpr *>(stmt.initializer.get())) {
+    arrayLengths_[stmt.name] = arrExpr->elements.size();
+  } else if (dynamic_cast<ObjectExpr *>(stmt.initializer.get())) {
+    objectShapes_[stmt.name] = lastObjectShape_;
+  } else if (auto *varExpr = dynamic_cast<VarExpr *>(stmt.initializer.get())) {
+    // `let b = a;` — thread whatever compile-time shape metadata `a` has
+    // through the alias, matching the pointer aliasing this produces at
+    // runtime (visitVarExpr just loads and re-stores the same pointer).
+    auto arrIt = arrayLengths_.find(varExpr->name);
+    if (arrIt != arrayLengths_.end()) arrayLengths_[stmt.name] = arrIt->second;
+    auto objIt = objectShapes_.find(varExpr->name);
+    if (objIt != objectShapes_.end()) objectShapes_[stmt.name] = objIt->second;
+  }
 }
 
 void CodeGen::visitFuncStmt(FuncStmt &stmt) {

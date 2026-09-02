@@ -164,7 +164,7 @@ func square(x) {
 | Function       | Description                                              |
 |----------------|----------------------------------------------------------|
 | `print(value)` | Print an integer or string, followed by a newline        |
-| `len(s)`       | Length of a string (i32)                                 |
+| `len(s)`       | Length of a string, or of an array (i32)                 |
 | `str(n)`       | Format an integer as a decimal string (heap-allocated)   |
 
 Built-ins are validated by the semantic analyzer; calling them with the wrong
@@ -203,9 +203,13 @@ obj.field
 ```
 
 Indexing an array out of bounds is a **runtime** error that prints a message
-and exits with code -1. Accessing an unknown field on an object **literal** is
-a compile-time error (`E3012`). Field access on a variable bound to an object
-is not statically validated yet.
+and exits with code -1. Accessing an unknown field is a compile-time error —
+`E3012` when the object is an inline literal at the access site, or a
+CodeGen error when it's a variable declared directly from an object literal
+(`let o = {a: 1}; let p = o;` — `p` carries `o`'s shape too). Field access
+through anything else (a chained access like `a.b.c`, or a variable whose
+initializer isn't traceable to a literal) is not supported and is a
+compile-time error, not silently wrong output.
 
 ### Function call
 
@@ -255,13 +259,16 @@ These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++
 - No dynamic resizable arrays
 - No imports / multi-file modules
 - No standard library beyond `print`, `len`, `str`
-- Field access resolves correctly only when the object is an inline literal
-  at the access site — not when accessed through a variable
+- No array/index or field assignment (`arr[0] = x`, `obj.field = x` aren't
+  in the grammar — only a plain variable name is a valid assignment target)
+- Field access requires the object be an inline literal, or a variable
+  declared directly from one (including through a chain of `let b = a;`
+  aliases) — chained access (`a.b.c`) and anything else isn't supported
 
 The [browser playground](https://meadows.nandanvarma.com) runs a separate
-interpreter backend (`src/interpreter/`) that does not carry these
-restrictions, since none of them are inherent to the language as parsed and
-semantically analyzed above — they're specific to generating i32-typed LLVM
-IR. A program that only compiles with the interpreter (e.g. one that passes
-a string to a user function, or accesses `obj.field` through a variable)
-will not yet build with the native `meadows` compiler.
+interpreter backend (`src/interpreter/`) that does not carry the i32-only
+restrictions above, since none of them are inherent to the language as
+parsed and semantically analyzed — they're specific to generating i32-typed
+LLVM IR. A program that only compiles with the interpreter (e.g. one that
+passes a string to a user function) will not yet build with the native
+`meadows` compiler.

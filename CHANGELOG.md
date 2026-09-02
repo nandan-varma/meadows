@@ -3,6 +3,17 @@
 ## [1.0.2] — 2025
 
 ### Added
+- Native LLVM backend: field access now resolves through a variable declared
+  directly from an object literal (`let o = {a: 1}; let p = o; p.a`), not
+  just an inline literal at the access site — shape metadata threads through
+  chains of `let b = a;` aliasing. An unknown field, or a field-access target
+  the compiler can't resolve a shape for (e.g. chained access `a.b.c`), is
+  now a clear compile-time error instead of silently reading from the wrong
+  memory. `CodeGen::visitObjectExpr` also now evaluates each field
+  initializer exactly once (previously twice, for any object literal).
+- Native LLVM backend: `len()` now works on arrays, not just strings —
+  resolved as a compile-time constant from the array literal or the variable
+  (including aliases) it came from, since arrays are fixed-size.
 - Browser playground at meadows.nandanvarma.com: a WASM build (`-DBUILD_WASM=ON`,
   Emscripten) of the lexer/parser/semantic analyzer, plus a new tree-walking
   `Interpreter` (`src/interpreter/`) that actually runs programs client-side —

@@ -1150,6 +1150,105 @@ TEST_CASE("CodeGen resolves forward and mutual recursion between top-level "
   }
 }
 
+TEST_CASE("CodeGen resolves field access through a variable, not just an "
+         "inline literal",
+         "[codegen][objects]") {
+  SECTION("Field access on a variable bound directly to an object literal") {
+    auto parser =
+        createParser(R"(let o = {name: "Alice", age: 30}; print(o.name); print(o.age);)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Shape threads through a chain of variable aliases") {
+    auto parser = createParser(
+        "let o = {x: 10, y: 20}; let p = o; let q = p; print(q.x + q.y);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Unknown field through a variable is a compile-time error, not "
+         "silently wrong output") {
+    auto parser = createParser("let o = {a: 1}; print(o.b);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_THROWS_AS(codegen.generate(stmts), std::runtime_error);
+  }
+
+  SECTION("Chained field access is a clear compile-time error, not silently "
+         "wrong output") {
+    auto parser = createParser("let o = {inner: {x: 1}}; print(o.inner.x);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_THROWS_AS(codegen.generate(stmts), std::runtime_error);
+  }
+}
+
+TEST_CASE("CodeGen resolves len() on arrays as a compile-time constant",
+         "[codegen][arrays]") {
+  SECTION("len() on an array literal") {
+    auto parser = createParser("print(len([1, 2, 3, 4]));");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    // A compile-time-constant length shouldn't need a runtime strlen call.
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("call i64 @strlen") == std::string::npos);
+  }
+
+  SECTION("len() on a variable bound to an array") {
+    auto parser = createParser("let arr = [1, 2, 3, 4, 5]; print(len(arr));");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("len() threads through a variable alias") {
+    auto parser =
+        createParser("let arr = [1, 2, 3]; let alias = arr; print(len(alias));");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+
+  SECTION("len() on a string still uses runtime strlen") {
+    auto parser = createParser(R"(print(len("hello"));)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("call i64 @strlen") != std::string::npos);
+  }
+}
+
 TEST_CASE("CodeGen compares string content, not pointer identity, for == and !=",
          "[codegen][strings]") {
   // Regression test: `==`/`!=` on two pointer-typed operands previously
