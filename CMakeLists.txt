@@ -110,6 +110,8 @@ if(BUILD_WASM)
     src/parser/ParserExpressions.cpp
     src/ast/AST.cpp
     src/sema/SemanticAnalyzer.cpp
+    src/interpreter/Value.cpp
+    src/interpreter/Interpreter.cpp
     src/utils/ErrorCodes.cpp
     src/utils/Exceptions.cpp
     src/utils/DiagnosticsCollector.cpp
@@ -119,7 +121,15 @@ if(BUILD_WASM)
 
   target_include_directories(meadows_wasm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+  # The Interpreter uses C++ exceptions for control flow (return/break/continue
+  # signals and runtime errors) — Emscripten disables exception unwinding by
+  # default, so it must be turned on explicitly, consistently at compile and
+  # link time. -fwasm-exceptions uses the native Wasm EH proposal rather than
+  # the older, slower JS-based unwinding emulation.
+  target_compile_options(meadows_wasm PRIVATE "-fwasm-exceptions")
+
   target_link_options(meadows_wasm PRIVATE
+    "-fwasm-exceptions"
     "--bind"
     "-sMODULARIZE=1"
     "-sEXPORT_ES6=1"
@@ -127,6 +137,10 @@ if(BUILD_WASM)
     "-sENVIRONMENT=web"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sFILESYSTEM=1"
+    # Generous headroom for the Interpreter's C++-recursion-based call stack
+    # (several frames per Meadows function call) — paired with
+    # Interpreter::kMaxCallDepth, which must trip well before this fills.
+    "-sSTACK_SIZE=16777216"
   )
 
   set_target_properties(meadows_wasm PROPERTIES
@@ -187,6 +201,8 @@ set(MEADOWS_LIB_SOURCES
   src/codegen/StringUtils.cpp
   src/codegen/SymbolTable.cpp
   src/sema/SemanticAnalyzer.cpp
+  src/interpreter/Value.cpp
+  src/interpreter/Interpreter.cpp
   src/lsp/LSPInterface.cpp
   src/utils/ErrorCodes.cpp
   src/utils/Exceptions.cpp
@@ -205,6 +221,8 @@ set(MEADOWS_HEADERS
   src/codegen/StringUtils.h
   src/codegen/MemoryUtils.h
   src/codegen/TypeUtils.h
+  src/interpreter/Value.h
+  src/interpreter/Interpreter.h
   src/lsp/LSPInterface.h
   src/utils/ErrorCodes.h
   src/utils/Exceptions.h

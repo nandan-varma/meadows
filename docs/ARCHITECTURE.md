@@ -38,6 +38,8 @@ src/
   parser/         - Syntax analysis (Parser.h, Parser.cpp)
   ast/            - AST node definitions (AST.h, AST.cpp)
   codegen/        - LLVM IR generation
+  interpreter/    - Tree-walking interpreter (browser playground backend)
+  wasm/           - Emscripten/embind bridge for the browser playground
   lsp/            - Language Server Protocol support
   main/           - Entry point
   utils/          - Utilities (exceptions, diagnostics, warnings, timer)
@@ -148,6 +150,34 @@ class StmtVisitor {
 - Symbol table for variable tracking
 - Scope stack for nested scoping
 - Break/continue block handling for loops
+
+### Interpreter (`src/interpreter/`)
+
+**Files:** `Value.h`, `Value.cpp`, `Interpreter.h`, `Interpreter.cpp`
+
+**Responsibility:** Execute the AST directly — a second, independent backend
+from CodeGen. It exists because the native pipeline's final step (shelling
+out to a real `clang++`) has no equivalent inside a browser's WebAssembly
+sandbox; the browser playground (`src/wasm/WasmBridge.cpp`) uses this instead
+of LLVM to actually run programs client-side.
+
+**Value model:** a dynamically-typed `Value` (Int/Str/Array/Object, no
+separate boolean — matching CodeGen's i32-based truthiness). Arrays and
+objects have reference semantics via `shared_ptr`, matching the pointer
+aliasing the native backend gets from `let b = a;`.
+
+**Fidelity:** operator semantics (including `&&`/`||`, which forward operand
+values rather than reducing to a strict boolean — see CodeGen's PHI nodes in
+`visitLogicalExpr`) are matched against the generated IR, not reimplemented
+from scratch, so interpreted output matches what the compiled binary prints.
+Where the LLVM backend narrows the language for implementation reasons (see
+"Current limitations" in `docs/LANGUAGE.md`), the interpreter does not carry
+those restrictions — see the CHANGELOG for the specific superset behavior.
+
+**Safety limits:** execution runs synchronously with no preemption available,
+so a step counter, call-depth counter, and max string length bound a runaway
+script (infinite loop / unbounded recursion) to a clean failure instead of a
+hung or crashed page.
 
 ### Utilities (`src/utils/`)
 

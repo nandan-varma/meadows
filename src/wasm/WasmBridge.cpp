@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../ast/AST.h"
+#include "../interpreter/Interpreter.h"
 #include "../lexer/Lexer.h"
 #include "../lexer/Token.h"
 #include "../parser/Parser.h"
@@ -89,6 +90,9 @@ struct CompileResult {
   std::string tokens;
   std::string ast;
   std::string diagnostics;
+  std::string output;
+  bool ran = false;
+  int exitCode = 0;
 };
 
 CompileResult compileSource(const std::string &source) {
@@ -117,11 +121,12 @@ CompileResult compileSource(const std::string &source) {
   }
 
   result.tokens = formatTokens(tokens);
+  std::vector<std::unique_ptr<Stmt>> stmts;
 
   if (!tokens.empty() && !diagnostics.hasErrors()) {
     try {
       Parser parser(tokens, diagnostics);
-      auto stmts = parser.parse();
+      stmts = parser.parse();
 
       ASTPrinter printer;
       result.ast = printer.print(stmts);
@@ -145,6 +150,17 @@ CompileResult compileSource(const std::string &source) {
   result.diagnostics = formatter.formatMultiple(diagnostics.diagnostics(), virtualPath);
   result.success = !diagnostics.hasErrors();
 
+  // Only run a program that lexed, parsed, and passed semantic analysis
+  // cleanly — the same gate CodeGen would need before emitting IR.
+  if (result.success && !stmts.empty()) {
+    result.ran = true;
+    std::string output;
+    meadows::Interpreter interpreter(
+        [&output](const std::string &chunk) { output += chunk; });
+    result.exitCode = interpreter.run(stmts);
+    result.output = std::move(output);
+  }
+
   return result;
 }
 
@@ -153,7 +169,10 @@ EMSCRIPTEN_BINDINGS(meadows_module) {
       .field("success", &CompileResult::success)
       .field("tokens", &CompileResult::tokens)
       .field("ast", &CompileResult::ast)
-      .field("diagnostics", &CompileResult::diagnostics);
+      .field("diagnostics", &CompileResult::diagnostics)
+      .field("output", &CompileResult::output)
+      .field("ran", &CompileResult::ran)
+      .field("exitCode", &CompileResult::exitCode);
 
   emscripten::function("compileSource", &compileSource);
 }

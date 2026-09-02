@@ -247,9 +247,21 @@ exits with code -1:
 
 ## Current limitations
 
+These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++`):
+
 - Array and string elements are i32-only at the value level
 - Function parameters are i32-only — strings cannot be passed to user functions
 - No floating-point type
 - No dynamic resizable arrays
 - No imports / multi-file modules
 - No standard library beyond `print`, `len`, `str`
+- Field access resolves correctly only when the object is an inline literal
+  at the access site — not when accessed through a variable
+
+The [browser playground](https://meadows.nandanvarma.com) runs a separate
+interpreter backend (`src/interpreter/`) that does not carry these
+restrictions, since none of them are inherent to the language as parsed and
+semantically analyzed above — they're specific to generating i32-typed LLVM
+IR. A program that only compiles with the interpreter (e.g. one that passes
+a string to a user function, or accesses `obj.field` through a variable)
+will not yet build with the native `meadows` compiler.

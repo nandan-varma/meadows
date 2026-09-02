@@ -13,6 +13,7 @@ set(TEST_SOURCES
     unit/parser/Parser.test.cpp
     unit/codegen/CodeGen.test.cpp
     unit/sema/SemanticAnalyzer.test.cpp
+    unit/interpreter/Interpreter.test.cpp
     unit/utils/Exceptions.test.cpp
     unit/utils/DiagnosticsCollector.test.cpp
     unit/utils/ErrorCodes.test.cpp

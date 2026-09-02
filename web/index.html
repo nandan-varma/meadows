@@ -11,8 +11,11 @@
   <h1>Meadows</h1>
   <p class="tagline">
     A compiled language that translates <code>.ms</code> source to LLVM IR.
-    This playground runs the lexer, parser, and semantic analyzer in your
-    browser via WebAssembly — it does not execute programs.
+    This playground runs the full front end — lexer, parser, semantic
+    analyzer — and a tree-walking interpreter, entirely in your browser via
+    WebAssembly. It does not run the native LLVM/clang++ pipeline (that needs
+    a real toolchain), so interpreted output can differ in narrow, documented
+    ways — see <a href="https://github.com/nandan-varma/meadows/blob/main/docs/LANGUAGE.md" target="_blank" rel="noopener">docs/LANGUAGE.md</a>.
     <a href="https://github.com/nandan-varma/meadows" target="_blank" rel="noopener">Source</a>
   </p>
 </header>
@@ -21,18 +24,20 @@
   <section class="editor-pane">
     <div class="pane-header">
       <span>source.ms</span>
-      <button id="run-btn">Analyze</button>
+      <button id="run-btn">Run</button>
     </div>
     <textarea id="source" spellcheck="false"></textarea>
   </section>
 
   <section class="result-pane">
     <div class="tabs">
-      <button class="tab-btn active" data-tab="diagnostics">Diagnostics</button>
+      <button class="tab-btn active" data-tab="output">Output</button>
+      <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
       <button class="tab-btn" data-tab="tokens">Tokens</button>
       <button class="tab-btn" data-tab="ast">AST</button>
     </div>
-    <pre id="diagnostics" class="tab-panel active"></pre>
+    <pre id="output" class="tab-panel active"></pre>
+    <pre id="diagnostics" class="tab-panel"></pre>
     <pre id="tokens" class="tab-panel"></pre>
     <pre id="ast" class="tab-panel"></pre>
   </section>

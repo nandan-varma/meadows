@@ -3,6 +3,21 @@
 ## [1.0.2] — 2025
 
 ### Added
+- Browser playground at meadows.nandanvarma.com: a WASM build (`-DBUILD_WASM=ON`,
+  Emscripten) of the lexer/parser/semantic analyzer, plus a new tree-walking
+  `Interpreter` (`src/interpreter/`) that actually runs programs client-side —
+  the native pipeline's final step (shelling out to `clang++`) has no browser
+  equivalent, so this is a second, independent backend, not a simulation.
+  Deployed via `.github/workflows/deploy-playground.yml` on push to `main`.
+- The interpreter implements the full dynamic language from `docs/LANGUAGE.md`
+  and is a strict superset of the current LLVM backend where that backend
+  narrows things for implementation reasons: array elements aren't
+  i32-restricted, function parameters/returns accept any value kind, object
+  field access works through a variable (not just inline literals), and
+  `len()` supports arrays.
+- Interpreter safety limits (step count, call depth, string length) since
+  execution runs synchronously on the browser's main thread with no way to
+  preempt a runaway script.
 - `len(s)` built-in: returns the length of a string as i32
 - `str(n)` built-in: formats an integer as a decimal string (runtime `snprintf`)
 - Bare `return;` is now allowed in functions; returns 0
