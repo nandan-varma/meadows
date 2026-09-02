@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+class FuncStmt;
+
 namespace meadows {
 
 class Value;
@@ -16,10 +18,18 @@ using ValueObject = std::map<std::string, Value>;
 /**
  * A dynamically-typed runtime value for the tree-walking Interpreter.
  *
- * Meadows values come in five kinds (docs/LANGUAGE.md): Integer, Float,
- * String, Array, Object. There is no separate boolean type — comparisons
- * and logical operators produce 0/1 integers, matching the native LLVM
- * backend's representation (see CodeGen::visitBinaryExpr / visitLogicalExpr).
+ * Meadows values come in six kinds (docs/LANGUAGE.md): Integer, Float,
+ * String, Array, Object, Function. There is no separate boolean type —
+ * comparisons and logical operators produce 0/1 integers, matching the
+ * native LLVM backend's representation (see CodeGen::visitBinaryExpr /
+ * visitLogicalExpr).
+ *
+ * Function is interpreter-only — a first-class reference to a top-level
+ * FuncStmt, letting a function be aliased through a variable and called
+ * indirectly (`let f = add; f(1, 2);`). The native backend doesn't have
+ * this: every function parameter is a fixed i32, so there's no type a
+ * function pointer could occupy without a much larger type-system change —
+ * see docs/LANGUAGE.md's "Current limitations".
  *
  * Int and Float participate in a small numeric tower: arithmetic and
  * ordering between them promote the Int operand to Float (matching
@@ -33,7 +43,7 @@ using ValueObject = std::map<std::string, Value>;
  */
 class Value {
 public:
-  enum class Kind { Int, Float, Str, Array, Object };
+  enum class Kind { Int, Float, Str, Array, Object, Function };
 
   Value() : kind_(Kind::Int), i_(0) {}
 
@@ -42,6 +52,7 @@ public:
   static Value ofStr(std::string v);
   static Value ofArray(std::shared_ptr<ValueArray> v);
   static Value ofObject(std::shared_ptr<ValueObject> v);
+  static Value ofFunction(::FuncStmt *fn);
 
   Kind kind() const { return kind_; }
   bool isInt() const { return kind_ == Kind::Int; }
@@ -50,6 +61,7 @@ public:
   bool isStr() const { return kind_ == Kind::Str; }
   bool isArray() const { return kind_ == Kind::Array; }
   bool isObject() const { return kind_ == Kind::Object; }
+  bool isFunction() const { return kind_ == Kind::Function; }
 
   int32_t asInt() const { return i_; }
   double asFloat() const { return f_; }
@@ -61,6 +73,7 @@ public:
   ValueArray &asArray() { return *arr_; }
   const ValueObject &asObject() const { return *obj_; }
   ValueObject &asObject() { return *obj_; }
+  ::FuncStmt *asFunction() const { return fn_; }
 
   const char *typeName() const;
 
@@ -76,6 +89,7 @@ private:
   Kind kind_;
   int32_t i_ = 0;
   double f_ = 0.0;
+  ::FuncStmt *fn_ = nullptr;
   std::string s_;
   std::shared_ptr<ValueArray> arr_;
   std::shared_ptr<ValueObject> obj_;

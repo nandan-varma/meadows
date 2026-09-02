@@ -52,6 +52,13 @@ Value Value::ofObject(std::shared_ptr<ValueObject> v) {
   return r;
 }
 
+Value Value::ofFunction(::FuncStmt *fn) {
+  Value r;
+  r.kind_ = Kind::Function;
+  r.fn_ = fn;
+  return r;
+}
+
 const char *Value::typeName() const {
   switch (kind_) {
     case Kind::Int: return "integer";
@@ -59,6 +66,7 @@ const char *Value::typeName() const {
     case Kind::Str: return "string";
     case Kind::Array: return "array";
     case Kind::Object: return "object";
+    case Kind::Function: return "function";
   }
   return "unknown";
 }
@@ -93,6 +101,8 @@ std::string Value::displayString() const {
       oss << "}";
       return oss.str();
     }
+    case Kind::Function:
+      return "<function>";
   }
   return "";
 }
@@ -125,6 +135,8 @@ bool Value::equals(const Value &other) const {
       }
       return true;
     }
+    case Kind::Function:
+      return fn_ == other.fn_;
   }
   return false;
 }

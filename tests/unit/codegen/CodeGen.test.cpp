@@ -1565,3 +1565,15 @@ TEST_CASE("CodeGen handles push() as a compile-time-sized array grow",
     REQUIRE_THROWS_AS(codegen.generate(stmts), std::runtime_error);
   }
 }
+
+TEST_CASE("CodeGen still rejects first-class function references — no "
+         "function-pointer type exists in the native backend (see Value.h "
+         "for why this is interpreter-only)",
+         "[codegen][functions]") {
+  auto parser =
+      createParser("func add(a, b) { return a + b; } let f = add; print(f(1, 2));");
+  auto stmts = parser->parse();
+  CodeGen codegen;
+  // Must fail cleanly (a compile error), not silently miscompile.
+  REQUIRE_THROWS_AS(codegen.generate(stmts), std::runtime_error);
+}

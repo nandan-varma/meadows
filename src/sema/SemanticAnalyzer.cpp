@@ -223,15 +223,24 @@ void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
   }
 
   auto it = functions_.find(varExpr->name);
-  if (it == functions_.end()) {
+  if (it != functions_.end()) {
+    if (it->second != expr.args.size()) {
+      reportError(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
+                  "Function '" + varExpr->name + "' expects " +
+                      std::to_string(it->second) + " arguments, got " +
+                      std::to_string(expr.args.size()),
+                  loc);
+    }
+  } else if (lookupVar(varExpr->name)) {
+    // Not a function name, but a local variable — may hold a first-class
+    // function reference (`let f = add; f(1, 2);`), which the Interpreter
+    // supports but the native backend doesn't (see Value.h). Argument count
+    // can't be validated here since the variable's target function isn't
+    // known statically; Interpreter::callFunction checks it at the call.
+    markVarUsed(varExpr->name);
+  } else {
     reportError(ErrorCode::SEM_UNDEFINED_FUNCTION,
                 "Undefined function '" + varExpr->name + "'", loc);
-  } else if (it->second != expr.args.size()) {
-    reportError(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
-                "Function '" + varExpr->name + "' expects " +
-                    std::to_string(it->second) + " arguments, got " +
-                    std::to_string(expr.args.size()),
-                loc);
   }
   for (auto &arg : expr.args) arg->accept(*this);
 }

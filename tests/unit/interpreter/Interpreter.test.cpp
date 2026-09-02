@@ -356,3 +356,52 @@ TEST_CASE("Interpreter: push() on a non-array is a runtime error", "[interpreter
   CHECK(r.exitCode == -1);
   CHECK(r.output.find("RuntimeError") != std::string::npos);
 }
+
+TEST_CASE("Interpreter: first-class function references", "[interpreter][functions]") {
+  SECTION("A bare function name is a callable value") {
+    auto r = run(R"(
+      func add(a, b) { return a + b; }
+      let f = add;
+      print(f(3, 4));
+    )");
+    CHECK(r.output == "7\n");
+  }
+
+  SECTION("Reassigning to a different function") {
+    auto r = run(R"(
+      func add(a, b) { return a + b; }
+      func sub(a, b) { return a - b; }
+      let f = add;
+      print(f(3, 4));
+      f = sub;
+      print(f(10, 3));
+    )");
+    CHECK(r.output == "7\n7\n");
+  }
+
+  SECTION("Passing a function as an argument (higher-order functions)") {
+    auto r = run(R"(
+      func add(a, b) { return a + b; }
+      func apply(fn, x, y) { return fn(x, y); }
+      print(apply(add, 5, 6));
+    )");
+    CHECK(r.output == "11\n");
+  }
+
+  SECTION("Calling a non-function value is a runtime error") {
+    auto r = run("let x = 5; x(1, 2);");
+    CHECK(r.exitCode == -1);
+    CHECK(r.output.find("RuntimeError") != std::string::npos);
+  }
+
+  SECTION("Wrong argument count through an indirect call is a runtime "
+         "error (can't be validated statically)") {
+    auto r = run(R"(
+      func add(a, b) { return a + b; }
+      let f = add;
+      print(f(1));
+    )");
+    CHECK(r.exitCode == -1);
+    CHECK(r.output.find("RuntimeError") != std::string::npos);
+  }
+}

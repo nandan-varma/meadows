@@ -283,3 +283,33 @@ TEST_CASE("SemanticAnalyzer: unknown field assignment on a literal is an error",
   REQUIRE(diag.errorCount() >= 1);
   CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_UNKNOWN_FIELD);
 }
+
+// ── Calling through a variable (first-class function references) ────────────
+// The Interpreter supports these (see Interpreter.test.cpp); the native
+// backend still rejects them at CodeGen time (no function-pointer type) —
+// this only checks that SemanticAnalyzer no longer blocks them outright.
+
+TEST_CASE("SemanticAnalyzer: a bare function name as a value is accepted",
+         "[sema][functions]") {
+  auto [diag, ok] = analyze("func add(a, b) { return a + b; } let f = add;");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: calling through a local variable is accepted, "
+         "argument count deferred to runtime",
+         "[sema][functions]") {
+  auto [diag, ok] =
+      analyze("func add(a, b) { return a + b; } let f = add; print(f(1));");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: calling through a name that's neither a "
+         "function nor a variable is still an error",
+         "[sema][functions]") {
+  auto [diag, ok] = analyze("missing(1, 2);");
+  CHECK_FALSE(ok);
+  REQUIRE(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_UNDEFINED_FUNCTION);
+}

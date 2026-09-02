@@ -3,6 +3,17 @@
 ## [1.0.2] — 2025
 
 ### Added
+- First-class function references, interpreter-only: `let f = add; f(1, 2);`
+  — a bare function name is now a `Value` (`Value::Kind::Function`), so it
+  can be bound to a variable, reassigned, passed as an argument to another
+  function, and called through whatever variable currently holds it.
+  `SemanticAnalyzer::visitCallExpr` now accepts a call through a local
+  variable (deferring argument-count validation to a runtime check in
+  `Interpreter::callFunction`, since the variable's target function isn't
+  known statically); `CodeGen` still rejects it at compile time with a
+  clear error, not a silent miscompile, since the native backend has no
+  function-pointer type. Not full closures — Meadows functions are
+  flat/global, so there's no enclosing scope for one to capture.
 - `push(arr, value)` in both backends — returns a new array one element
   longer (`arr = push(arr, value);` to keep using the same name). Arrays
   stay fixed-size once created; push allocates a new one rather than

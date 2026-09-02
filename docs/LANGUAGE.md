@@ -191,6 +191,30 @@ func square(x) {
 - Recursion is supported.
 - Re-defining a function is an error (`E3004`).
 
+### Functions as values (interpreter only)
+
+```meadows
+func add(a, b) { return a + b; }
+let f = add;
+print(f(3, 4));           # 7
+
+func apply(fn, x, y) { return fn(x, y); }
+print(apply(add, 5, 6));  # 11
+```
+
+A bare function name is a value that can be bound to a variable, reassigned,
+passed as an argument, and called through the variable it's bound to. This
+is **interpreter-only** — the native backend has no function-pointer type (every
+parameter is a fixed i32) and rejects it at CodeGen time with a compile
+error, not a silent miscompile. Argument-count validation for a call through
+a variable is deferred to a runtime check, since the variable's target
+function isn't known until the call executes.
+
+This is function *references*, not closures: a function can't capture a
+variable from an enclosing scope. Meadows functions are flat/global — a
+function's body only sees its own locals and parameters, never a caller's —
+so there's no enclosing scope to capture in the first place.
+
 ## Built-in functions
 
 | Function       | Description                                              |

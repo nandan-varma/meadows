@@ -123,9 +123,18 @@ void Interpreter::visitLiteralExpr(LiteralExpr &expr) {
 }
 
 void Interpreter::visitVarExpr(VarExpr &expr) {
-  Value *v = lookup(expr.name);
-  if (!v) runtimeError("RuntimeError: undefined variable '" + expr.name + "'");
-  result_ = *v;
+  if (Value *v = lookup(expr.name)) {
+    result_ = *v;
+    return;
+  }
+  // A bare reference to a function name (not a call) — a first-class
+  // function reference, e.g. `let f = add;`. Interpreter-only: see Value.h.
+  auto it = functions_.find(expr.name);
+  if (it != functions_.end()) {
+    result_ = Value::ofFunction(it->second);
+    return;
+  }
+  runtimeError("RuntimeError: undefined variable '" + expr.name + "'");
 }
 
 void Interpreter::visitAssignExpr(AssignExpr &expr) {
@@ -362,6 +371,16 @@ void Interpreter::visitCallExpr(CallExpr &expr) {
     return;
   }
 
+  // A local variable shadows a same-named function when both exist — this
+  // is what lets calling *through* a variable resolve a first-class
+  // function reference (`let f = add; f(1, 2);`).
+  if (Value *v = lookup(varExpr->name)) {
+    if (!v->isFunction())
+      runtimeError("RuntimeError: '" + varExpr->name + "' is not callable");
+    result_ = callFunction(*v->asFunction(), std::move(args));
+    return;
+  }
+
   auto it = functions_.find(varExpr->name);
   if (it == functions_.end())
     runtimeError("RuntimeError: undefined function '" + varExpr->name + "'");
@@ -414,6 +433,16 @@ Value Interpreter::callFunction(FuncStmt &fn, std::vector<Value> args) {
     int &depth;
     ~DepthGuard() { --depth; }
   } depthGuard{callDepth_};
+
+  // A direct call's arg count is checked by SemanticAnalyzer, but a call
+  // through a variable holding a function reference isn't (the variable's
+  // target function isn't known statically) — so this can't assume
+  // args.size() == fn.params.size() the way the rest of this function does.
+  if (args.size() != fn.params.size()) {
+    runtimeError("RuntimeError: function '" + fn.name + "' expects " +
+                 std::to_string(fn.params.size()) + " argument(s), got " +
+                 std::to_string(args.size()));
+  }
 
   // Function scopes chain to the global scope, not the caller's locals —
   // Meadows functions are flat/global, matching SemanticAnalyzer's single
