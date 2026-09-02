@@ -84,11 +84,22 @@ private:
 
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
+  llvm::Value *compareStrings(llvm::Value *left, llvm::Value *right, bool equal);
   void validateArrayBounds(llvm::Value *array, llvm::Value *index);
   void validateDivision(llvm::Value *divisor);
   void generateRuntimeError(const std::string &message);
   void emitPrint(llvm::Value *val);
   void runOptimizationPasses();
+
+  // Declares (signature-only) every top-level function before any body is
+  // generated, so a call to a function defined later in the file — or two
+  // functions calling each other — resolves. Mirrors the pre-pass
+  // SemanticAnalyzer::analyze already does for name validation; without this,
+  // CodeGen previously only created an llvm::Function when it reached that
+  // FuncStmt in source order, so forward/mutual calls failed with "Undefined
+  // function" even though semantic analysis had already accepted them.
+  void declareFunctionSignatures(
+      const std::vector<std::unique_ptr<Stmt>> &statements);
 
   void enterScope();
   void exitScope();

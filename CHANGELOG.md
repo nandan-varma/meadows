@@ -28,6 +28,17 @@
 - `release.yml` was using a stale `steps.install-llvm.outputs.llvm-path`
   reference that no longer resolves; switched to `env.LLVM_PATH` to match
   `ci.yml`. Tag-triggered releases work again.
+- CodeGen had no pre-pass declaring function signatures before generating
+  bodies, so a function calling another function defined *later* in the file
+  failed with "Undefined function" at codegen time — even though
+  SemanticAnalyzer's own pre-pass had already accepted the program as valid.
+  True mutual recursion between two top-level functions was broken
+  regardless of definition order. Added `CodeGen::declareFunctionSignatures`.
+- String `==`/`!=` compiled to a raw pointer comparison (`icmp eq` on the two
+  `i8*` values), which only happened to be true when LLVM deduplicated two
+  identical string-literal globals into the same constant — never true for
+  two runtime-built strings, and not a property Meadows programs should have
+  had to depend on. Now lowers to a `strcmp` call and compares content.
 
 ### Documentation
 - `docs/LANGUAGE.md` rewritten for accuracy: documents `%`, `break`/`continue`,

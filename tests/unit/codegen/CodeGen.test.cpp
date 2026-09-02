@@ -1092,3 +1092,99 @@ TEST_CASE("CodeGen scope management", "[codegen][scope]") {
     REQUIRE(codegen.getModule() != nullptr);
   }
 }
+
+TEST_CASE("CodeGen resolves forward and mutual recursion between top-level "
+         "functions",
+         "[codegen][functions]") {
+  // Regression test: CodeGen previously only created an llvm::Function when
+  // it reached that FuncStmt in source order, so a call to a function
+  // defined *later* in the file referenced a not-yet-existing function and
+  // failed with "Undefined function" — even though SemanticAnalyzer's
+  // pre-pass had already accepted the program. declareFunctionSignatures()
+  // fixes this by declaring every top-level function before any body is
+  // generated.
+  SECTION("A function calling one defined later in the file") {
+    auto parser = createParser("func a() { return b(); } "
+                               "func b() { return 42; } "
+                               "print(a());");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Two functions calling each other (true mutual recursion)") {
+    auto parser = createParser("func isEven(n) { "
+                               "  if (n == 0) { return 1; } "
+                               "  return isOdd(n - 1); "
+                               "} "
+                               "func isOdd(n) { "
+                               "  if (n == 0) { return 0; } "
+                               "  return isEven(n - 1); "
+                               "} "
+                               "print(isEven(10));");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    // Exactly one llvm::Function per Meadows function — if visitFuncStmt
+    // didn't reuse the pre-pass's declaration, LLVM would silently rename
+    // the second definition to "isOdd.1", leaving calls bound to the
+    // original (bodyless) declaration undefined at link time.
+    REQUIRE(module->getFunction("isEven") != nullptr);
+    REQUIRE(module->getFunction("isOdd") != nullptr);
+    REQUIRE(module->getFunction("isOdd.1") == nullptr);
+    REQUIRE_FALSE(module->getFunction("isEven")->empty());
+    REQUIRE_FALSE(module->getFunction("isOdd")->empty());
+  }
+}
+
+TEST_CASE("CodeGen compares string content, not pointer identity, for == and !=",
+         "[codegen][strings]") {
+  // Regression test: `==`/`!=` on two pointer-typed operands previously
+  // compiled to a raw pointer comparison (ICmpEQ on the pointer values
+  // themselves), which only happens to be true when LLVM deduplicates two
+  // identical string-literal globals — not a property Meadows programs
+  // should depend on, and never true for two runtime-built strings.
+  SECTION("Equality on strings lowers to a strcmp call") {
+    auto parser = createParser(R"(let a = "hi"; let b = "h" + "i"; print(a == b);)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("call i32 @strcmp") != std::string::npos);
+  }
+
+  SECTION("Integer equality still compiles to a direct icmp, not strcmp") {
+    auto parser = createParser("let a = 1; let b = 1; print(a == b);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("call i32 @strcmp") == std::string::npos);
+  }
+}

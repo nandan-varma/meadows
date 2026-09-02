@@ -115,6 +115,16 @@ CodeGen::CodeGen(int optLevel) : optLevel_(optLevel) {
       false);
   module->getOrInsertFunction("strcat", strcatType);
 
+  // strcmp — used for string == / != so equality compares content, not the
+  // pointer value (two equal string literals aren't guaranteed the same
+  // global constant, and two runtime-built strings never are).
+  auto strcmpType = llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(*context),
+      {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0),
+       llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)},
+      false);
+  module->getOrInsertFunction("strcmp", strcmpType);
+
   auto freeType = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*context),
       {llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0)}, false);
@@ -135,6 +145,21 @@ CodeGen::CodeGen(int optLevel) : optLevel_(optLevel) {
   currentBlock = nullptr;
 }
 
+void CodeGen::declareFunctionSignatures(
+    const std::vector<std::unique_ptr<Stmt>> &statements) {
+  for (auto &stmt : statements) {
+    auto *fn = dynamic_cast<FuncStmt *>(stmt.get());
+    if (!fn) continue;
+
+    std::vector<llvm::Type *> paramTypes(fn->params.size(),
+                                         llvm::Type::getInt32Ty(*context));
+    auto funcType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*context),
+                                            paramTypes, false);
+    llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, fn->name,
+                           module.get());
+  }
+}
+
 void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   variableScopeStack.clear();
 
@@ -148,6 +173,8 @@ void CodeGen::generate(const std::vector<std::unique_ptr<Stmt>> &statements) {
   currentBlock = entry;
 
   enterScope();
+
+  declareFunctionSignatures(statements);
 
   for (auto &stmt : statements) {
     stmt->accept(*this);
@@ -260,9 +287,17 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
     validateDivision(right);
     exprResult = builder->CreateSRem(left, right);
   } else if (expr.op == "==") {
-    exprResult = builder->CreateICmpEQ(left, right);
+    if (TypeUtils::isPointerType(left) && TypeUtils::isPointerType(right)) {
+      exprResult = compareStrings(left, right, /*equal=*/true);
+    } else {
+      exprResult = builder->CreateICmpEQ(left, right);
+    }
   } else if (expr.op == "!=") {
-    exprResult = builder->CreateICmpNE(left, right);
+    if (TypeUtils::isPointerType(left) && TypeUtils::isPointerType(right)) {
+      exprResult = compareStrings(left, right, /*equal=*/false);
+    } else {
+      exprResult = builder->CreateICmpNE(left, right);
+    }
   } else if (expr.op == ">") {
     exprResult = builder->CreateICmpSGT(left, right);
   } else if (expr.op == "<") {
@@ -529,6 +564,19 @@ llvm::Value *CodeGen::getStringLength(llvm::Value *str) {
   return builder->CreateCall(strlenFunc, {strPtr}, "strlen");
 }
 
+llvm::Value *CodeGen::compareStrings(llvm::Value *left, llvm::Value *right,
+                                     bool equal) {
+  auto i8PtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
+  auto leftPtr = builder->CreateBitCast(left, i8PtrType, "streqleft");
+  auto rightPtr = builder->CreateBitCast(right, i8PtrType, "streqright");
+
+  auto strcmpFunc = module->getFunction("strcmp");
+  auto cmp = builder->CreateCall(strcmpFunc, {leftPtr, rightPtr}, "strcmp");
+  auto zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
+  return equal ? builder->CreateICmpEQ(cmp, zero, "streq")
+               : builder->CreateICmpNE(cmp, zero, "strneq");
+}
+
 llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
                                          llvm::Value *right) {
   auto i8PtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
@@ -651,12 +699,21 @@ void CodeGen::visitLetStmt(LetStmt &stmt) {
 void CodeGen::visitFuncStmt(FuncStmt &stmt) {
   auto savedBlock = builder->GetInsertBlock();
   auto savedFunction = currentFunction;
-  std::vector<llvm::Type *> paramTypes(stmt.params.size(),
-                                       llvm::Type::getInt32Ty(*context));
-  auto funcType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*context),
-                                          paramTypes, false);
-  auto func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
-                                     stmt.name, module.get());
+
+  // declareFunctionSignatures() already created top-level functions before
+  // any body was generated, so forward/mutual calls resolve — reuse that
+  // declaration rather than creating a second llvm::Function with the same
+  // name (which LLVM would silently rename to "name.1", leaving calls bound
+  // to the pre-pass's declaration undefined at link time).
+  auto *func = module->getFunction(stmt.name);
+  if (!func) {
+    std::vector<llvm::Type *> paramTypes(stmt.params.size(),
+                                         llvm::Type::getInt32Ty(*context));
+    auto funcType = llvm::FunctionType::get(llvm::Type::getInt32Ty(*context),
+                                            paramTypes, false);
+    func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
+                                  stmt.name, module.get());
+  }
   auto entry = llvm::BasicBlock::Create(*context, "entry", func);
   builder->SetInsertPoint(entry);
 
