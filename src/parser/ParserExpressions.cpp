@@ -118,7 +118,7 @@ std::unique_ptr<Expr> Parser::parseCall(int depth) {
   auto expr = parseIndex(depth);
   if (match(TokenType::LEFT_PAREN)) {
     auto args = parseArgs(depth + 1);
-    consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments");
+    consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after arguments");
     expr = std::make_unique<CallExpr>(std::move(expr), std::move(args));
   }
   return expr;
@@ -128,7 +128,7 @@ std::unique_ptr<Expr> Parser::parseIndex(int depth) {
   auto expr = parseFieldAccess(depth);
   while (match(TokenType::LEFT_BRACKET)) {
     auto index = parseExpr(depth + 1);
-    consume(TokenType::RIGHT_BRACKET, "Expect ']' after index");
+    consume(TokenType::RIGHT_BRACKET, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, "Expect ']' after index");
     expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index));
   }
   return expr;
@@ -138,7 +138,7 @@ std::unique_ptr<Expr> Parser::parseFieldAccess(int depth) {
   auto expr = parsePrimary(depth);
   while (match(TokenType::DOT)) {
     Token fieldName =
-        consume(TokenType::IDENTIFIER, "Expect field name after '.'");
+        consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect field name after '.'");
     expr = std::make_unique<FieldAccessExpr>(std::move(expr), fieldName.value);
   }
   return expr;
@@ -170,25 +170,25 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
         elements.push_back(parseExpr(depth + 1));
       } while (match(TokenType::COMMA));
     }
-    consume(TokenType::RIGHT_BRACKET, "Expect ']' after array elements");
+    consume(TokenType::RIGHT_BRACKET, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, "Expect ']' after array elements");
     return std::make_unique<ArrayExpr>(std::move(elements));
   }
   if (match(TokenType::LEFT_BRACE)) {
     std::unordered_map<std::string, std::unique_ptr<Expr>> pairs;
     if (!check(TokenType::RIGHT_BRACE)) {
       do {
-        const Token &key = consume(TokenType::IDENTIFIER, "Expect key");
-        consume(TokenType::COLON, "Expect ':' after key");
+        const Token &key = consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect key");
+        consume(TokenType::COLON, meadows::ErrorCode::PARSE_EXPECTED_COLON, "Expect ':' after key");
         auto value = parseExpr(depth + 1);
         pairs[key.value] = std::move(value);
       } while (match(TokenType::COMMA));
     }
-    consume(TokenType::RIGHT_BRACE, "Expect '}' after object");
+    consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after object");
     return std::make_unique<ObjectExpr>(std::move(pairs));
   }
   if (match(TokenType::LEFT_PAREN)) {
     auto expr = parseExpr(depth + 1);
-    consume(TokenType::RIGHT_PAREN, "Expect ')' after expression");
+    consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after expression");
     return expr;
   }
   meadows::SourceLocation loc("", peek().line, peek().column);

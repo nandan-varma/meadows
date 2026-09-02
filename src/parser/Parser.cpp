@@ -127,73 +127,73 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
 }
 
 std::unique_ptr<Stmt> Parser::parseLetStmt() {
-  const Token &name = consume(TokenType::IDENTIFIER, "Expect variable name");
-  consume(TokenType::EQUAL, "Expect '=' after variable name");
+  const Token &name = consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect variable name");
+  consume(TokenType::EQUAL, meadows::ErrorCode::PARSE_EXPECTED_EQUALS, "Expect '=' after variable name");
   auto initializer = parseExpr();
-  consume(TokenType::SEMICOLON, "Expect ';' after variable declaration");
+  consume(TokenType::SEMICOLON, meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON, "Expect ';' after variable declaration");
   return std::make_unique<LetStmt>(name.value, std::move(initializer));
 }
 
 std::unique_ptr<Stmt> Parser::parseFuncStmt() {
-  const Token &name = consume(TokenType::IDENTIFIER, "Expect function name");
-  consume(TokenType::LEFT_PAREN, "Expect '(' after function name");
+  const Token &name = consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect function name");
+  consume(TokenType::LEFT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_LPAREN, "Expect '(' after function name");
   std::vector<std::string> params;
   if (!check(TokenType::RIGHT_PAREN)) {
     do {
       const Token &param =
-          consume(TokenType::IDENTIFIER, "Expect parameter name");
+          consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect parameter name");
       params.push_back(param.value);
     } while (match(TokenType::COMMA));
   }
-  consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters");
-  consume(TokenType::LEFT_BRACE, "Expect '{' before function body");
+  consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after parameters");
+  consume(TokenType::LEFT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_LBRACE, "Expect '{' before function body");
   auto body = parseBlock();
-  consume(TokenType::RIGHT_BRACE, "Expect '}' after function body");
+  consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after function body");
   return std::make_unique<FuncStmt>(name.value, params, std::move(body));
 }
 
 std::unique_ptr<Stmt> Parser::parseIfStmt() {
-  consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'");
+  consume(TokenType::LEFT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_LPAREN, "Expect '(' after 'if'");
   auto condition = parseExpr();
-  consume(TokenType::RIGHT_PAREN, "Expect ')' after condition");
-  consume(TokenType::LEFT_BRACE, "Expect '{' after condition");
+  consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after condition");
+  consume(TokenType::LEFT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_LBRACE, "Expect '{' after condition");
   auto thenBranch = parseBlock();
-  consume(TokenType::RIGHT_BRACE, "Expect '}' after then branch");
+  consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after then branch");
   std::vector<std::unique_ptr<Stmt>> elseBranch;
   if (match(TokenType::ELSE)) {
-    consume(TokenType::LEFT_BRACE, "Expect '{' after 'else'");
+    consume(TokenType::LEFT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_LBRACE, "Expect '{' after 'else'");
     elseBranch = parseBlock();
-    consume(TokenType::RIGHT_BRACE, "Expect '}' after else branch");
+    consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after else branch");
   }
   return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch),
                                   std::move(elseBranch));
 }
 
 std::unique_ptr<Stmt> Parser::parseForStmt() {
-  consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'");
-  const Token &var = consume(TokenType::IDENTIFIER, "Expect variable name");
-  consume(TokenType::IN, "Expect 'in' after variable");
-  consume(TokenType::RANGE, "Expect 'range' after 'in'");
-  consume(TokenType::LEFT_PAREN, "Expect '(' after 'range'");
+  consume(TokenType::LEFT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_LPAREN, "Expect '(' after 'for'");
+  const Token &var = consume(TokenType::IDENTIFIER, meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER, "Expect variable name");
+  consume(TokenType::IN, meadows::ErrorCode::PARSE_EXPECTED_IN, "Expect 'in' after variable");
+  consume(TokenType::RANGE, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, "Expect 'range' after 'in'");
+  consume(TokenType::LEFT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_LPAREN, "Expect '(' after 'range'");
   auto start = parseExpr();
-  consume(TokenType::COMMA, "Expect ',' after start");
+  consume(TokenType::COMMA, meadows::ErrorCode::PARSE_EXPECTED_COMMA, "Expect ',' after start");
   auto end = parseExpr();
-  consume(TokenType::RIGHT_PAREN, "Expect ')' after end");
-  consume(TokenType::RIGHT_PAREN, "Expect ')' after range");
-  consume(TokenType::LEFT_BRACE, "Expect '{' after range");
+  consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after end");
+  consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after range");
+  consume(TokenType::LEFT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_LBRACE, "Expect '{' after range");
   auto body = parseBlock();
-  consume(TokenType::RIGHT_BRACE, "Expect '}' after body");
+  consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after body");
   return std::make_unique<ForStmt>(var.value, std::move(start), std::move(end),
                                    std::move(body));
 }
 
 std::unique_ptr<Stmt> Parser::parseWhileStmt() {
-  consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'");
+  consume(TokenType::LEFT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_LPAREN, "Expect '(' after 'while'");
   auto condition = parseExpr();
-  consume(TokenType::RIGHT_PAREN, "Expect ')' after condition");
-  consume(TokenType::LEFT_BRACE, "Expect '{' after condition");
+  consume(TokenType::RIGHT_PAREN, meadows::ErrorCode::PARSE_EXPECTED_RPAREN, "Expect ')' after condition");
+  consume(TokenType::LEFT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_LBRACE, "Expect '{' after condition");
   auto body = parseBlock();
-  consume(TokenType::RIGHT_BRACE, "Expect '}' after body");
+  consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after body");
   return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
 }
 
@@ -202,13 +202,13 @@ std::unique_ptr<Stmt> Parser::parseReturnStmt() {
   if (!check(TokenType::SEMICOLON)) {
     value = parseExpr();
   }
-  consume(TokenType::SEMICOLON, "Expect ';' after return statement");
+  consume(TokenType::SEMICOLON, meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON, "Expect ';' after return statement");
   return std::make_unique<ReturnStmt>(std::move(value));
 }
 
 std::unique_ptr<Stmt> Parser::parseExprStmt() {
   auto expr = parseExpr();
-  consume(TokenType::SEMICOLON, "Expect ';' after expression");
+  consume(TokenType::SEMICOLON, meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON, "Expect ';' after expression");
   return std::make_unique<ExprStmt>(std::move(expr));
 }
 
@@ -222,18 +222,18 @@ std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
 
 std::unique_ptr<Stmt> Parser::parseBlockStmt() {
   auto body = parseBlock();
-  consume(TokenType::RIGHT_BRACE, "Expect '}' after block");
+  consume(TokenType::RIGHT_BRACE, meadows::ErrorCode::PARSE_EXPECTED_RBRACE, "Expect '}' after block");
   return std::make_unique<BlockStmt>(std::move(body));
 }
 
 std::unique_ptr<Expr> Parser::parseExpr(int depth) { return parseAssignment(depth); }
 
 std::unique_ptr<Stmt> Parser::parseBreakStmt() {
-  consume(TokenType::SEMICOLON, "Expect ';' after break");
+  consume(TokenType::SEMICOLON, meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON, "Expect ';' after break");
   return std::make_unique<BreakStmt>();
 }
 
 std::unique_ptr<Stmt> Parser::parseContinueStmt() {
-  consume(TokenType::SEMICOLON, "Expect ';' after continue");
+  consume(TokenType::SEMICOLON, meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON, "Expect ';' after continue");
   return std::make_unique<ContinueStmt>();
 }

@@ -59,11 +59,6 @@ private:
   const Token &consume(TokenType type, meadows::ErrorCode code,
                        const std::string &message);
 
-  // Backward compatibility - uses generic error code
-  const Token &consume(TokenType type, const std::string &message) {
-    return consume(type, meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN, message);
-  }
-
   /**
    * @brief Report an error at current position.
    */

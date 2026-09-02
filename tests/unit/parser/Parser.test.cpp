@@ -13,6 +13,9 @@ public:
       : parser_(std::move(tokens), diagnostics_) {}
   std::vector<std::unique_ptr<Stmt>> parse() { return parser_.parse(); }
   bool hasErrors() const { return parser_.hasErrors(); }
+  const std::vector<meadows::Diagnostic> &diagnostics() const {
+    return diagnostics_.diagnostics();
+  }
 
 private:
   meadows::DiagnosticsCollector diagnostics_;
@@ -268,6 +271,52 @@ TEST_CASE("Parser reports syntax errors", "[parser]") {
     auto parser = createParser("@#$");
     parser->parse();
     REQUIRE(parser->hasErrors());
+  }
+}
+
+// Regression test: every consume() call site used to report the same
+// generic PARSE_UNEXPECTED_TOKEN code regardless of what was actually
+// missing. Each now carries the specific code for what it expected.
+TEST_CASE("Parser reports specific error codes for common mistakes",
+          "[parser]") {
+  SECTION("Missing semicolon after let") {
+    auto parser = createParser("let x = 5");
+    parser->parse();
+    REQUIRE(parser->diagnostics().size() == 1);
+    REQUIRE(parser->diagnostics()[0].code ==
+            meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON);
+  }
+
+  SECTION("Missing closing brace") {
+    auto parser = createParser("func test() { print(1);");
+    parser->parse();
+    REQUIRE(parser->diagnostics().size() == 1);
+    REQUIRE(parser->diagnostics()[0].code ==
+            meadows::ErrorCode::PARSE_EXPECTED_RBRACE);
+  }
+
+  SECTION("Missing closing paren") {
+    auto parser = createParser("let x = (1 + 2;");
+    parser->parse();
+    REQUIRE(parser->diagnostics().size() == 1);
+    REQUIRE(parser->diagnostics()[0].code ==
+            meadows::ErrorCode::PARSE_EXPECTED_RPAREN);
+  }
+
+  SECTION("Missing colon in object literal") {
+    auto parser = createParser("let x = {a 1};");
+    parser->parse();
+    REQUIRE(parser->diagnostics().size() == 1);
+    REQUIRE(parser->diagnostics()[0].code ==
+            meadows::ErrorCode::PARSE_EXPECTED_COLON);
+  }
+
+  SECTION("Missing identifier after let") {
+    auto parser = createParser("let = 5;");
+    parser->parse();
+    REQUIRE(parser->diagnostics().size() == 1);
+    REQUIRE(parser->diagnostics()[0].code ==
+            meadows::ErrorCode::PARSE_EXPECTED_IDENTIFIER);
   }
 }
 
