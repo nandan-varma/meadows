@@ -76,17 +76,45 @@ main {
   cursor: pointer;
 }
 
-#source {
+#editor {
   flex: 1;
-  resize: none;
-  border: none;
-  outline: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#editor .cm-editor {
+  height: 100%;
   background: var(--panel);
   color: var(--text);
   font-family: "SF Mono", Menlo, monospace;
   font-size: 0.9rem;
-  padding: 1rem;
-  tab-size: 2;
+}
+
+#editor .cm-scroller {
+  overflow: auto;
+}
+
+#editor .cm-gutters {
+  background: var(--panel);
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+
+#editor .cm-activeLine,
+#editor .cm-activeLineGutter {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#editor .cm-content {
+  caret-color: var(--accent);
+}
+
+#editor .cm-selectionBackground {
+  background: rgba(110, 231, 183, 0.18) !important;
+}
+
+#editor .cm-focused .cm-cursor {
+  border-left-color: var(--accent);
 }
 
 .tabs {

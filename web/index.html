@@ -24,22 +24,22 @@
   <section class="editor-pane">
     <div class="pane-header">
       <span>source.ms</span>
-      <button id="run-btn">Run</button>
+      <button id="run-btn" title="Run (Ctrl/Cmd+Enter)">Run</button>
     </div>
-    <textarea id="source" spellcheck="false"></textarea>
+    <div id="editor"></div>
   </section>
 
   <section class="result-pane">
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="output">Output</button>
-      <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
-      <button class="tab-btn" data-tab="tokens">Tokens</button>
-      <button class="tab-btn" data-tab="ast">AST</button>
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="output" role="tab" aria-selected="true">Output</button>
+      <button class="tab-btn" data-tab="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
+      <button class="tab-btn" data-tab="tokens" role="tab" aria-selected="false">Tokens</button>
+      <button class="tab-btn" data-tab="ast" role="tab" aria-selected="false">AST</button>
     </div>
-    <pre id="output" class="tab-panel active"></pre>
-    <pre id="diagnostics" class="tab-panel"></pre>
-    <pre id="tokens" class="tab-panel"></pre>
-    <pre id="ast" class="tab-panel"></pre>
+    <pre id="output" class="tab-panel active" role="tabpanel"></pre>
+    <pre id="diagnostics" class="tab-panel" role="tabpanel"></pre>
+    <pre id="tokens" class="tab-panel" role="tabpanel"></pre>
+    <pre id="ast" class="tab-panel" role="tabpanel"></pre>
   </section>
 </main>
 
