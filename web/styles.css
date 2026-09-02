@@ -1,0 +1,136 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161923;
+  --border: #2a2f3d;
+  --text: #e2e4e9;
+  --muted: #8b93a7;
+  --accent: #6ee7b7;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.tagline a {
+  color: var(--accent);
+}
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  min-height: 0;
+}
+
+.editor-pane, .result-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  min-height: 0;
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+#run-btn {
+  background: var(--accent);
+  border: none;
+  color: #0f1115;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#source {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  padding: 1rem;
+  tab-size: 2;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.tab-panel {
+  display: none;
+  flex: 1;
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+footer#status {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 800px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+}

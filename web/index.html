@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meadows Playground</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>
+  <h1>Meadows</h1>
+  <p class="tagline">
+    A compiled language that translates <code>.ms</code> source to LLVM IR.
+    This playground runs the lexer, parser, and semantic analyzer in your
+    browser via WebAssembly — it does not execute programs.
+    <a href="https://github.com/nandan-varma/meadows" target="_blank" rel="noopener">Source</a>
+  </p>
+</header>
+
+<main>
+  <section class="editor-pane">
+    <div class="pane-header">
+      <span>source.ms</span>
+      <button id="run-btn">Analyze</button>
+    </div>
+    <textarea id="source" spellcheck="false"></textarea>
+  </section>
+
+  <section class="result-pane">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="diagnostics">Diagnostics</button>
+      <button class="tab-btn" data-tab="tokens">Tokens</button>
+      <button class="tab-btn" data-tab="ast">AST</button>
+    </div>
+    <pre id="diagnostics" class="tab-panel active"></pre>
+    <pre id="tokens" class="tab-panel"></pre>
+    <pre id="ast" class="tab-panel"></pre>
+  </section>
+</main>
+
+<footer id="status">Loading compiler…</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

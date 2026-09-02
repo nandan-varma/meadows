@@ -1,7 +1,9 @@
 #include "Exceptions.h"
 #include <algorithm>
 #include <cstring>
+#if defined(__unix__) && !defined(__EMSCRIPTEN__)
 #include <execinfo.h> // For backtrace (Unix/Linux/macOS)
+#endif
 #include <iomanip>
 #include <sstream>
 
@@ -9,7 +11,7 @@ namespace meadows {
 
 // Platform-specific stack trace capture
 void MeadowsException::captureStackTrace() {
-#ifdef __unix__
+#if defined(__unix__) && !defined(__EMSCRIPTEN__)
   const int MAX_FRAMES = 64;
   void *buffer[MAX_FRAMES];
   int nptrs = backtrace(buffer, MAX_FRAMES);

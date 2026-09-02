@@ -5,15 +5,29 @@
 cmake_minimum_required(VERSION 3.16)
 include(FetchContent)
 
-FetchContent_Declare(
-  CLI11
-  GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-  GIT_TAG        v2.4.2
-  GIT_SHALLOW    TRUE
-)
-set(CLI11_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(CLI11)
+#==============================================================================
+# CMake Options
+#==============================================================================
+# BUILD_WASM builds only the browser-playground bridge (lexer, parser,
+# semantic analysis) via Emscripten embind — no LLVM, no CLI11, no native
+# executable. Configure with `emcmake cmake -DBUILD_WASM=ON`.
+option(BUILD_WASM "Build the browser playground WASM module (requires emcmake)" OFF)
+option(BUILD_TESTS "Build tests" ON)
+option(BUILD_EXAMPLES "Build examples" ON)
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
+option(ENABLE_WERROR "Treat warnings as errors" OFF)
+
+if(NOT BUILD_WASM)
+  FetchContent_Declare(
+    CLI11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG        v2.4.2
+    GIT_SHALLOW    TRUE
+  )
+  set(CLI11_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(CLI11)
+endif()
 
 #==============================================================================
 # Project Declaration
@@ -26,14 +40,6 @@ project(Meadows
   HOMEPAGE_URL "https://github.com/nandan-varma/meadows"
   LANGUAGES C CXX
 )
-
-#==============================================================================
-# CMake Options
-#==============================================================================
-option(BUILD_TESTS "Build tests" ON)
-option(BUILD_EXAMPLES "Build examples" ON)
-option(ENABLE_COVERAGE "Enable code coverage" OFF)
-option(ENABLE_WERROR "Treat warnings as errors" OFF)
 
 #==============================================================================
 # C++ Standard
@@ -88,6 +94,48 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     add_link_options(-pie)
   endif()
 endif()
+
+#==============================================================================
+# WebAssembly Playground Build
+#==============================================================================
+if(BUILD_WASM)
+  if(NOT EMSCRIPTEN)
+    message(FATAL_ERROR "BUILD_WASM requires the Emscripten toolchain: configure with 'emcmake cmake -DBUILD_WASM=ON ...'")
+  endif()
+
+  add_executable(meadows_wasm
+    src/wasm/WasmBridge.cpp
+    src/lexer/Lexer.cpp
+    src/parser/Parser.cpp
+    src/parser/ParserExpressions.cpp
+    src/ast/AST.cpp
+    src/sema/SemanticAnalyzer.cpp
+    src/utils/ErrorCodes.cpp
+    src/utils/Exceptions.cpp
+    src/utils/DiagnosticsCollector.cpp
+    src/utils/ErrorFormatter.cpp
+    src/utils/WarningManager.cpp
+  )
+
+  target_include_directories(meadows_wasm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+  target_link_options(meadows_wasm PRIVATE
+    "--bind"
+    "-sMODULARIZE=1"
+    "-sEXPORT_ES6=1"
+    "-sEXPORT_NAME=createMeadowsModule"
+    "-sENVIRONMENT=web"
+    "-sALLOW_MEMORY_GROWTH=1"
+    "-sFILESYSTEM=1"
+  )
+
+  set_target_properties(meadows_wasm PROPERTIES
+    OUTPUT_NAME "meadows"
+    SUFFIX ".js"
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+  )
+
+else()
 
 #==============================================================================
 # LLVM Configuration
@@ -301,3 +349,5 @@ message("  Version: ${LLVM_PACKAGE_VERSION}")
 message("  Directory: ${LLVM_DIR}")
 message("=====================================")
 message("")
+
+endif() # BUILD_WASM
