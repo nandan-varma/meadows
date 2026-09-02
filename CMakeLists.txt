@@ -194,6 +194,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 #==============================================================================
 set(MEADOWS_LIB_SOURCES
   src/lexer/Lexer.cpp
+  src/lexer/ModuleResolver.cpp
   src/parser/Parser.cpp
   src/parser/ParserExpressions.cpp
   src/ast/AST.cpp
@@ -208,11 +209,13 @@ set(MEADOWS_LIB_SOURCES
   src/utils/Exceptions.cpp
   src/utils/DiagnosticsCollector.cpp
   src/utils/ErrorFormatter.cpp
+  src/utils/PathValidation.cpp
   src/utils/WarningManager.cpp
 )
 
 set(MEADOWS_HEADERS
   src/lexer/Lexer.h
+  src/lexer/ModuleResolver.h
   src/lexer/Token.h
   src/parser/Parser.h
   src/ast/AST.h
@@ -224,6 +227,7 @@ set(MEADOWS_HEADERS
   src/interpreter/Value.h
   src/interpreter/Interpreter.h
   src/lsp/LSPInterface.h
+  src/utils/PathValidation.h
   src/utils/ErrorCodes.h
   src/utils/Exceptions.h
   src/utils/DiagnosticsCollector.h

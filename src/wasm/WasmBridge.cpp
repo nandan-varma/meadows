@@ -37,6 +37,7 @@ const char *tokenTypeName(TokenType type) {
     case TokenType::FALSE: return "FALSE";
     case TokenType::BREAK: return "BREAK";
     case TokenType::CONTINUE: return "CONTINUE";
+    case TokenType::IMPORT: return "IMPORT";
     case TokenType::IDENTIFIER: return "IDENTIFIER";
     case TokenType::STRING: return "STRING";
     case TokenType::NUMBER: return "NUMBER";

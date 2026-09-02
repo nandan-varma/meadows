@@ -18,6 +18,7 @@ enum class TokenType {
   FALSE,
   BREAK,
   CONTINUE,
+  IMPORT,
 
   // Literals
   IDENTIFIER,

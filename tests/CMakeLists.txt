@@ -10,6 +10,7 @@ FetchContent_MakeAvailable(Catch2)
 
 set(TEST_SOURCES
     unit/lexer/Lexer.test.cpp
+    unit/lexer/ModuleResolver.test.cpp
     unit/parser/Parser.test.cpp
     unit/codegen/CodeGen.test.cpp
     unit/sema/SemanticAnalyzer.test.cpp

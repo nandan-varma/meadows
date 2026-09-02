@@ -3,6 +3,19 @@
 ## [1.0.2] — 2025
 
 ### Added
+- `import "path.ms";` (CLI only) — the fourth "new language feature": a
+  minimal, lean multi-file module system. `ModuleResolver` textually splices
+  an imported file's tokens in place before parsing, so the parser,
+  semantic analyzer, and CodeGen are all unmodified — none of them need to
+  know imports exist. No namespacing: an imported file's declarations land
+  directly in the importing file's global scope. A file already resolved
+  earlier in the same import graph is skipped on a later import of it
+  (first-import-wins), which also makes circular imports terminate rather
+  than looping forever. Import paths go through the same validation as the
+  CLI's entry file (now shared via a new `utils/PathValidation.h`, rather
+  than duplicating the checks): `.ms` extension, no `..` traversal, size
+  limit. Not available in the browser playground — no filesystem to import
+  from there; `import` is a plain parse error in that context.
 - First-class function references, interpreter-only: `let f = add; f(1, 2);`
   — a bare function name is now a `Value` (`Value::Kind::Function`), so it
   can be bound to a variable, reassigned, passed as an argument to another

@@ -34,7 +34,8 @@ Source Code (.ms)
 
 ```
 src/
-  lexer/          - Tokenization (Lexer.h, Lexer.cpp, Token.h)
+  lexer/          - Tokenization (Lexer.h, Lexer.cpp, Token.h) and
+                    CLI-only multi-file import resolution (ModuleResolver)
   parser/         - Syntax analysis (Parser.h, Parser.cpp)
   ast/            - AST node definitions (AST.h, AST.cpp)
   codegen/        - LLVM IR generation
@@ -49,16 +50,19 @@ src/
 
 ### Lexer (`src/lexer/`)
 
-**Files:** `Lexer.h`, `Lexer.cpp`, `Token.h`
+**Files:** `Lexer.h`, `Lexer.cpp`, `Token.h`, `ModuleResolver.h`, `ModuleResolver.cpp`
 
 **Responsibility:** Convert raw source code into a sequence of tokens.
 
 **Features:**
-- Keyword recognition: `let`, `func`, `if`, `for`, `while`, `return`, `break`, `continue`
-- Numeric and string literal parsing
+- Keyword recognition: `let`, `func`, `if`, `for`, `while`, `return`, `break`, `continue`, `import`
+- Numeric (including float) and string literal parsing
 - Comment handling: `#` and `//` styles
 - Line/column tracking for error reporting
 - Custom exceptions: `LexicalException` with `SourceLocation`
+- `ModuleResolver`: CLI-only, resolves `import "file.ms";` by textually
+  splicing the imported file's tokens in place before parsing — see
+  `docs/LANGUAGE.md`'s Imports section
 
 **Token Types:**
 - Keywords (let, func, if, for, while, return, break, continue, print, true, false, nil)

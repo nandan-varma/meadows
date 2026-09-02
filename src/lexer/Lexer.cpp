@@ -14,7 +14,7 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"return", TokenType::RETURN}, {"in", TokenType::IN},
     {"range", TokenType::RANGE}, {"true", TokenType::TRUE},
     {"false", TokenType::FALSE}, {"break", TokenType::BREAK},
-    {"continue", TokenType::CONTINUE}};
+    {"continue", TokenType::CONTINUE}, {"import", TokenType::IMPORT}};
 
 Lexer::Lexer(const std::string &source)
     : source_(source), pos_(0), line_(1), column_(1), currentLineStart_(0) {}

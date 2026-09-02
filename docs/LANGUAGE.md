@@ -215,6 +215,34 @@ variable from an enclosing scope. Meadows functions are flat/global — a
 function's body only sees its own locals and parameters, never a caller's —
 so there's no enclosing scope to capture in the first place.
 
+## Imports (CLI only)
+
+```meadows
+import "math_utils.ms";
+
+print(square(5));
+```
+
+`import "path.ms";` textually splices the imported file's contents in place
+before parsing — there's no namespacing or per-file scoping. An imported
+file's functions and top-level `let`s land directly in the importing file's
+global scope, so a name collision across files is the same
+`E3004`/`E3003` redefinition error as within one file. Import paths are
+relative to the importing file's directory; the same path-validation rules
+as the entry file apply (`.ms` extension, no `..`, size limit).
+
+If the same file is imported more than once — directly, or transitively
+through a diamond dependency (`a.ms` and `b.ms` both import `shared.ms`) —
+it's only spliced in the first time; later imports of it are silently
+skipped, which is also what makes a circular import (`a.ms` imports `b.ms`
+imports `a.ms`) terminate instead of looping forever.
+
+This is CLI-only. The browser playground compiles a single in-memory source
+string with no filesystem to import from — `import` there is a plain parse
+error (`import` isn't a valid expression or statement start once the parser
+sees it, since only the CLI's `ModuleResolver` strips import statements out
+before parsing reaches them).
+
 ## Built-in functions
 
 | Function       | Description                                              |
@@ -317,8 +345,8 @@ These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++
 - Arrays can only grow via `push()`, which returns a new array rather than
   growing in place, and only when the source array's length is statically
   resolvable — see the Array section above
-- No imports / multi-file modules
 - No standard library beyond `print`, `len`, `str`, `push`
+- `import` is CLI-only (textual splicing, no namespacing) — see Imports above
 - Field access requires the object be an inline literal, or a variable
   declared directly from one (including through a chain of `let b = a;`
   aliases) — chained access (`a.b.c`) and anything else isn't supported

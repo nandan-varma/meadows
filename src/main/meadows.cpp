@@ -1,11 +1,13 @@
 #include "../codegen/CodeGen.h"
 #include "../lexer/Lexer.h"
+#include "../lexer/ModuleResolver.h"
 #include "../lsp/LSPInterface.h"
 #include "../parser/Parser.h"
 #include "../sema/SemanticAnalyzer.h"
 #include "../utils/ASTPrinter.h"
 #include "../utils/DiagnosticsCollector.h"
 #include "../utils/ErrorFormatter.h"
+#include "../utils/PathValidation.h"
 #include "../utils/Timer.h"
 #include "../utils/WarningManager.h"
 #include <CLI/CLI.hpp>
@@ -30,9 +32,6 @@ namespace fs = std::filesystem;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-static constexpr std::uintmax_t MAX_FILE_SIZE = 10 * 1024 * 1024;
-static constexpr const char *FILE_EXTENSION = ".ms";
-
 // Table-driven warning name → ErrorCode mapping
 static const std::unordered_map<std::string, meadows::ErrorCode> WARNING_NAMES = {
     {"unused-variable",   meadows::ErrorCode::WARN_UNUSED_VARIABLE},
@@ -45,36 +44,11 @@ static const std::unordered_map<std::string, meadows::ErrorCode> WARNING_NAMES =
 };
 
 // ── Path validation ───────────────────────────────────────────────────────────
-
-static bool hasDangerousChars(const std::string &s) {
-  // Excludes () so paths like "Program Files (x86)" are valid.
-  // Shell metacharacters are harmless here because we use exec-style
-  // invocation (never system()), but we still reject obvious injection chars.
-  static constexpr const char *DANGEROUS = ";|&`${}[]<>!\\\"'\n\r\t";
-  return s.find_first_of(DANGEROUS) != std::string::npos;
-}
-
-static bool validateInputFile(const std::string &path, std::string &err) {
-  if (hasDangerousChars(path)) { err = "Invalid characters in file path"; return false; }
-  if (path.find("..") != std::string::npos) { err = "Path traversal not allowed (..)"; return false; }
-
-  fs::path p(path);
-  auto ext = p.extension().string();
-  if (ext != FILE_EXTENSION) { err = "File must have .ms extension"; return false; }
-  if (!fs::exists(p)) { err = "File does not exist: " + path; return false; }
-  if (!fs::is_regular_file(p)) { err = "Not a regular file: " + path; return false; }
-
-  try {
-    if (fs::file_size(p) > MAX_FILE_SIZE) { err = "File too large (max 10 MB)"; return false; }
-  } catch (const fs::filesystem_error &e) {
-    err = "Cannot read file size: " + std::string(e.what());
-    return false;
-  }
-  return true;
-}
+// hasDangerousChars / the entry-file validation rules live in
+// utils/PathValidation.h now, shared with ModuleResolver's import paths.
 
 static bool validateOutputPath(const std::string &path, std::string &err) {
-  if (hasDangerousChars(path)) { err = "Invalid characters in output path"; return false; }
+  if (meadows::hasDangerousChars(path)) { err = "Invalid characters in output path"; return false; }
   if (path.find("..") != std::string::npos) { err = "Path traversal not allowed (..)"; return false; }
   return true;
 }
@@ -213,7 +187,7 @@ int main(int argc, char *argv[]) {
   // ── Validate input ────────────────────────────────────────────────────────────
 
   std::string errMsg;
-  if (!validateInputFile(inputFile, errMsg)) {
+  if (!meadows::validateSourceFilePath(inputFile, errMsg)) {
     std::cerr << "Error: " << errMsg << "\n";
     return 1;
   }
@@ -232,29 +206,22 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // ── Read source ───────────────────────────────────────────────────────────────
-
-  std::ifstream file(inputFile);
-  if (!file) {
-    std::cerr << "Error: Cannot open " << inputFile << "\n";
-    return 1;
-  }
-  std::string source((std::istreambuf_iterator<char>(file)),
-                     std::istreambuf_iterator<char>());
-
   meadows::DiagnosticsCollector diag;
   meadows::ErrorFormatter formatter;
 
   try {
-    // ── Lex ────────────────────────────────────────────────────────────────────
+    // ── Lex (+ resolve any `import` statements) ───────────────────────────────
 
     meadows::Timer lexTimer;
     if (verbose) { std::cerr << "[lex] Starting...\n"; lexTimer.start(); }
 
-    Lexer lexer(source);
     std::vector<Token> tokens;
     try {
-      tokens = lexer.tokenize();
+      tokens = meadows::ModuleResolver::resolve(inputFile);
+    } catch (const meadows::MeadowsException &e) {
+      diag.reportError(e.code(), e.message(), e.location());
+      std::cerr << formatter.formatMultiple(diag.diagnostics(), inputFile);
+      return 1;
     } catch (const std::exception &e) {
       meadows::SourceLocation loc(inputFile, 1, 1);
       diag.reportError(meadows::ErrorCode::LEX_INVALID_CHARACTER, e.what(), loc);
