@@ -36,7 +36,7 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // Initialize components
 const logger = new Logger(connection);
-const compilerBridge = new CompilerBridge('meadows', logger);
+const compilerBridge = new CompilerBridge('Meadows', logger);
 const tokenProvider = new SemanticTokenProvider(logger);
 const hoverProvider = new HoverProvider(logger);
 

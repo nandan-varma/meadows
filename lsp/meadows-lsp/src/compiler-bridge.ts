@@ -31,7 +31,7 @@ export class CompilerBridge {
   private compilerPath: string;
   private logger: Logger | undefined;
 
-  constructor(compilerPath: string = 'meadows', logger?: Logger) {
+  constructor(compilerPath: string = 'Meadows', logger?: Logger) {
     this.compilerPath = compilerPath;
     this.logger = logger;
   }
