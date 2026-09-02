@@ -222,7 +222,6 @@ set(MEADOWS_HEADERS
   src/codegen/CodeGen.h
   src/codegen/SymbolTable.h
   src/codegen/StringUtils.h
-  src/codegen/MemoryUtils.h
   src/codegen/TypeUtils.h
   src/interpreter/Value.h
   src/interpreter/Interpreter.h

@@ -17,13 +17,14 @@
  * - Includes bounds checking and division-by-zero protection
  *
  * @ Limitations
- * - Arrays and objects are compile-time constants only
- * - No runtime memory allocation for dynamic structures
- * - Limited to i32 integer type for numeric operations
+ * - Array/object element count is fixed at compile time (push() allocates a
+ *   new, larger array rather than growing one in place — see the "push"
+ *   case in visitCallExpr)
+ * - Numeric type is i32, or f64 for float literals/arithmetic — no other
+ *   numeric width
  */
 
 #include "../ast/AST.h"
-#include "MemoryUtils.h"
 #include "StringUtils.h"
 #include "SymbolTable.h"
 #include "TypeUtils.h"
@@ -205,9 +206,6 @@ private:
 
   llvm::BasicBlock *breakBlock = nullptr;
   llvm::BasicBlock *continueBlock = nullptr;
-
-  static constexpr size_t MAX_STRING_LENGTH = 1024 * 1024;
-  static constexpr size_t MAX_ARRAY_ELEMENTS = 1000000;
 
   std::vector<llvm::Value *> allocatedStrings;
   void freeAllocatedStrings();
