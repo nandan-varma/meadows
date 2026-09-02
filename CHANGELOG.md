@@ -37,6 +37,24 @@
   header needed, keeping the array representation exactly as before.
 
 ### Fixed
+- **Stack-overflow (SIGSEGV) on deeply nested expressions — a real DoS
+  vector, not just a style issue.** The parser's recursion-depth guard
+  (`MAX_PARSE_DEPTH = 100` in `parseAssignment`) was silently bypassed by
+  five call sites that re-entered the precedence chain through
+  `Parser::parseExpr()`, which had no depth parameter and always restarted
+  the count at 0: array-literal elements, object-literal values,
+  parenthesized sub-expressions, index expressions, and call arguments.
+  Nesting any of those constructs ~sufficiently deep (confirmed with
+  100,000 nested parens) crashed the process with exit code 139 instead of
+  reporting a parse error. Separately, `parseUnary` recursed on repeated
+  `-`/`!` without incrementing `depth` at all, so a long chain of unary
+  operators bypassed the guard by a different route. Both are fixed:
+  `parseExpr` now threads an explicit `depth` through every nested call
+  site, and `parseUnary` has its own depth check. Exceeding the limit now
+  throws a clean `E2009 PARSE_UNEXPECTED_TOKEN "Expression nesting too
+  deep"` unconditionally (even in diagnostics/LSP mode, unlike ordinary
+  recoverable syntax errors) so the guard can't degrade into a cascade of
+  unrelated follow-on diagnostics.
 - **Array bounds checking was comparing the index against the array's
   first element's *value*, not its length.** `CodeGen::validateArrayBounds`
   loaded the first i32 at the array's address expecting a runtime length

@@ -4,9 +4,14 @@ constexpr int MAX_PARSE_DEPTH = 100;
 
 std::unique_ptr<Expr> Parser::parseAssignment(int depth) {
   if (depth > MAX_PARSE_DEPTH) {
-    error(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-          "Expression nesting too deep");
-    return nullptr;
+    // A hard stack-safety limit, not an ordinary recoverable syntax error:
+    // throw unconditionally (even in diagnostics/LSP mode) rather than going
+    // through error()'s report-and-continue path, which would leave the
+    // token stream unconsumed at this position and cascade into a stream of
+    // unrelated follow-on diagnostics.
+    meadows::SourceLocation loc("", peek().line, peek().column);
+    throw meadows::ParseException(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                                  "Expression nesting too deep", loc);
   }
   auto expr = parseOr(depth + 1);
   if (match(TokenType::EQUAL)) {
@@ -91,14 +96,19 @@ std::unique_ptr<Expr> Parser::parseFactor(int depth) {
 }
 
 std::unique_ptr<Expr> Parser::parseUnary(int depth) {
+  if (depth > MAX_PARSE_DEPTH) {
+    meadows::SourceLocation loc("", peek().line, peek().column);
+    throw meadows::ParseException(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
+                                  "Expression nesting too deep", loc);
+  }
   if (match(TokenType::MINUS)) {
     std::string op = previous().value;
-    auto operand = parseUnary(depth);
+    auto operand = parseUnary(depth + 1);
     return std::make_unique<UnaryExpr>(op, std::move(operand));
   }
   if (match(TokenType::BANG)) {
     std::string op = previous().value;
-    auto operand = parseUnary(depth);
+    auto operand = parseUnary(depth + 1);
     return std::make_unique<UnaryExpr>(op, std::move(operand));
   }
   return parseCall(depth);
@@ -107,7 +117,7 @@ std::unique_ptr<Expr> Parser::parseUnary(int depth) {
 std::unique_ptr<Expr> Parser::parseCall(int depth) {
   auto expr = parseIndex(depth);
   if (match(TokenType::LEFT_PAREN)) {
-    auto args = parseArgs();
+    auto args = parseArgs(depth + 1);
     consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments");
     expr = std::make_unique<CallExpr>(std::move(expr), std::move(args));
   }
@@ -117,7 +127,7 @@ std::unique_ptr<Expr> Parser::parseCall(int depth) {
 std::unique_ptr<Expr> Parser::parseIndex(int depth) {
   auto expr = parseFieldAccess(depth);
   while (match(TokenType::LEFT_BRACKET)) {
-    auto index = parseExpr();
+    auto index = parseExpr(depth + 1);
     consume(TokenType::RIGHT_BRACKET, "Expect ']' after index");
     expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index));
   }
@@ -157,7 +167,7 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
     std::vector<std::unique_ptr<Expr>> elements;
     if (!check(TokenType::RIGHT_BRACKET)) {
       do {
-        elements.push_back(parseExpr());
+        elements.push_back(parseExpr(depth + 1));
       } while (match(TokenType::COMMA));
     }
     consume(TokenType::RIGHT_BRACKET, "Expect ']' after array elements");
@@ -169,7 +179,7 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
       do {
         const Token &key = consume(TokenType::IDENTIFIER, "Expect key");
         consume(TokenType::COLON, "Expect ':' after key");
-        auto value = parseExpr();
+        auto value = parseExpr(depth + 1);
         pairs[key.value] = std::move(value);
       } while (match(TokenType::COMMA));
     }
@@ -177,7 +187,7 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
     return std::make_unique<ObjectExpr>(std::move(pairs));
   }
   if (match(TokenType::LEFT_PAREN)) {
-    auto expr = parseExpr();
+    auto expr = parseExpr(depth + 1);
     consume(TokenType::RIGHT_PAREN, "Expect ')' after expression");
     return expr;
   }
@@ -186,11 +196,11 @@ std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
                                 "Expect expression", loc);
 }
 
-std::vector<std::unique_ptr<Expr>> Parser::parseArgs() {
+std::vector<std::unique_ptr<Expr>> Parser::parseArgs(int depth) {
   std::vector<std::unique_ptr<Expr>> args;
   if (!check(TokenType::RIGHT_PAREN)) {
     do {
-      args.push_back(parseExpr());
+      args.push_back(parseExpr(depth + 1));
     } while (match(TokenType::COMMA));
   }
   return args;

@@ -110,7 +110,7 @@ private:
     return node;
   }
 
-  std::unique_ptr<Expr> parseExpr();
+  std::unique_ptr<Expr> parseExpr(int depth = 0);
   std::unique_ptr<Expr> parseAssignment(int depth = 0);
   std::unique_ptr<Expr> parseOr(int depth = 0);
   std::unique_ptr<Expr> parseAnd(int depth = 0);
@@ -124,7 +124,7 @@ private:
   std::unique_ptr<Expr> parseFieldAccess(int depth = 0);
   std::unique_ptr<Expr> parsePrimary(int depth = 0);
 
-  std::vector<std::unique_ptr<Expr>> parseArgs();
+  std::vector<std::unique_ptr<Expr>> parseArgs(int depth);
   std::vector<std::unique_ptr<Stmt>> parseBlock();
 };
 

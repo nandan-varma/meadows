@@ -256,7 +256,7 @@ std::unique_ptr<Stmt> Parser::parseBlockStmt() {
   return std::make_unique<BlockStmt>(std::move(body));
 }
 
-std::unique_ptr<Expr> Parser::parseExpr() { return parseAssignment(); }
+std::unique_ptr<Expr> Parser::parseExpr(int depth) { return parseAssignment(depth); }
 
 std::unique_ptr<Stmt> Parser::parseBreakStmt() {
   consume(TokenType::SEMICOLON, "Expect ';' after break");

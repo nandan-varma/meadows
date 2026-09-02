@@ -652,6 +652,58 @@ TEST_CASE("Parser handles deep nesting", "[parser]") {
   }
 }
 
+// Regression test: parseExpr() used to reset the recursion-depth counter to
+// 0 whenever it was called from inside an already-nested expression (array
+// elements, object values, parenthesized sub-expressions, call arguments),
+// letting each of those contexts bypass MAX_PARSE_DEPTH entirely and
+// stack-overflow (SIGSEGV) on malicious/malformed deeply-nested input. Also
+// covers parseUnary(), which recursed on repeated `-`/`!` without
+// incrementing depth at all.
+TEST_CASE("Parser rejects pathologically deep expression nesting",
+          "[parser][security]") {
+  SECTION("Parenthesized expressions") {
+    auto parser =
+        createParser("let x = " + std::string(10000, '(') + "1" +
+                     std::string(10000, ')') + ";");
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+  }
+
+  SECTION("Array literals") {
+    auto parser =
+        createParser("let x = " + std::string(10000, '[') + "1" +
+                     std::string(10000, ']') + ";");
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+  }
+
+  SECTION("Object literals") {
+    std::string src = "let x = ";
+    for (int i = 0; i < 10000; i++)
+      src += "{a:";
+    src += "1";
+    src += std::string(10000, '}');
+    src += ";";
+    auto parser = createParser(src);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+  }
+
+  SECTION("Nested call arguments") {
+    std::string src = "func f(x) { return x; }\nlet y = ";
+    for (int i = 0; i < 10000; i++)
+      src += "f(";
+    src += "1";
+    src += std::string(10000, ')');
+    src += ";";
+    auto parser = createParser(src);
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+  }
+
+  SECTION("Chained unary operators") {
+    auto parser =
+        createParser("let x = " + std::string(10000, '-') + "1;");
+    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+  }
+}
+
 TEST_CASE("Parser property-based tests", "[parser][property]") {
   SECTION("Balanced parentheses in expressions") {
     std::vector<std::pair<std::string, std::string>> sources = {
