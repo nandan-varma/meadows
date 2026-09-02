@@ -4,11 +4,26 @@
 #include "lexer/Lexer.h"
 #include "utils/Exceptions.h"
 
+// Parser now always requires a DiagnosticsCollector; this wrapper owns one
+// alongside the Parser so existing call sites (parser->parse(), etc.) don't
+// need to separately manage its lifetime.
+class TestParser {
+public:
+  explicit TestParser(std::vector<Token> tokens)
+      : parser_(std::move(tokens), diagnostics_) {}
+  std::vector<std::unique_ptr<Stmt>> parse() { return parser_.parse(); }
+  bool hasErrors() const { return parser_.hasErrors(); }
+
+private:
+  meadows::DiagnosticsCollector diagnostics_;
+  Parser parser_;
+};
+
 // Helper function to create parser from source
-std::unique_ptr<Parser> createParser(const std::string &source) {
+std::unique_ptr<TestParser> createParser(const std::string &source) {
   auto lexer = std::make_unique<Lexer>(source);
   auto tokens = lexer->tokenize();
-  return std::make_unique<Parser>(tokens);
+  return std::make_unique<TestParser>(tokens);
 }
 
 TEST_CASE("Parser handles variable declarations", "[parser]") {
@@ -228,9 +243,14 @@ TEST_CASE("Parser handles return statements", "[parser]") {
 }
 
 TEST_CASE("Parser reports syntax errors", "[parser]") {
+  // Ordinary (recoverable) syntax errors are reported to the diagnostics
+  // collector and parsing continues; only a handful of unconditionally
+  // fatal conditions (e.g. "Expect expression" with no valid token to
+  // start one) still throw ParseException regardless.
   SECTION("Missing semicolon") {
     auto parser = createParser("let x = 5");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors());
   }
 
   SECTION("Missing expression") {
@@ -240,12 +260,14 @@ TEST_CASE("Parser reports syntax errors", "[parser]") {
 
   SECTION("Missing closing brace") {
     auto parser = createParser("func test() { print(1);");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors());
   }
 
   SECTION("Unexpected token") {
     auto parser = createParser("@#$");
-    REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    parser->parse();
+    REQUIRE(parser->hasErrors());
   }
 }
 

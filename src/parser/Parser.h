@@ -22,12 +22,6 @@
 class Parser {
 public:
   /**
-   * @brief Constructs a Parser for the given tokens.
-   * @param tokens The token stream to parse.
-   */
-  Parser(std::vector<Token> tokens);
-
-  /**
    * @brief Constructs a Parser with diagnostics collection.
    * @param tokens The token stream to parse.
    * @param diagnostics Collector for errors and warnings.
@@ -36,8 +30,10 @@ public:
 
   /**
    * @brief Parses the entire token stream into an AST.
-   * @return A vector of statement AST nodes.
-   * @throws std::runtime_error If a fatal syntax error is encountered.
+   * @return A vector of statement AST nodes. Non-fatal errors are reported
+   *         to the diagnostics collector and parsing continues; only a
+   *         handful of unrecoverable conditions (e.g. pathological nesting
+   *         depth) throw meadows::ParseException.
    */
   std::vector<std::unique_ptr<Stmt>> parse();
 
@@ -46,15 +42,10 @@ public:
    */
   bool hasErrors() const;
 
-  /**
-   * @brief Get the diagnostics collector (if used).
-   */
-  meadows::DiagnosticsCollector *diagnostics() { return diagnostics_; }
-
 private:
   std::vector<Token> tokens_;
   size_t current_;
-  meadows::DiagnosticsCollector *diagnostics_;
+  meadows::DiagnosticsCollector &diagnostics_;
   bool inErrorRecovery_;
   int consecutiveErrors_;
   static constexpr int MAX_CONSECUTIVE_ERRORS = 3;

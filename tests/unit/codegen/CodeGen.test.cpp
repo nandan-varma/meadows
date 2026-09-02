@@ -8,10 +8,25 @@
 #include <llvm/IR/Verifier.h>
 #include <sstream>
 
-static std::unique_ptr<Parser> createParser(const std::string &source) {
+// Parser now always requires a DiagnosticsCollector; this wrapper owns one
+// alongside the Parser so existing call sites (parser->parse(), etc.) don't
+// need to separately manage its lifetime.
+class TestParser {
+public:
+  explicit TestParser(std::vector<Token> tokens)
+      : parser_(std::move(tokens), diagnostics_) {}
+  std::vector<std::unique_ptr<Stmt>> parse() { return parser_.parse(); }
+  bool hasErrors() const { return parser_.hasErrors(); }
+
+private:
+  meadows::DiagnosticsCollector diagnostics_;
+  Parser parser_;
+};
+
+static std::unique_ptr<TestParser> createParser(const std::string &source) {
   auto lexer = std::make_unique<Lexer>(source);
   auto tokens = lexer->tokenize();
-  return std::make_unique<Parser>(tokens);
+  return std::make_unique<TestParser>(tokens);
 }
 
 TEST_CASE("CodeGen handles function definitions", "[codegen]") {

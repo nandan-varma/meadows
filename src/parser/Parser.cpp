@@ -1,46 +1,24 @@
 #include "Parser.h"
-#include <stdexcept>
-
-Parser::Parser(std::vector<Token> t)
-    : tokens_(std::move(t)), current_(0), diagnostics_(nullptr),
-      inErrorRecovery_(false), consecutiveErrors_(0) {}
 
 Parser::Parser(std::vector<Token> t, meadows::DiagnosticsCollector &diagnostics)
-    : tokens_(std::move(t)), current_(0), diagnostics_(&diagnostics),
+    : tokens_(std::move(t)), current_(0), diagnostics_(diagnostics),
       inErrorRecovery_(false), consecutiveErrors_(0) {}
 
 std::vector<std::unique_ptr<Stmt>> Parser::parse() {
   std::vector<std::unique_ptr<Stmt>> statements;
   while (!isAtEnd()) {
-    try {
-      auto stmt = parseStmt();
-      if (stmt) {
-        statements.push_back(std::move(stmt));
-        // Successfully parsed a statement, reset consecutive error counter
-        consecutiveErrors_ = 0;
-        inErrorRecovery_ = false;
-      }
-    } catch (const meadows::MeadowsException &e) {
-      // Fatal error - rethrow
-      throw;
-    } catch (const std::runtime_error &e) {
-      // Legacy error handling - convert to diagnostic if available
-      if (diagnostics_) {
-        meadows::SourceLocation loc("", peek().line, peek().column);
-        diagnostics_->reportError(meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN,
-                                  e.what(), loc);
-        synchronize();
-      } else {
-        throw;
-      }
+    auto stmt = parseStmt();
+    if (stmt) {
+      statements.push_back(std::move(stmt));
+      // Successfully parsed a statement, reset consecutive error counter
+      consecutiveErrors_ = 0;
+      inErrorRecovery_ = false;
     }
   }
   return statements;
 }
 
-bool Parser::hasErrors() const {
-  return diagnostics_ && diagnostics_->hasErrors();
-}
+bool Parser::hasErrors() const { return diagnostics_.hasErrors(); }
 
 bool Parser::isAtEnd() const { return peek().type == TokenType::EOF_TOKEN; }
 
@@ -79,22 +57,14 @@ const Token &Parser::consume(TokenType type, meadows::ErrorCode code,
 }
 
 void Parser::error(meadows::ErrorCode code, const std::string &message) {
-  if (diagnostics_) {
-    meadows::SourceLocation loc("", peek().line, peek().column);
-    loc.endColumn = loc.column + 1;
-    diagnostics_->reportError(code, message, loc);
-    consecutiveErrors_++;
-    inErrorRecovery_ = true;
-  } else {
-    meadows::SourceLocation loc("", peek().line, peek().column);
-    throw meadows::ParseException(code, message, loc);
-  }
+  meadows::SourceLocation loc("", peek().line, peek().column);
+  loc.endColumn = loc.column + 1;
+  diagnostics_.reportError(code, message, loc);
+  consecutiveErrors_++;
+  inErrorRecovery_ = true;
 }
 
 void Parser::synchronize() {
-  if (!diagnostics_)
-    return;
-
   inErrorRecovery_ = true;
 
   advance(); // Skip the token that caused the error

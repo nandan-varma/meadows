@@ -17,7 +17,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     Lexer lexer(input);
     auto tokens = lexer.tokenize();
 
-    Parser parser(tokens);
+    meadows::DiagnosticsCollector diagnostics;
+    Parser parser(tokens, diagnostics);
     parser.parse();
   } catch (const std::exception &) {
   }
