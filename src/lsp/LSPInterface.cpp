@@ -7,7 +7,6 @@
 LSPInterface::LSPInterface() {}
 
 void LSPInterface::emitDiagnostics(const std::string &filePath,
-                                   const std::vector<Token> &tokens,
                                    const std::vector<std::string> &errors) {
   std::vector<meadows::Diagnostic> diagnostics;
 
@@ -97,50 +96,6 @@ void LSPInterface::emitDiagnosticsJSON(
   std::cout << "}" << std::endl;
 }
 
-LSPDiagnostic LSPInterface::parseError(const std::string &error,
-                                       const std::string &filePath) {
-  LSPDiagnostic diag;
-  diag.severity = static_cast<int>(LSPSeverity::Error);
-  diag.source = "meadows-compiler";
-
-  // Try to parse line number from error message
-  // Common patterns: "Error at line X" or "[line X]"
-  std::regex lineRegex(R"(line\s+(\d+))", std::regex::icase);
-  std::smatch match;
-
-  if (std::regex_search(error, match, lineRegex)) {
-    diag.line = std::stoi(match[1].str());
-  } else {
-    diag.line = LSP_LINE_OFFSET;
-  }
-
-  // Try to find column information
-  std::regex colRegex(R"(column\s+(\d+))", std::regex::icase);
-  if (std::regex_search(error, match, colRegex)) {
-    diag.startColumn = std::stoi(match[1].str());
-  } else {
-    diag.startColumn = LSP_COLUMN_OFFSET;
-  }
-
-  // Estimate end column based on token length or default to start + 1
-  diag.endColumn = diag.startColumn + LSP_DEFAULT_TOKEN_WIDTH;
-
-  // Extract the message (remove common prefixes)
-  std::string msg = error;
-  size_t pos = msg.find(":");
-  if (pos != std::string::npos && pos < msg.length() - 1) {
-    msg = msg.substr(pos + 1);
-    // Trim leading whitespace
-    pos = msg.find_first_not_of(" \t");
-    if (pos != std::string::npos) {
-      msg = msg.substr(pos);
-    }
-  }
-
-  diag.message = msg;
-  return diag;
-}
-
 std::string LSPInterface::escapeJson(const std::string &str) {
   std::ostringstream oss;
   for (char c : str) {
@@ -177,11 +132,6 @@ std::string LSPInterface::escapeJson(const std::string &str) {
     }
   }
   return oss.str();
-}
-
-int LSPInterface::estimateEndColumn(int startColumn,
-                                    const std::string &tokenValue) {
-  return startColumn + static_cast<int>(tokenValue.length());
 }
 
 meadows::Diagnostic

@@ -263,12 +263,12 @@ public:
     indentLevel_--;
   }
 
-  void visitBreakStmt(BreakStmt &stmt) override {
+  void visitBreakStmt(BreakStmt &) override {
     indent();
     output_ << "BreakStmt\n";
   }
 
-  void visitContinueStmt(ContinueStmt &stmt) override {
+  void visitContinueStmt(ContinueStmt &) override {
     indent();
     output_ << "ContinueStmt\n";
   }

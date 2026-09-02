@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     LSPInterface lsp;
     std::ifstream f(inputFile);
     if (!f) {
-      lsp.emitDiagnostics(inputFile, {}, {"Cannot open file: " + inputFile});
+      lsp.emitDiagnostics(inputFile, {"Cannot open file: " + inputFile});
       return 0;
     }
     std::string src((std::istreambuf_iterator<char>(f)),

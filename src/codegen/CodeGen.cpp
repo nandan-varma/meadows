@@ -1100,13 +1100,13 @@ void CodeGen::visitBlockStmt(BlockStmt &stmt) {
   }
 }
 
-void CodeGen::visitBreakStmt(BreakStmt &stmt) {
+void CodeGen::visitBreakStmt(BreakStmt &) {
   if (breakBlock) {
     builder->CreateBr(breakBlock);
   }
 }
 
-void CodeGen::visitContinueStmt(ContinueStmt &stmt) {
+void CodeGen::visitContinueStmt(ContinueStmt &) {
   if (continueBlock) {
     builder->CreateBr(continueBlock);
   }
