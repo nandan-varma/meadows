@@ -39,12 +39,14 @@ public:
   void accept(ExprVisitor &visitor) override;
 };
 
+// `target` is always a VarExpr, IndexExpr, or FieldAccessExpr — the parser
+// only ever constructs one of those three (see Parser::parseAssignment).
 class AssignExpr : public Expr {
 public:
-  std::string name;
+  std::unique_ptr<Expr> target;
   std::unique_ptr<Expr> value;
-  AssignExpr(const std::string &n, std::unique_ptr<Expr> v)
-      : name(n), value(std::move(v)) {}
+  AssignExpr(std::unique_ptr<Expr> t, std::unique_ptr<Expr> v)
+      : target(std::move(t)), value(std::move(v)) {}
   void accept(ExprVisitor &visitor) override;
 };
 

@@ -51,14 +51,22 @@ explicit type annotations. The three kinds of values are:
 let x = 42;
 let message = "hello";
 let numbers = [1, 2, 3];
+let person = {name: "Alice", age: 30};
 
 x = 100;             # Reassignment
 message = "updated";
+numbers[0] = 99;     # Array element assignment
+person.age = 31;     # Object field assignment
 ```
 
 A variable must be declared before use. Re-declaring the same name in the same
 scope is an error (`E3003`). Declaring the same name in an inner scope is a
 warning (`W6004`, shadowing).
+
+A valid assignment target is a plain variable, an array element (`arr[i] =
+...`), or an object field (`obj.field = ...`) — anything else is a compile-time
+error (`E2010 PARSE_INVALID_ASSIGNMENT_TARGET`). All three evaluate to the
+assigned value, so `print(arr[0] = 5);` is valid.
 
 ## Operators
 
@@ -225,6 +233,7 @@ func_name(arg1, arg2)
 | E1002 | LEX_INVALID_CHARACTER       |
 | E2001 | PARSE_EXPECTED_SEMICOLON    |
 | E2002 | PARSE_EXPECTED_EXPRESSION   |
+| E2010 | PARSE_INVALID_ASSIGNMENT_TARGET |
 | E3001 | SEM_UNDEFINED_VARIABLE      |
 | E3002 | SEM_UNDEFINED_FUNCTION      |
 | E3003 | SEM_REDEFINED_VARIABLE      |
@@ -259,8 +268,6 @@ These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++
 - No dynamic resizable arrays
 - No imports / multi-file modules
 - No standard library beyond `print`, `len`, `str`
-- No array/index or field assignment (`arr[0] = x`, `obj.field = x` aren't
-  in the grammar — only a plain variable name is a valid assignment target)
 - Field access requires the object be an inline literal, or a variable
   declared directly from one (including through a chain of `let b = a;`
   aliases) — chained access (`a.b.c`) and anything else isn't supported

@@ -90,7 +90,7 @@ src/
 **Expression Types (11):**
 1. `LiteralExpr` - Literals (numbers, strings, booleans, nil)
 2. `VarExpr` - Variable references
-3. `AssignExpr` - Variable assignments
+3. `AssignExpr` - Assignments (variable, array element, or object field target)
 4. `BinaryExpr` - Binary operations
 5. `UnaryExpr` - Unary operations
 6. `LogicalExpr` - Logical operations (and, or)

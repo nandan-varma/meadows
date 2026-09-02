@@ -56,9 +56,18 @@ public:
 
   void visitAssignExpr(AssignExpr &expr) override {
     indent();
-    output_ << "AssignExpr(" << expr.name << ")\n";
+    output_ << "AssignExpr\n";
+    indentLevel_++;
+    indent();
+    output_ << "Target:\n";
+    indentLevel_++;
+    expr.target->accept(*this);
+    indentLevel_--;
+    indent();
+    output_ << "Value:\n";
     indentLevel_++;
     expr.value->accept(*this);
+    indentLevel_--;
     indentLevel_--;
   }
 

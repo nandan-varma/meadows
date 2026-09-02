@@ -252,16 +252,63 @@ void CodeGen::visitVarExpr(VarExpr &expr) {
 }
 
 void CodeGen::visitAssignExpr(AssignExpr &expr) {
-  expr.value->accept(*this);
-  auto val = exprResult;
+  if (auto *varTarget = dynamic_cast<VarExpr *>(expr.target.get())) {
+    expr.value->accept(*this);
+    auto val = exprResult;
 
-  llvm::Value *var = lookupVariable(expr.name);
-  if (!var) {
-    error("Undefined variable in assignment: ", expr.name);
+    llvm::Value *var = lookupVariable(varTarget->name);
+    if (!var) {
+      error("Undefined variable in assignment: ", varTarget->name);
+    }
+
+    builder->CreateStore(val, var);
+    exprResult = val;
+    return;
   }
 
-  builder->CreateStore(val, var);
-  exprResult = val;
+  if (auto *indexTarget = dynamic_cast<IndexExpr *>(expr.target.get())) {
+    indexTarget->array->accept(*this);
+    auto arrayPtr = exprResult;
+    indexTarget->index->accept(*this);
+    auto indexVal = exprResult;
+    validateArrayBounds(arrayPtr, indexVal);
+
+    expr.value->accept(*this);
+    auto val = exprResult;
+
+    auto arrayType = llvm::ArrayType::get(llvm::Type::getInt32Ty(*context), 0);
+    auto zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0);
+    std::vector<llvm::Value *> indices = {zero, indexVal};
+    auto elementPtr =
+        builder->CreateGEP(arrayType, arrayPtr, indices, "arrayidxassign");
+    builder->CreateStore(val, elementPtr);
+    exprResult = val;
+    return;
+  }
+
+  if (auto *fieldTarget = dynamic_cast<FieldAccessExpr *>(expr.target.get())) {
+    fieldTarget->object->accept(*this);
+    auto objPtr = exprResult;
+
+    llvm::StructType *structType = nullptr;
+    size_t fieldIndex = 0;
+    resolveFieldAccess(*fieldTarget, structType, fieldIndex);
+
+    expr.value->accept(*this);
+    auto val = exprResult;
+
+    std::vector<llvm::Value *> indices = {
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0),
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                               static_cast<int>(fieldIndex))};
+    auto fieldPtr =
+        builder->CreateGEP(structType, objPtr, indices, "fieldassign");
+    builder->CreateStore(val, fieldPtr);
+    exprResult = val;
+    return;
+  }
+
+  error("Unsupported assignment target");
 }
 
 void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
@@ -411,16 +458,13 @@ void CodeGen::visitIndexExpr(IndexExpr &expr) {
                                    "element");
 }
 
-void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
-  expr.object->accept(*this);
-  auto objPtr = exprResult;
-
-  llvm::StructType *structType = nullptr;
-  size_t fieldIndex = 0;
-
+void CodeGen::resolveFieldAccess(FieldAccessExpr &expr,
+                                 llvm::StructType *&structType,
+                                 size_t &fieldIndex) {
   if (dynamic_cast<ObjectExpr *>(expr.object.get())) {
-    // Inline literal: expr.object->accept() above just ran visitObjectExpr,
-    // which left this literal's shape in lastObjectShape_.
+    // Inline literal: expr.object->accept() (already run by the caller)
+    // just ran visitObjectExpr, which left this literal's shape in
+    // lastObjectShape_.
     structType = lastObjectShape_.type;
     auto it = lastObjectShape_.fieldIndex.find(expr.fieldName);
     if (it == lastObjectShape_.fieldIndex.end()) {
@@ -445,6 +489,15 @@ void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
     error("Field access is only supported on an object literal or a "
           "variable declared directly from one");
   }
+}
+
+void CodeGen::visitFieldAccessExpr(FieldAccessExpr &expr) {
+  expr.object->accept(*this);
+  auto objPtr = exprResult;
+
+  llvm::StructType *structType = nullptr;
+  size_t fieldIndex = 0;
+  resolveFieldAccess(expr, structType, fieldIndex);
 
   std::vector<llvm::Value *> indices = {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0),

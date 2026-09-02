@@ -250,3 +250,36 @@ TEST_CASE("SemanticAnalyzer: known field on object literal accepted",
   CHECK(ok);
   CHECK(diag.errorCount() == 0);
 }
+
+// ── Assignment targets ────────────────────────────────────────────────────────
+
+TEST_CASE("SemanticAnalyzer: array index assignment accepted", "[sema][assign]") {
+  auto [diag, ok] = analyze("let arr = [1, 2, 3]; arr[0] = 5; print(arr[0]);");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: array index assignment to an undefined array is "
+         "an error",
+         "[sema][assign]") {
+  auto [diag, ok] = analyze("missing[0] = 5;");
+  CHECK_FALSE(ok);
+  REQUIRE(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_UNDEFINED_VARIABLE);
+}
+
+TEST_CASE("SemanticAnalyzer: object field assignment accepted", "[sema][assign]") {
+  auto [diag, ok] = analyze("let o = {a: 1}; o.a = 5; print(o.a);");
+  CHECK(ok);
+  CHECK(diag.errorCount() == 0);
+}
+
+TEST_CASE("SemanticAnalyzer: unknown field assignment on a literal is an error",
+         "[sema][assign]") {
+  // Parenthesized: a bare leading `{` at statement position parses as a
+  // block, not an object literal (see Parser::parseStmt).
+  auto [diag, ok] = analyze("({a: 1}.b = 5);");
+  CHECK_FALSE(ok);
+  REQUIRE(diag.errorCount() >= 1);
+  CHECK(diag.diagnostics()[0].code == ErrorCode::SEM_UNKNOWN_FIELD);
+}

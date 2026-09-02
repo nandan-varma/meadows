@@ -12,15 +12,19 @@ std::unique_ptr<Expr> Parser::parseAssignment(int depth) {
   }
   auto expr = parseOr(depth + 1);
   if (match(TokenType::EQUAL)) {
-    auto varExpr = dynamic_cast<VarExpr *>(expr.get());
-    if (!varExpr) {
+    // A valid assignment target is a plain variable (x = ...), an array
+    // element (arr[i] = ...), or an object field (obj.field = ...).
+    bool validTarget = dynamic_cast<VarExpr *>(expr.get()) != nullptr ||
+                       dynamic_cast<IndexExpr *>(expr.get()) != nullptr ||
+                       dynamic_cast<FieldAccessExpr *>(expr.get()) != nullptr;
+    if (!validTarget) {
       meadows::SourceLocation loc("", peek().line, peek().column);
       throw meadows::ParseException(
           meadows::ErrorCode::PARSE_INVALID_ASSIGNMENT_TARGET,
           "Invalid assignment target", loc);
     }
     auto value = parseAssignment(depth + 1);
-    return std::make_unique<AssignExpr>(varExpr->name, std::move(value));
+    return std::make_unique<AssignExpr>(std::move(expr), std::move(value));
   }
   return expr;
 }

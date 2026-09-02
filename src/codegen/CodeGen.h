@@ -107,6 +107,17 @@ private:
   llvm::Value *getStringLength(llvm::Value *str);
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
   llvm::Value *compareStrings(llvm::Value *left, llvm::Value *right, bool equal);
+
+  // Resolves a FieldAccessExpr's struct type and field index, whether its
+  // object is an inline literal or a variable declared from one. Shared by
+  // the read path (visitFieldAccessExpr) and the write path
+  // (visitAssignExpr's FieldAccessExpr-target case) so they can't drift.
+  // `expr.object` must already have been visited before calling this.
+  // Throws (via the error() helper) if the target's shape can't be resolved
+  // — an object literal or a variable declared directly from one are the
+  // only supported cases; see visitFieldAccessExpr's doc comment.
+  void resolveFieldAccess(FieldAccessExpr &expr, llvm::StructType *&structType,
+                          size_t &fieldIndex);
   void validateArrayBounds(llvm::Value *array, llvm::Value *index);
   void validateDivision(llvm::Value *divisor);
   void generateRuntimeError(const std::string &message);

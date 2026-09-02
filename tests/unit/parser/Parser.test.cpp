@@ -760,3 +760,48 @@ TEST_CASE("Parser property-based tests", "[parser][property]") {
     }
   }
 }
+
+TEST_CASE("Parser handles assignment targets", "[parser][assign]") {
+  SECTION("Plain variable target") {
+    auto parser = createParser("x = 5;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    auto exprStmt = dynamic_cast<ExprStmt *>(stmts[0].get());
+    REQUIRE(exprStmt != nullptr);
+    auto assign = dynamic_cast<AssignExpr *>(exprStmt->expr.get());
+    REQUIRE(assign != nullptr);
+    REQUIRE(dynamic_cast<VarExpr *>(assign->target.get()) != nullptr);
+  }
+
+  SECTION("Array index target") {
+    auto parser = createParser("arr[0] = 5;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    auto exprStmt = dynamic_cast<ExprStmt *>(stmts[0].get());
+    REQUIRE(exprStmt != nullptr);
+    auto assign = dynamic_cast<AssignExpr *>(exprStmt->expr.get());
+    REQUIRE(assign != nullptr);
+    REQUIRE(dynamic_cast<IndexExpr *>(assign->target.get()) != nullptr);
+  }
+
+  SECTION("Object field target") {
+    auto parser = createParser("obj.field = 5;");
+    auto stmts = parser->parse();
+    REQUIRE(stmts.size() == 1);
+    auto exprStmt = dynamic_cast<ExprStmt *>(stmts[0].get());
+    REQUIRE(exprStmt != nullptr);
+    auto assign = dynamic_cast<AssignExpr *>(exprStmt->expr.get());
+    REQUIRE(assign != nullptr);
+    auto fieldTarget = dynamic_cast<FieldAccessExpr *>(assign->target.get());
+    REQUIRE(fieldTarget != nullptr);
+    REQUIRE(fieldTarget->fieldName == "field");
+  }
+
+  SECTION("Non-lvalue targets are rejected") {
+    std::string sources[] = {"5 = 10;", "(1 + 2) = 3;", "f() = 3;"};
+    for (const auto &src : sources) {
+      auto parser = createParser(src);
+      REQUIRE_THROWS_AS(parser->parse(), meadows::ParseException);
+    }
+  }
+}

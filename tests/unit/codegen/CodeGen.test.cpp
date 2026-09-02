@@ -863,6 +863,71 @@ TEST_CASE("CodeGen handles variable reassignment", "[codegen][assign]") {
   }
 }
 
+TEST_CASE("CodeGen handles array index and object field assignment",
+         "[codegen][assign]") {
+  SECTION("Array element assignment") {
+    auto parser =
+        createParser("let arr = [1, 2, 3]; arr[0] = 100; print(arr[0]);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Array index assignment still runs the bounds check") {
+    auto parser = createParser("let arr = [1, 2, 3]; arr[10] = 5;");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("bounds_error") != std::string::npos);
+  }
+
+  SECTION("Object field assignment on a direct literal") {
+    auto parser = createParser("let o = {a: 1, b: 2}; o.a = 100; print(o.a);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Object field assignment through a variable alias") {
+    auto parser = createParser(
+        "let o = {a: 1}; let alias = o; alias.a = 100; print(o.a);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("Assignment expression evaluates to the assigned value") {
+    auto parser =
+        createParser("let arr = [1, 2, 3]; print(arr[0] = 42);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    REQUIRE(codegen.getModule() != nullptr);
+  }
+}
+
 TEST_CASE("CodeGen handles logical operators", "[codegen][logical]") {
   SECTION("Logical AND") {
     auto parser = createParser("let x = true && true;");

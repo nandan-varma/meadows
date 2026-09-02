@@ -147,8 +147,9 @@ TEST_CASE("Interpreter: bare return yields 0", "[interpreter]") {
 
 TEST_CASE("Interpreter: arrays support arbitrary element types and len()",
          "[interpreter]") {
-  // Superset of the native backend, which is i32-elements-only and doesn't
-  // track array length at runtime — see docs/LANGUAGE.md limitations.
+  // Element-type flexibility is still a superset of the native backend
+  // (i32-only) — see docs/LANGUAGE.md limitations. len() on arrays itself
+  // is supported by both backends now.
   auto r = run(R"(
     let a = [1, 2, 3];
     print(a[0]);
@@ -196,10 +197,6 @@ TEST_CASE("Interpreter: object literals and field access", "[interpreter]") {
 }
 
 TEST_CASE("Interpreter: field access works through a variable", "[interpreter]") {
-  // The native backend only resolves field access when the object is an
-  // inline literal at the access site — see docs/LANGUAGE.md. The
-  // interpreter implements full field access since nothing about the
-  // language design requires that restriction.
   auto r = run(R"(
     let o = {x: 10, y: 20};
     let p = o;
@@ -213,6 +210,56 @@ TEST_CASE("Interpreter: unknown field on a variable-bound object is a runtime er
   auto r = run(R"(let o = {a: 1}; print(o.b);)");
   CHECK(r.exitCode == -1);
   CHECK(r.output.find("RuntimeError") != std::string::npos);
+}
+
+TEST_CASE("Interpreter: array element assignment", "[interpreter][assign]") {
+  auto r = run(R"(
+    let arr = [1, 2, 3, 4, 5];
+    arr[0] = 100;
+    arr[4] = 500;
+    print(arr[0]);
+    print(arr[1]);
+    print(arr[4]);
+  )");
+  CHECK(r.output == "100\n2\n500\n");
+}
+
+TEST_CASE("Interpreter: array element assignment out of bounds is a runtime error",
+         "[interpreter][assign]") {
+  auto r = run("let arr = [1, 2, 3]; arr[10] = 5;");
+  CHECK(r.exitCode == -1);
+  CHECK(r.output.find("RuntimeError: Array index out of bounds") != std::string::npos);
+}
+
+TEST_CASE("Interpreter: object field assignment, including through an alias",
+         "[interpreter][assign]") {
+  // Objects have reference semantics: mutating through one alias is visible
+  // through every other alias to the same underlying object.
+  auto r = run(R"(
+    let o = {a: 1, b: 2};
+    o.a = 100;
+    print(o.a);
+    print(o.b);
+
+    let alias = o;
+    alias.b = 200;
+    print(o.b);
+    print(alias.b);
+  )");
+  CHECK(r.output == "100\n2\n200\n200\n");
+}
+
+TEST_CASE("Interpreter: assigning an unknown field is a runtime error",
+         "[interpreter][assign]") {
+  auto r = run(R"(let o = {a: 1}; o.b = 5;)");
+  CHECK(r.exitCode == -1);
+  CHECK(r.output.find("RuntimeError") != std::string::npos);
+}
+
+TEST_CASE("Interpreter: assignment expression evaluates to the assigned value",
+         "[interpreter][assign]") {
+  CHECK(run("let arr = [1, 2, 3]; print(arr[0] = 42);").output == "42\n");
+  CHECK(run("let o = {a: 1}; print(o.a = 42);").output == "42\n");
 }
 
 TEST_CASE("Interpreter: len() and str() builtins", "[interpreter]") {

@@ -117,13 +117,55 @@ void Interpreter::visitVarExpr(VarExpr &expr) {
 }
 
 void Interpreter::visitAssignExpr(AssignExpr &expr) {
-  Value v = eval(*expr.value);
-  Value *slot = lookup(expr.name);
-  if (!slot)
-    runtimeError("RuntimeError: assignment to undefined variable '" +
-                 expr.name + "'");
-  *slot = v;
-  result_ = v;
+  if (auto *varTarget = dynamic_cast<VarExpr *>(expr.target.get())) {
+    Value v = eval(*expr.value);
+    Value *slot = lookup(varTarget->name);
+    if (!slot)
+      runtimeError("RuntimeError: assignment to undefined variable '" +
+                   varTarget->name + "'");
+    *slot = v;
+    result_ = v;
+    return;
+  }
+
+  if (auto *indexTarget = dynamic_cast<IndexExpr *>(expr.target.get())) {
+    Value arr = eval(*indexTarget->array);
+    Value idx = eval(*indexTarget->index);
+    if (!arr.isArray())
+      runtimeError("RuntimeError: cannot index a " + std::string(arr.typeName()));
+    requireInt(idx, "array index");
+
+    int32_t i = idx.asInt();
+    auto &elems = arr.asArray(); // aliases the same shared_ptr<ValueArray>
+                                 // as the variable this Value was read from
+    if (i < 0 || static_cast<size_t>(i) >= elems.size())
+      runtimeError("RuntimeError: Array index out of bounds");
+
+    Value v = eval(*expr.value);
+    elems[static_cast<size_t>(i)] = v;
+    result_ = v;
+    return;
+  }
+
+  if (auto *fieldTarget = dynamic_cast<FieldAccessExpr *>(expr.target.get())) {
+    Value obj = eval(*fieldTarget->object);
+    if (!obj.isObject())
+      runtimeError("RuntimeError: cannot access field '" +
+                   fieldTarget->fieldName + "' on a " +
+                   std::string(obj.typeName()));
+    auto &fields = obj.asObject();
+    auto it = fields.find(fieldTarget->fieldName);
+    if (it == fields.end())
+      runtimeError("RuntimeError: object has no field '" +
+                   fieldTarget->fieldName + "'");
+
+    Value v = eval(*expr.value);
+    it->second = v;
+    result_ = v;
+    return;
+  }
+
+  runtimeError("RuntimeError: unsupported assignment target");
 }
 
 void Interpreter::visitBinaryExpr(BinaryExpr &expr) {

@@ -3,6 +3,15 @@
 ## [1.0.2] — 2025
 
 ### Added
+- Array element and object field assignment (`arr[0] = x`, `obj.field = x`)
+  in both backends. `AssignExpr` generalized from a bare variable-name
+  target to any of VarExpr/IndexExpr/FieldAccessExpr — the parser accepts
+  exactly those three as assignment targets (`E2010
+  PARSE_INVALID_ASSIGNMENT_TARGET` otherwise), and CodeGen's field-shape
+  resolution (added for read access above) is shared between the read and
+  write paths via `CodeGen::resolveFieldAccess` so they can't drift. An
+  assignment expression evaluates to the assigned value, e.g.
+  `print(arr[0] = 5);` is valid.
 - Native LLVM backend: field access now resolves through a variable declared
   directly from an object literal (`let o = {a: 1}; let p = o; p.a`), not
   just an inline literal at the access site — shape metadata threads through

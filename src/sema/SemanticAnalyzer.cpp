@@ -145,12 +145,21 @@ void SemanticAnalyzer::visitVarExpr(VarExpr &expr) {
 }
 
 void SemanticAnalyzer::visitAssignExpr(AssignExpr &expr) {
-  SourceLocation loc(filename_, expr.line, expr.column);
-  if (!lookupVar(expr.name)) {
-    reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
-                "Assignment to undefined variable '" + expr.name + "'", loc);
+  if (auto *varTarget = dynamic_cast<VarExpr *>(expr.target.get())) {
+    SourceLocation loc(filename_, expr.line, expr.column);
+    if (!lookupVar(varTarget->name)) {
+      reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
+                  "Assignment to undefined variable '" + varTarget->name + "'",
+                  loc);
+    } else {
+      markVarUsed(varTarget->name);
+    }
   } else {
-    markVarUsed(expr.name);
+    // IndexExpr or FieldAccessExpr target (the parser guarantees the target
+    // is one of these three kinds) — reuse the same checks a read would get:
+    // visitIndexExpr validates the array/index subexpressions, and
+    // visitFieldAccessExpr rejects an unknown field on an inline literal.
+    expr.target->accept(*this);
   }
   expr.value->accept(*this);
 }
