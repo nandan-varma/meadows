@@ -3,6 +3,12 @@
 ## [1.0.2] — 2025
 
 ### Added
+- Browser playground: replaced the plain `<textarea>` source editor with
+  CodeMirror 6 — syntax highlighting, line numbers, bracket matching,
+  undo/redo, a Ctrl/Cmd+Enter shortcut to run, and source persistence
+  across reloads (`localStorage`). No bundler added; loaded from esm.sh as
+  ES modules at runtime, same pattern as the WASM module import, so
+  `deploy-playground.yml` still just copies `web/*` verbatim.
 - `import "path.ms";` (CLI only) — the fourth "new language feature": a
   minimal, lean multi-file module system. `ModuleResolver` textually splices
   an imported file's tokens in place before parsing, so the parser,
