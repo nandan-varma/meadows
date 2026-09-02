@@ -160,7 +160,10 @@ int main(int argc, char *argv[]) {
     LSPInterface lsp;
     std::ifstream f(inputFile);
     if (!f) {
-      lsp.emitDiagnostics(inputFile, {"Cannot open file: " + inputFile});
+      meadows::SourceLocation loc(inputFile, 1, 1);
+      meadows::Diagnostic diag(meadows::ErrorCode::SYS_FILE_NOT_FOUND,
+                               "Cannot open file: " + inputFile, loc);
+      lsp.emitDiagnostics(inputFile, {diag});
       return 0;
     }
     std::string src((std::istreambuf_iterator<char>(f)),

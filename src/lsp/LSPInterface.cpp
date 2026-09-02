@@ -1,30 +1,11 @@
 #include "LSPInterface.h"
 #include "../utils/Exceptions.h"
 #include <iostream>
-#include <regex>
 #include <sstream>
 
 LSPInterface::LSPInterface() {}
 
-void LSPInterface::emitDiagnostics(const std::string &filePath,
-                                   const std::vector<std::string> &errors) {
-  std::vector<meadows::Diagnostic> diagnostics;
-
-  // Parse each error message
-  for (const auto &error : errors) {
-    diagnostics.push_back(parseErrorToDiagnostic(error, filePath));
-  }
-
-  emitDiagnosticsJSON(filePath, diagnostics);
-}
-
 void LSPInterface::emitDiagnostics(
-    const std::string &filePath,
-    const std::vector<meadows::Diagnostic> &diagnostics) {
-  emitDiagnosticsJSON(filePath, diagnostics);
-}
-
-void LSPInterface::emitDiagnosticsJSON(
     const std::string &filePath,
     const std::vector<meadows::Diagnostic> &diagnostics) {
   // Output JSON
@@ -132,67 +113,6 @@ std::string LSPInterface::escapeJson(const std::string &str) {
     }
   }
   return oss.str();
-}
-
-meadows::Diagnostic
-LSPInterface::parseErrorToDiagnostic(const std::string &error,
-                                     const std::string &filePath) {
-  meadows::SourceLocation loc;
-  loc.file = filePath;
-
-  // Try to parse line number from error message
-  std::regex lineRegex(R"(line\s+(\d+))", std::regex::icase);
-  std::smatch match;
-
-  if (std::regex_search(error, match, lineRegex)) {
-    loc.line = std::stoi(match[1].str());
-  } else {
-    loc.line = LSP_LINE_OFFSET;
-  }
-
-  // Try to find column information
-  std::regex colRegex(R"(column\s+(\d+))", std::regex::icase);
-  if (std::regex_search(error, match, colRegex)) {
-    loc.column = std::stoi(match[1].str());
-  } else {
-    loc.column = LSP_COLUMN_OFFSET;
-  }
-
-  // Estimate end column
-  loc.endColumn = loc.column + LSP_DEFAULT_TOKEN_WIDTH;
-
-  // Extract the message
-  std::string msg = error;
-  size_t pos = msg.find(":");
-  if (pos != std::string::npos && pos < msg.length() - 1) {
-    msg = msg.substr(pos + 1);
-    pos = msg.find_first_not_of(" \t");
-    if (pos != std::string::npos) {
-      msg = msg.substr(pos);
-    }
-  }
-
-  // Determine error code from message content
-  meadows::ErrorCode code = meadows::ErrorCode::PARSE_UNEXPECTED_TOKEN;
-  if (error.find("unterminated string") != std::string::npos) {
-    code = meadows::ErrorCode::LEX_UNTERMINATED_STRING;
-  } else if (error.find("Expect") != std::string::npos &&
-             error.find("'") != std::string::npos) {
-    if (error.find("';'") != std::string::npos) {
-      code = meadows::ErrorCode::PARSE_EXPECTED_SEMICOLON;
-    } else if (error.find("'('") != std::string::npos) {
-      code = meadows::ErrorCode::PARSE_EXPECTED_LPAREN;
-    } else if (error.find("')'") != std::string::npos) {
-      code = meadows::ErrorCode::PARSE_EXPECTED_RPAREN;
-    } else if (error.find("'{'") != std::string::npos) {
-      code = meadows::ErrorCode::PARSE_EXPECTED_LBRACE;
-    } else if (error.find("'}'") != std::string::npos) {
-      code = meadows::ErrorCode::PARSE_EXPECTED_RBRACE;
-    }
-  }
-
-  meadows::Diagnostic diag(code, msg, loc);
-  return diag;
 }
 
 int LSPInterface::severityFromString(const std::string &severity) {
