@@ -1352,3 +1352,160 @@ TEST_CASE("CodeGen compares string content, not pointer identity, for == and !="
     REQUIRE(dump.find("call i32 @strcmp") == std::string::npos);
   }
 }
+
+TEST_CASE("CodeGen handles float literals and arithmetic", "[codegen][float]") {
+  SECTION("Float literal and print use double + %g") {
+    auto parser = createParser("print(3.14159);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("double") != std::string::npos);
+    REQUIRE(dump.find("%g") != std::string::npos);
+  }
+
+  SECTION("Float arithmetic lowers to F-prefixed instructions") {
+    // Non-constant operands (variables) throughout — the IRBuilder's
+    // constant folder can otherwise fold a pure-constant fadd/fsub/etc. away
+    // into a single ConstantFP, leaving no instruction to find in the IR.
+    auto parser = createParser(
+        "let a = 1.5; let b = 2.5; let c = 5.0; let d = 1.5; let e = 2.0; "
+        "let f = 3.5; let g = 7.0; let h = 2.0; let i = 10.5; let j = 3.0; "
+        "print(a + b); print(c - d); print(e * f); print(g / h); print(i % j);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("fadd") != std::string::npos);
+    REQUIRE(dump.find("fsub") != std::string::npos);
+    REQUIRE(dump.find("fmul") != std::string::npos);
+    REQUIRE(dump.find("fdiv") != std::string::npos);
+    REQUIRE(dump.find("frem") != std::string::npos);
+  }
+
+  SECTION("Mixed int/float arithmetic promotes the int operand") {
+    auto parser = createParser("let x = 5; print(x + 2.5);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("sitofp") != std::string::npos);
+    REQUIRE(dump.find("fadd") != std::string::npos);
+  }
+
+  SECTION("Float comparisons lower to ordered fcmp") {
+    // Non-constant operands (variables) so the IRBuilder's constant folder
+    // doesn't fold the comparison away before it can be observed in the IR.
+    auto parser = createParser(
+        "let a = 1.5; let b = 1.5; let c = 3.0; let d = 1; let e = 1.0; "
+        "print(a == b); print(a < c); print(d == e);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    module->print(dumpOs, nullptr);
+    REQUIRE(dump.find("fcmp oeq") != std::string::npos);
+    REQUIRE(dump.find("fcmp olt") != std::string::npos);
+  }
+
+  SECTION("Float division by zero still runs a runtime check") {
+    auto parser = createParser("let x = 1.0; let y = 0.0; print(x / y);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("div_error") != std::string::npos);
+    REQUIRE(dump.find("fcmp oeq") != std::string::npos);
+  }
+
+  SECTION("Unary negation on a float uses fneg") {
+    // A variable, not a literal — negating a constant folds to a plain
+    // ConstantFP at build time, with no fneg instruction to observe.
+    auto parser = createParser("let x = 3.5; print(-x);");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("fneg") != std::string::npos);
+  }
+
+  SECTION("str() accepts a float and formats it with %g") {
+    auto parser = createParser("print(str(3.14));");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+
+    std::string dump;
+    llvm::raw_string_ostream dumpOs(dump);
+    codegen.getModule()->print(dumpOs, nullptr);
+    REQUIRE(dump.find("@snprintf") != std::string::npos);
+  }
+
+  SECTION("String concatenation with a constant float literal") {
+    auto parser = createParser(R"(print("pi = " + 3.14159);)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+
+  SECTION("String concatenation with a negative constant integer (regression: "
+         "getSExtValue, not getZExtValue)") {
+    auto parser = createParser(R"(print("n = " + (0 - 5));)");
+    auto stmts = parser->parse();
+    CodeGen codegen;
+    REQUIRE_NOTHROW(codegen.generate(stmts));
+    auto module = codegen.getModule();
+    REQUIRE(module != nullptr);
+
+    std::string ir;
+    llvm::raw_string_ostream os(ir);
+    REQUIRE(llvm::verifyModule(*module, &os) == false);
+  }
+}

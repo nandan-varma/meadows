@@ -16,10 +16,15 @@ using ValueObject = std::map<std::string, Value>;
 /**
  * A dynamically-typed runtime value for the tree-walking Interpreter.
  *
- * Meadows values come in four kinds (docs/LANGUAGE.md): Integer, String,
- * Array, Object. There is no separate boolean type — comparisons and
- * logical operators produce 0/1 integers, matching the native LLVM
+ * Meadows values come in five kinds (docs/LANGUAGE.md): Integer, Float,
+ * String, Array, Object. There is no separate boolean type — comparisons
+ * and logical operators produce 0/1 integers, matching the native LLVM
  * backend's representation (see CodeGen::visitBinaryExpr / visitLogicalExpr).
+ *
+ * Int and Float participate in a small numeric tower: arithmetic and
+ * ordering between them promote the Int operand to Float (matching
+ * CodeGen's use of CreateSIToFP — see CodeGen::visitBinaryExpr), and
+ * equals() considers 1 == 1.0 true for the same reason.
  *
  * Arrays and objects have reference semantics (shared_ptr-backed): `let b =
  * a;` aliases the same underlying storage, matching the native backend
@@ -28,22 +33,29 @@ using ValueObject = std::map<std::string, Value>;
  */
 class Value {
 public:
-  enum class Kind { Int, Str, Array, Object };
+  enum class Kind { Int, Float, Str, Array, Object };
 
   Value() : kind_(Kind::Int), i_(0) {}
 
   static Value ofInt(int32_t v);
+  static Value ofFloat(double v);
   static Value ofStr(std::string v);
   static Value ofArray(std::shared_ptr<ValueArray> v);
   static Value ofObject(std::shared_ptr<ValueObject> v);
 
   Kind kind() const { return kind_; }
   bool isInt() const { return kind_ == Kind::Int; }
+  bool isFloat() const { return kind_ == Kind::Float; }
+  bool isNumeric() const { return isInt() || isFloat(); }
   bool isStr() const { return kind_ == Kind::Str; }
   bool isArray() const { return kind_ == Kind::Array; }
   bool isObject() const { return kind_ == Kind::Object; }
 
   int32_t asInt() const { return i_; }
+  double asFloat() const { return f_; }
+  /** Numeric value as a double, promoting Int if needed. Only valid when
+   * isNumeric() is true. */
+  double asDouble() const { return isFloat() ? f_ : static_cast<double>(i_); }
   const std::string &asStr() const { return s_; }
   const ValueArray &asArray() const { return *arr_; }
   ValueArray &asArray() { return *arr_; }
@@ -52,7 +64,10 @@ public:
 
   const char *typeName() const;
 
-  /** Human-readable form used by print() and by array/object rendering. */
+  /** Human-readable form used by print() and by array/object rendering.
+   * Floats are formatted with "%g" — chosen so a compiled program's printf
+   * output and the interpreter's output are byte-identical, since both
+   * ultimately go through the same libc *printf family. */
   std::string displayString() const;
 
   bool equals(const Value &other) const;
@@ -60,6 +75,7 @@ public:
 private:
   Kind kind_;
   int32_t i_ = 0;
+  double f_ = 0.0;
   std::string s_;
   std::shared_ptr<ValueArray> arr_;
   std::shared_ptr<ValueObject> obj_;

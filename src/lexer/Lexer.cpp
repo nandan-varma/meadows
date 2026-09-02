@@ -34,6 +34,12 @@ char Lexer::peek() const {
   return source_[pos_];
 }
 
+char Lexer::peekNext() const {
+  if (pos_ + 1 >= source_.size())
+    return '\0';
+  return source_[pos_ + 1];
+}
+
 char Lexer::advance() {
   char c = source_[pos_++];
   column_++;
@@ -184,6 +190,15 @@ Token Lexer::number() {
   size_t start = pos_;
   while (isdigit(peek())) {
     advance();
+  }
+  // A decimal point only counts as part of the literal when followed by at
+  // least one digit — otherwise it's ambiguous with the '.' used for field
+  // access, and this keeps the lexer to a single token of lookahead.
+  if (peek() == '.' && isdigit(peekNext())) {
+    advance(); // consume '.'
+    while (isdigit(peek())) {
+      advance();
+    }
   }
   std::string value = source_.substr(start, pos_ - start);
   return Token(TokenType::NUMBER, value, line_, startColumn);

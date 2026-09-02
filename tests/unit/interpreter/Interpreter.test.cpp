@@ -281,3 +281,45 @@ TEST_CASE("Interpreter: unbounded recursion trips the call-depth safety guard",
   CHECK(r.exitCode == -1);
   CHECK(r.output.find("PlaygroundError") != std::string::npos);
 }
+
+TEST_CASE("Interpreter: float literals and arithmetic", "[interpreter][float]") {
+  CHECK(run("print(3.14159);").output == "3.14159\n");
+  CHECK(run("print(1.5 + 2.5);").output == "4\n");
+  CHECK(run("print(5.0 - 1.5);").output == "3.5\n");
+  CHECK(run("print(2.0 * 3.5);").output == "7\n");
+  CHECK(run("print(7.0 / 2.0);").output == "3.5\n");
+  CHECK(run("print(10.5 % 3.0);").output == "1.5\n");
+  CHECK(run("let x = 3.5; print(-x);").output == "-3.5\n");
+}
+
+TEST_CASE("Interpreter: mixed int/float arithmetic promotes to float",
+         "[interpreter][float]") {
+  CHECK(run("print(7 / 2);").output == "3\n"); // pure-int stays int division
+  CHECK(run("print(7.0 / 2);").output == "3.5\n");
+  CHECK(run("let x = 5; print(x + 2.5);").output == "7.5\n");
+}
+
+TEST_CASE("Interpreter: Int and Float compare equal by numeric value, "
+         "matching CodeGen's promotion",
+         "[interpreter][float]") {
+  CHECK(run("print(1 == 1.0);").output == "1\n");
+  CHECK(run("print(1.5 == 1.5);").output == "1\n");
+  CHECK(run("print(2.5 < 3);").output == "1\n");
+}
+
+TEST_CASE("Interpreter: float division and modulo by zero are runtime errors",
+         "[interpreter][float]") {
+  auto div = run("let x = 1.0; let y = 0.0; print(x / y);");
+  CHECK(div.exitCode == -1);
+  CHECK(div.output.find("RuntimeError: Division by zero") != std::string::npos);
+
+  auto mod = run("let x = 1.0; let y = 0.0; print(x % y);");
+  CHECK(mod.exitCode == -1);
+}
+
+TEST_CASE("Interpreter: str() and print() output for floats matches "
+         "CodeGen's printf(\"%g\") formatting byte-for-byte",
+         "[interpreter][float]") {
+  CHECK(run("print(str(3.14));").output == "3.14\n");
+  CHECK(run(R"(print("pi = " + 3.14159);)").output == "pi = 3.14159\n");
+}

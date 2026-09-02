@@ -1,14 +1,33 @@
 #include "Value.h"
 
+#include <cstdio>
 #include <sstream>
 #include <utility>
 
 namespace meadows {
 
+namespace {
+// snprintf with "%g", not std::to_string (which always emits 6 fixed
+// decimals for a double) — matches CodeGen's printf("%g\n", ...) exactly,
+// since both go through the same libc *printf family.
+std::string formatFloat(double v) {
+  char buf[64];
+  std::snprintf(buf, sizeof(buf), "%g", v);
+  return std::string(buf);
+}
+} // namespace
+
 Value Value::ofInt(int32_t v) {
   Value r;
   r.kind_ = Kind::Int;
   r.i_ = v;
+  return r;
+}
+
+Value Value::ofFloat(double v) {
+  Value r;
+  r.kind_ = Kind::Float;
+  r.f_ = v;
   return r;
 }
 
@@ -36,6 +55,7 @@ Value Value::ofObject(std::shared_ptr<ValueObject> v) {
 const char *Value::typeName() const {
   switch (kind_) {
     case Kind::Int: return "integer";
+    case Kind::Float: return "float";
     case Kind::Str: return "string";
     case Kind::Array: return "array";
     case Kind::Object: return "object";
@@ -47,6 +67,8 @@ std::string Value::displayString() const {
   switch (kind_) {
     case Kind::Int:
       return std::to_string(i_);
+    case Kind::Float:
+      return formatFloat(f_);
     case Kind::Str:
       return s_;
     case Kind::Array: {
@@ -76,10 +98,16 @@ std::string Value::displayString() const {
 }
 
 bool Value::equals(const Value &other) const {
+  // Int/Float compare across kinds by promoting Int to double — matches the
+  // promotion arithmetic and ordering comparisons use (see
+  // CodeGen::visitBinaryExpr), so 1 == 1.0 is true, consistent with `1 +
+  // 1.0` being a Float. No other kind pair is comparable.
+  if (isNumeric() && other.isNumeric()) return asDouble() == other.asDouble();
   if (kind_ != other.kind_) return false;
   switch (kind_) {
     case Kind::Int:
-      return i_ == other.i_;
+    case Kind::Float:
+      return false; // unreachable: both numeric kinds are handled above
     case Kind::Str:
       return s_ == other.s_;
     case Kind::Array: {

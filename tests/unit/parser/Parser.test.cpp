@@ -805,3 +805,54 @@ TEST_CASE("Parser handles assignment targets", "[parser][assign]") {
     }
   }
 }
+
+TEST_CASE("Parser distinguishes int, float, and string literal kinds",
+         "[parser][literals]") {
+  SECTION("Integer literal") {
+    auto parser = createParser("let x = 42;");
+    auto stmts = parser->parse();
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+    auto lit = dynamic_cast<LiteralExpr *>(letStmt->initializer.get());
+    REQUIRE(lit != nullptr);
+    CHECK(lit->kind == LiteralKind::Int);
+    CHECK(lit->value == "42");
+  }
+
+  SECTION("Float literal") {
+    auto parser = createParser("let x = 3.14;");
+    auto stmts = parser->parse();
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+    auto lit = dynamic_cast<LiteralExpr *>(letStmt->initializer.get());
+    REQUIRE(lit != nullptr);
+    CHECK(lit->kind == LiteralKind::Float);
+    CHECK(lit->value == "3.14");
+  }
+
+  SECTION("String literal") {
+    auto parser = createParser(R"(let x = "hi";)");
+    auto stmts = parser->parse();
+    auto letStmt = dynamic_cast<LetStmt *>(stmts[0].get());
+    REQUIRE(letStmt != nullptr);
+    auto lit = dynamic_cast<LiteralExpr *>(letStmt->initializer.get());
+    REQUIRE(lit != nullptr);
+    CHECK(lit->kind == LiteralKind::Str);
+    CHECK(lit->value == "hi");
+  }
+
+  SECTION("true/false are sugar for Int literals, not a boolean kind") {
+    auto parser = createParser("let x = true; let y = false;");
+    auto stmts = parser->parse();
+    auto trueLit = dynamic_cast<LiteralExpr *>(
+        dynamic_cast<LetStmt *>(stmts[0].get())->initializer.get());
+    auto falseLit = dynamic_cast<LiteralExpr *>(
+        dynamic_cast<LetStmt *>(stmts[1].get())->initializer.get());
+    REQUIRE(trueLit != nullptr);
+    REQUIRE(falseLit != nullptr);
+    CHECK(trueLit->kind == LiteralKind::Int);
+    CHECK(trueLit->value == "1");
+    CHECK(falseLit->kind == LiteralKind::Int);
+    CHECK(falseLit->value == "0");
+  }
+}

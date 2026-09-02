@@ -108,6 +108,14 @@ private:
   llvm::Value *concatenateStrings(llvm::Value *left, llvm::Value *right);
   llvm::Value *compareStrings(llvm::Value *left, llvm::Value *right, bool equal);
 
+  // If either operand is a double, promotes the other (via CreateSIToFP) so
+  // both are — used by visitBinaryExpr's arithmetic/comparison operators to
+  // give Int/Float a small numeric tower, matching Value's asDouble()
+  // promotion in the interpreter. Returns true if promotion happened (i.e.
+  // this is float arithmetic), false if both operands were already the same
+  // (non-double) type.
+  bool promoteToFloatIfMixed(llvm::Value *&left, llvm::Value *&right);
+
   // Resolves a FieldAccessExpr's struct type and field index, whether its
   // object is an inline literal or a variable declared from one. Shared by
   // the read path (visitFieldAccessExpr) and the write path

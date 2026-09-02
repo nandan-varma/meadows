@@ -1,6 +1,7 @@
 #include "Interpreter.h"
 
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <stdexcept>
 #include <utility>
@@ -53,6 +54,13 @@ void Interpreter::requireInt(const Value &v, const char *context) {
   }
 }
 
+void Interpreter::requireNumeric(const Value &v, const char *context) {
+  if (!v.isNumeric()) {
+    runtimeError(std::string("RuntimeError: ") + context +
+                 " must be a number, got " + v.typeName());
+  }
+}
+
 Value Interpreter::eval(Expr &expr) {
   bumpStep();
   expr.accept(*this);
@@ -96,17 +104,21 @@ int Interpreter::run(const std::vector<std::unique_ptr<Stmt>> &statements) {
 // ── Expressions ────────────────────────────────────────────────────────────
 
 void Interpreter::visitLiteralExpr(LiteralExpr &expr) {
-  // LiteralExpr conflates int and string literals into one node distinguished
-  // only by content — matches CodeGen::visitLiteralExpr exactly, since the
-  // parser doesn't preserve the original token kind on this AST node.
-  if (!expr.value.empty() && isdigit(static_cast<unsigned char>(expr.value[0]))) {
-    try {
-      result_ = Value::ofInt(std::stoi(expr.value));
-    } catch (const std::out_of_range &) {
-      result_ = Value::ofInt(INT32_MAX);
-    }
-  } else {
-    result_ = Value::ofStr(expr.value);
+  switch (expr.kind) {
+    case LiteralKind::Int:
+      try {
+        result_ = Value::ofInt(std::stoi(expr.value));
+      } catch (const std::out_of_range &) {
+        // Matches CodeGen::visitLiteralExpr's overflow clamp.
+        result_ = Value::ofInt(INT32_MAX);
+      }
+      return;
+    case LiteralKind::Float:
+      result_ = Value::ofFloat(std::stod(expr.value));
+      return;
+    case LiteralKind::Str:
+      result_ = Value::ofStr(expr.value);
+      return;
   }
 }
 
@@ -182,6 +194,10 @@ void Interpreter::visitBinaryExpr(BinaryExpr &expr) {
       if (a.size() + b.size() > kMaxStringLength)
         runtimeError("RuntimeError: string exceeds maximum length");
       result_ = Value::ofStr(a + b);
+    } else if (left.isFloat() || right.isFloat()) {
+      requireNumeric(left, "operand of '+'");
+      requireNumeric(right, "operand of '+'");
+      result_ = Value::ofFloat(left.asDouble() + right.asDouble());
     } else {
       requireInt(left, "operand of '+'");
       requireInt(right, "operand of '+'");
@@ -200,9 +216,39 @@ void Interpreter::visitBinaryExpr(BinaryExpr &expr) {
     return;
   }
 
-  // Every remaining operator requires two integers.
-  requireInt(left, "operand of binary operator");
-  requireInt(right, "operand of binary operator");
+  // Every remaining operator requires two numbers. If either is a Float,
+  // the Int operand (if any) promotes to Float — matches CodeGen's use of
+  // CreateSIToFP in the same situation.
+  requireNumeric(left, "operand of binary operator");
+  requireNumeric(right, "operand of binary operator");
+
+  if (left.isFloat() || right.isFloat()) {
+    double a = left.asDouble();
+    double b = right.asDouble();
+    if (expr.op == "-") {
+      result_ = Value::ofFloat(a - b);
+    } else if (expr.op == "*") {
+      result_ = Value::ofFloat(a * b);
+    } else if (expr.op == "/") {
+      if (b == 0.0) runtimeError("RuntimeError: Division by zero");
+      result_ = Value::ofFloat(a / b);
+    } else if (expr.op == "%") {
+      if (b == 0.0) runtimeError("RuntimeError: Division by zero");
+      result_ = Value::ofFloat(std::fmod(a, b));
+    } else if (expr.op == ">") {
+      result_ = Value::ofInt(a > b ? 1 : 0);
+    } else if (expr.op == "<") {
+      result_ = Value::ofInt(a < b ? 1 : 0);
+    } else if (expr.op == ">=") {
+      result_ = Value::ofInt(a >= b ? 1 : 0);
+    } else if (expr.op == "<=") {
+      result_ = Value::ofInt(a <= b ? 1 : 0);
+    } else {
+      runtimeError("RuntimeError: unknown binary operator '" + expr.op + "'");
+    }
+    return;
+  }
+
   int32_t a = left.asInt();
   int32_t b = right.asInt();
 
@@ -231,10 +277,18 @@ void Interpreter::visitBinaryExpr(BinaryExpr &expr) {
 
 void Interpreter::visitUnaryExpr(UnaryExpr &expr) {
   Value operand = eval(*expr.operand);
-  requireInt(operand, "operand of unary operator");
   if (expr.op == "-") {
-    result_ = Value::ofInt(static_cast<int32_t>(0u - static_cast<uint32_t>(operand.asInt())));
+    // Truthiness (!, &&, ||, conditions) stays Int-only in both backends —
+    // CodeGen's CreateCondBr/ICmpEQ-against-i32-0 pattern would need
+    // restructuring to accept a double operand there. Negation has no such
+    // constraint, so it promotes like the binary arithmetic operators do.
+    requireNumeric(operand, "operand of unary '-'");
+    result_ = operand.isFloat()
+                 ? Value::ofFloat(-operand.asFloat())
+                 : Value::ofInt(static_cast<int32_t>(
+                       0u - static_cast<uint32_t>(operand.asInt())));
   } else if (expr.op == "!") {
+    requireInt(operand, "operand of unary '!'");
     result_ = Value::ofInt(operand.asInt() == 0 ? 1 : 0);
   } else {
     runtimeError("RuntimeError: unknown unary operator '" + expr.op + "'");
@@ -317,7 +371,7 @@ void Interpreter::visitCallExpr(CallExpr &expr) {
 Value Interpreter::callBuiltin(const std::string &name, std::vector<Value> args) {
   if (name == "print") {
     const Value &v = args[0];
-    if (!v.isInt() && !v.isStr())
+    if (!v.isNumeric() && !v.isStr())
       runtimeError("RuntimeError: print() does not support a " +
                    std::string(v.typeName()) + " argument");
     output_(v.displayString() + "\n");
@@ -331,8 +385,9 @@ Value Interpreter::callBuiltin(const std::string &name, std::vector<Value> args)
   }
   if (name == "str") {
     const Value &v = args[0];
-    if (!v.isInt()) runtimeError("RuntimeError: str() argument must be an integer");
-    return Value::ofStr(std::to_string(v.asInt()));
+    if (!v.isNumeric())
+      runtimeError("RuntimeError: str() argument must be a number");
+    return Value::ofStr(v.displayString());
   }
   runtimeError("RuntimeError: unknown builtin '" + name + "'");
 }

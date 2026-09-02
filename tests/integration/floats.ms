@@ -1,0 +1,17 @@
+let pi = 3.14159;
+print(pi);
+print(1.5 + 2.5);
+print(10.0 / 4.0);
+print(7 / 2);
+print(7.0 / 2);
+print(-3.5);
+print(1.5 == 1.5);
+print(1 == 1.0);
+print(2.5 < 3);
+print(10 % 3);
+print(10.5 % 3.0);
+print(str(3.14));
+print("pi = " + 3.14159);
+let x = 5;
+let y = x + 2.5;
+print(y);

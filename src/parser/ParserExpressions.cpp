@@ -138,16 +138,19 @@ std::unique_ptr<Expr> Parser::parseFieldAccess(int depth) {
 
 std::unique_ptr<Expr> Parser::parsePrimary(int depth) {
   if (match(TokenType::STRING)) {
-    return std::make_unique<LiteralExpr>(previous().value);
+    return std::make_unique<LiteralExpr>(LiteralKind::Str, previous().value);
   }
   if (match(TokenType::NUMBER)) {
-    return std::make_unique<LiteralExpr>(previous().value);
+    const std::string &text = previous().value;
+    LiteralKind kind = text.find('.') != std::string::npos ? LiteralKind::Float
+                                                            : LiteralKind::Int;
+    return std::make_unique<LiteralExpr>(kind, text);
   }
   if (match(TokenType::TRUE)) {
-    return std::make_unique<LiteralExpr>("1");
+    return std::make_unique<LiteralExpr>(LiteralKind::Int, "1");
   }
   if (match(TokenType::FALSE)) {
-    return std::make_unique<LiteralExpr>("0");
+    return std::make_unique<LiteralExpr>(LiteralKind::Int, "0");
   }
   if (match(TokenType::IDENTIFIER)) {
     return std::make_unique<VarExpr>(previous().value);

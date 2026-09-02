@@ -114,6 +114,7 @@ private:
 
   [[noreturn]] void runtimeError(const std::string &message);
   void requireInt(const Value &v, const char *context);
+  void requireNumeric(const Value &v, const char *context);
 
   void visitLiteralExpr(LiteralExpr &expr) override;
   void visitVarExpr(VarExpr &expr) override;

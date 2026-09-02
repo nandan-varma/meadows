@@ -46,6 +46,7 @@ private:
   int currentLineStart_;
 
   char peek() const;
+  char peekNext() const;
   char advance();
   bool isAtEnd() const;
   Token nextToken();

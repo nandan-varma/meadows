@@ -3,6 +3,7 @@
 #include "SymbolTable.h"
 #include <algorithm>
 #include <climits>
+#include <cstdio>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
@@ -32,8 +33,14 @@ bool CodeGen::variableExists(const std::string &name) {
 }
 
 void CodeGen::validateDivision(llvm::Value *divisor) {
-  auto *zero = llvm::ConstantInt::get(divisor->getType(), 0);
-  auto *isZero = builder->CreateICmpEQ(divisor, zero, "div_is_zero");
+  llvm::Value *isZero;
+  if (divisor->getType()->isDoubleTy()) {
+    auto *zero = llvm::ConstantFP::get(divisor->getType(), 0.0);
+    isZero = builder->CreateFCmpOEQ(divisor, zero, "div_is_zero");
+  } else {
+    auto *zero = llvm::ConstantInt::get(divisor->getType(), 0);
+    isZero = builder->CreateICmpEQ(divisor, zero, "div_is_zero");
+  }
   auto *divErrorBB =
       llvm::BasicBlock::Create(*context, "div_error", currentFunction);
   auto *continueBB =
@@ -221,20 +228,27 @@ void CodeGen::freeAllocatedStrings() {
 std::unique_ptr<llvm::Module> CodeGen::getModule() { return std::move(module); }
 
 void CodeGen::visitLiteralExpr(LiteralExpr &expr) {
-  if (!expr.value.empty() && isdigit(expr.value[0])) {
-    try {
-      exprResult = llvm::ConstantInt::get(
-          llvm::Type::getInt32Ty(*context),
-          llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
-    } catch (const std::out_of_range &) {
-      constexpr int32_t MAX_I32_VALUE = INT32_MAX;
-      exprResult =
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
-                                 llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
-    }
-  } else {
-    StringUtils::StringPool::getInstance().intern(expr.value);
-    exprResult = builder->CreateGlobalStringPtr(expr.value);
+  switch (expr.kind) {
+    case LiteralKind::Int:
+      try {
+        exprResult = llvm::ConstantInt::get(
+            llvm::Type::getInt32Ty(*context),
+            llvm::APInt(INT32_BIT_WIDTH, std::stoi(expr.value)));
+      } catch (const std::out_of_range &) {
+        constexpr int32_t MAX_I32_VALUE = INT32_MAX;
+        exprResult =
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context),
+                                   llvm::APInt(INT32_BIT_WIDTH, MAX_I32_VALUE));
+      }
+      return;
+    case LiteralKind::Float:
+      exprResult = llvm::ConstantFP::get(llvm::Type::getDoubleTy(*context),
+                                         std::stod(expr.value));
+      return;
+    case LiteralKind::Str:
+      StringUtils::StringPool::getInstance().intern(expr.value);
+      exprResult = builder->CreateGlobalStringPtr(expr.value);
+      return;
   }
 }
 
@@ -320,39 +334,55 @@ void CodeGen::visitBinaryExpr(BinaryExpr &expr) {
   if (expr.op == "+") {
     if (TypeUtils::isPointerType(left) || TypeUtils::isPointerType(right)) {
       exprResult = concatenateStrings(left, right);
+    } else if (promoteToFloatIfMixed(left, right)) {
+      exprResult = builder->CreateFAdd(left, right);
     } else {
       exprResult = builder->CreateAdd(left, right);
     }
   } else if (expr.op == "-") {
-    exprResult = builder->CreateSub(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFSub(left, right)
+                                                    : builder->CreateSub(left, right);
   } else if (expr.op == "*") {
-    exprResult = builder->CreateMul(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFMul(left, right)
+                                                    : builder->CreateMul(left, right);
   } else if (expr.op == "/") {
+    bool isFloat = promoteToFloatIfMixed(left, right);
     validateDivision(right);
-    exprResult = builder->CreateSDiv(left, right);
+    exprResult = isFloat ? builder->CreateFDiv(left, right)
+                         : builder->CreateSDiv(left, right);
   } else if (expr.op == "%") {
+    bool isFloat = promoteToFloatIfMixed(left, right);
     validateDivision(right);
-    exprResult = builder->CreateSRem(left, right);
+    exprResult = isFloat ? builder->CreateFRem(left, right)
+                         : builder->CreateSRem(left, right);
   } else if (expr.op == "==") {
     if (TypeUtils::isPointerType(left) && TypeUtils::isPointerType(right)) {
       exprResult = compareStrings(left, right, /*equal=*/true);
     } else {
-      exprResult = builder->CreateICmpEQ(left, right);
+      exprResult = promoteToFloatIfMixed(left, right)
+                       ? builder->CreateFCmpOEQ(left, right)
+                       : builder->CreateICmpEQ(left, right);
     }
   } else if (expr.op == "!=") {
     if (TypeUtils::isPointerType(left) && TypeUtils::isPointerType(right)) {
       exprResult = compareStrings(left, right, /*equal=*/false);
     } else {
-      exprResult = builder->CreateICmpNE(left, right);
+      exprResult = promoteToFloatIfMixed(left, right)
+                       ? builder->CreateFCmpONE(left, right)
+                       : builder->CreateICmpNE(left, right);
     }
   } else if (expr.op == ">") {
-    exprResult = builder->CreateICmpSGT(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFCmpOGT(left, right)
+                                                    : builder->CreateICmpSGT(left, right);
   } else if (expr.op == "<") {
-    exprResult = builder->CreateICmpSLT(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFCmpOLT(left, right)
+                                                    : builder->CreateICmpSLT(left, right);
   } else if (expr.op == ">=") {
-    exprResult = builder->CreateICmpSGE(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFCmpOGE(left, right)
+                                                    : builder->CreateICmpSGE(left, right);
   } else if (expr.op == "<=") {
-    exprResult = builder->CreateICmpSLE(left, right);
+    exprResult = promoteToFloatIfMixed(left, right) ? builder->CreateFCmpOLE(left, right)
+                                                    : builder->CreateICmpSLE(left, right);
   } else {
     error("Unknown binary operator: ", expr.op);
   }
@@ -362,7 +392,8 @@ void CodeGen::visitUnaryExpr(UnaryExpr &expr) {
   expr.operand->accept(*this);
   auto operand = exprResult;
   if (expr.op == "-") {
-    exprResult = builder->CreateNeg(operand);
+    exprResult = operand->getType()->isDoubleTy() ? builder->CreateFNeg(operand)
+                                                  : builder->CreateNeg(operand);
   } else if (expr.op == "!") {
     auto boolCond = builder->CreateICmpEQ(
         operand, llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), 0));
@@ -513,6 +544,12 @@ void CodeGen::emitPrint(llvm::Value *val) {
   if (val->getType()->isIntegerTy()) {
     auto format = builder->CreateGlobalString("%d\n");
     builder->CreateCall(printfFunc, {format, val});
+  } else if (val->getType()->isDoubleTy()) {
+    // "%g", not "%f" — matches Value::displayString()'s formatting in the
+    // interpreter exactly, since both go through the same libc *printf
+    // family (see Value.cpp).
+    auto format = builder->CreateGlobalString("%g\n");
+    builder->CreateCall(printfFunc, {format, val});
   } else if (val->getType()->isPointerTy()) {
     auto format = builder->CreateGlobalString("%s\n");
     builder->CreateCall(printfFunc, {format, val});
@@ -577,21 +614,26 @@ void CodeGen::visitCallExpr(CallExpr &expr) {
     if (expr.args.size() != 1)
       error("str() takes exactly 1 argument");
     expr.args[0]->accept(*this);
-    auto intVal = exprResult;
-    if (!intVal->getType()->isIntegerTy())
-      error("str() argument must be an integer");
+    auto numVal = exprResult;
+    bool isFloat = numVal->getType()->isDoubleTy();
+    if (!isFloat && !numVal->getType()->isIntegerTy())
+      error("str() argument must be a number");
 
-    constexpr int64_t BUF_SIZE = 16; // enough for any i32 + sign + null
+    // 32 bytes comfortably fits any i32 (11 chars incl. sign) or a %g
+    // double (typically well under 20 chars at default precision).
+    constexpr int64_t BUF_SIZE = 32;
     auto buf = builder->CreateCall(
         mallocFunc,
         {llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), BUF_SIZE)},
         "strbuf");
-    auto fmt = builder->CreateGlobalStringPtr("%d");
+    // "%g" matches print()'s float format and Value::displayString() in the
+    // interpreter — see emitPrint's comment.
+    auto fmt = builder->CreateGlobalStringPtr(isFloat ? "%g" : "%d");
     auto snprintfFunc = module->getFunction("snprintf");
     builder->CreateCall(
         snprintfFunc,
         {buf, llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), BUF_SIZE),
-         fmt, intVal});
+         fmt, numVal});
     allocatedStrings.push_back(buf);
     exprResult = buf;
     return;
@@ -658,38 +700,47 @@ llvm::Value *CodeGen::compareStrings(llvm::Value *left, llvm::Value *right,
                : builder->CreateICmpNE(cmp, zero, "strneq");
 }
 
+bool CodeGen::promoteToFloatIfMixed(llvm::Value *&left, llvm::Value *&right) {
+  bool leftIsFloat = left->getType()->isDoubleTy();
+  bool rightIsFloat = right->getType()->isDoubleTy();
+  if (!leftIsFloat && !rightIsFloat) return false;
+
+  auto doubleTy = llvm::Type::getDoubleTy(*context);
+  if (!leftIsFloat) left = builder->CreateSIToFP(left, doubleTy, "intToFloat");
+  if (!rightIsFloat) right = builder->CreateSIToFP(right, doubleTy, "intToFloat");
+  return true;
+}
+
 llvm::Value *CodeGen::concatenateStrings(llvm::Value *left,
                                          llvm::Value *right) {
   auto i8PtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(*context), 0);
 
-  llvm::Value *leftPtr;
-  llvm::Value *rightPtr;
-
-  if (left->getType()->isPointerTy()) {
-    leftPtr = builder->CreateBitCast(left, i8PtrType, "leftptr");
-  } else {
-    auto ci = llvm::dyn_cast<llvm::ConstantInt>(left);
-    if (!ci) {
-      error("Expected constant integer in string concatenation");
-      return nullptr;
+  // A non-pointer operand must be a compile-time-constant number (int or
+  // float) — see docs/LANGUAGE.md. Formats it into a global string constant
+  // so it can be strcpy/strcat'd like any other string operand below.
+  auto constNumberToStr = [&](llvm::Value *v) -> llvm::Value * {
+    if (auto *ci = llvm::dyn_cast<llvm::ConstantInt>(v)) {
+      // getSExtValue(), not getZExtValue() — the latter reads a negative
+      // i32's two's-complement bits as a huge unsigned number.
+      return builder->CreateGlobalStringPtr(std::to_string(ci->getSExtValue()));
     }
-    auto numStr =
-        builder->CreateGlobalStringPtr(std::to_string(ci->getZExtValue()));
-    leftPtr = numStr;
-  }
-
-  if (right->getType()->isPointerTy()) {
-    rightPtr = builder->CreateBitCast(right, i8PtrType, "rightptr");
-  } else {
-    auto ci = llvm::dyn_cast<llvm::ConstantInt>(right);
-    if (!ci) {
-      error("Expected constant integer in string concatenation");
-      return nullptr;
+    if (auto *cf = llvm::dyn_cast<llvm::ConstantFP>(v)) {
+      // "%g" formatting, matching print()/str() — see emitPrint's comment.
+      char buf[64];
+      std::snprintf(buf, sizeof(buf), "%g",
+                    cf->getValueAPF().convertToDouble());
+      return builder->CreateGlobalStringPtr(buf);
     }
-    auto numStr =
-        builder->CreateGlobalStringPtr(std::to_string(ci->getZExtValue()));
-    rightPtr = numStr;
-  }
+    error("Expected a constant number in string concatenation");
+    return nullptr;
+  };
+
+  llvm::Value *leftPtr = left->getType()->isPointerTy()
+                            ? builder->CreateBitCast(left, i8PtrType, "leftptr")
+                            : constNumberToStr(left);
+  llvm::Value *rightPtr = right->getType()->isPointerTy()
+                             ? builder->CreateBitCast(right, i8PtrType, "rightptr")
+                             : constNumberToStr(right);
 
   auto leftLen = getStringLength(leftPtr);
   auto rightLen = getStringLength(rightPtr);

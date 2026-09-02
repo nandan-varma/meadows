@@ -46,7 +46,10 @@ public:
   // Expression visitors
   void visitLiteralExpr(LiteralExpr &expr) override {
     indent();
-    output_ << "LiteralExpr(" << expr.value << ")\n";
+    const char *kindName = expr.kind == LiteralKind::Int    ? "Int"
+                          : expr.kind == LiteralKind::Float ? "Float"
+                                                            : "Str";
+    output_ << "LiteralExpr(" << kindName << ": " << expr.value << ")\n";
   }
 
   void visitVarExpr(VarExpr &expr) override {

@@ -19,13 +19,24 @@ Source files must have the `.ms` extension.
 ## Types
 
 Meadows is dynamically resolved at the AST level — variables don't carry
-explicit type annotations. The three kinds of values are:
+explicit type annotations. The five kinds of values are:
 
 ### Integer (i32)
 
 - 32-bit signed integer
 - Range: -2,147,483,648 to 2,147,483,647
 - Literals: `0`, `42`, `-17`
+- Wraps on overflow (two's complement), doesn't trap
+
+### Float (f64)
+
+- 64-bit IEEE 754 double
+- Literals: `3.14`, `10.0` (a digit is required on both sides of the `.`)
+- Arithmetic and comparisons between an Int and a Float promote the Int to
+  Float — `1 + 2.5` is `3.5`, and `1 == 1.0` is true
+- `!`, `&&`, `||`, and conditions (`if`/`while`) stay Int-only; write a
+  comparison (`x > 0.0`) rather than relying on a raw float's truthiness
+- `print()`, `str()`, and string concatenation format floats with `%g`
 
 ### String
 
@@ -74,11 +85,15 @@ assigned value, so `print(arr[0] = 5);` is valid.
 
 | Op | Meaning                                |
 |----|----------------------------------------|
-| `+` | Addition (integers) / concatenation (strings) |
-| `-` | Subtraction                           |
-| `*` | Multiplication                        |
-| `/` | Integer division (runtime div-by-zero check) |
-| `%` | Modulo (runtime div-by-zero check)    |
+| `+` | Addition (Int/Float) / concatenation (strings) |
+| `-` | Subtraction (Int/Float)               |
+| `*` | Multiplication (Int/Float)            |
+| `/` | Division (Int/Float; runtime div-by-zero check) |
+| `%` | Modulo (Int/Float; runtime div-by-zero check) |
+
+`/` and `%` are integer division/remainder when both operands are Int (`7 /
+2` is `3`); if either operand is Float, the Int operand promotes and the
+result is Float (`7.0 / 2` is `3.5`).
 
 ### Comparison
 
@@ -98,8 +113,9 @@ assigned value, so `print(arr[0] = 5);` is valid.
 "hello" + " " + "world"   # "hello world"
 ```
 
-Concatenation with a compile-time-constant integer is permitted; non-constant
-integers must be converted with `str()` first.
+Concatenation with a compile-time-constant number (Int or Float) is permitted;
+a non-constant one (a variable, or any other expression) must be converted
+with `str()` first.
 
 ## Control flow
 
@@ -173,7 +189,7 @@ func square(x) {
 |----------------|----------------------------------------------------------|
 | `print(value)` | Print an integer or string, followed by a newline        |
 | `len(s)`       | Length of a string, or of an array (i32)                 |
-| `str(n)`       | Format an integer as a decimal string (heap-allocated)   |
+| `str(n)`       | Format an Int or Float as a string (heap-allocated), `%g` for Float |
 
 Built-ins are validated by the semantic analyzer; calling them with the wrong
 arg count is an error (`E3006`).
@@ -262,9 +278,9 @@ exits with code -1:
 
 These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++`):
 
-- Array and string elements are i32-only at the value level
-- Function parameters are i32-only — strings cannot be passed to user functions
-- No floating-point type
+- Array and string elements are i32-only at the value level (no Float arrays)
+- Function parameters are i32-only — strings and floats cannot be passed to
+  user functions
 - No dynamic resizable arrays
 - No imports / multi-file modules
 - No standard library beyond `print`, `len`, `str`

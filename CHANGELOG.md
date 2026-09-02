@@ -3,6 +3,27 @@
 ## [1.0.2] — 2025
 
 ### Added
+- Floats (`f64`, IEEE 754 double) in both backends: literals (`3.14`),
+  arithmetic (`+ - * / %`), comparisons, `print`/`str`, and constant string
+  concatenation. `1 + 2.5` promotes the Int operand and yields `3.5`; `1 ==
+  1.0` is true. Deliberately scoped to arithmetic and comparisons — `!`,
+  `&&`, `||`, and `if`/`while` conditions stay Int-only in both backends,
+  since CodeGen's CreateCondBr/PHI-based logical-operator lowering is
+  structurally tied to i32/i1 and extending it is a separate, larger change
+  than "add a numeric type." `print`/`str`/string-concat all format floats
+  with `%g` in both backends (CodeGen via printf/snprintf, the interpreter
+  via snprintf into Value::displayString), so output is byte-identical
+  between the compiled binary and the browser playground.
+- `LiteralExpr` gained an explicit `LiteralKind` (Int/Float/Str) field, set
+  by the parser from the token's actual content. Previously CodeGen and the
+  Interpreter each separately guessed a literal's kind by sniffing whether
+  its first character was a digit — the same fragile heuristic in two
+  places, now a single source of truth.
+- Fixed a pre-existing bug found while extending string concatenation to
+  floats: concatenating a negative constant-integer literal
+  (`"n=" + (0-5)`) used `ConstantInt::getZExtValue()`, which reads a
+  negative i32's two's-complement bit pattern as a huge unsigned number
+  (`"n=4294967291"` instead of `"n=-5"`). Now uses `getSExtValue()`.
 - Array element and object field assignment (`arr[0] = x`, `obj.field = x`)
   in both backends. `AssignExpr` generalized from a bare variable-name
   target to any of VarExpr/IndexExpr/FieldAccessExpr — the parser accepts

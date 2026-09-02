@@ -57,6 +57,34 @@ TEST_CASE("Lexer handles numbers correctly", "[lexer]") {
     CHECK(tokens[0].type == TokenType::NUMBER);
     CHECK(tokens[0].value == "0");
   }
+
+  SECTION("Float literal") {
+    Lexer lexer("3.14159");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].type == TokenType::NUMBER);
+    CHECK(tokens[0].value == "3.14159");
+  }
+
+  SECTION("Float with trailing zero") {
+    Lexer lexer("10.0");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 2);
+    CHECK(tokens[0].value == "10.0");
+  }
+
+  SECTION("A dot not followed by a digit is not part of the number — stays "
+         "separate for field access") {
+    Lexer lexer("obj.field");
+    auto tokens = lexer.tokenize();
+
+    REQUIRE(tokens.size() == 4);
+    CHECK(tokens[0].type == TokenType::IDENTIFIER);
+    CHECK(tokens[1].type == TokenType::DOT);
+    CHECK(tokens[2].type == TokenType::IDENTIFIER);
+  }
 }
 
 TEST_CASE("Lexer handles string literals", "[lexer]") {

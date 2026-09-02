@@ -25,10 +25,13 @@ public:
   virtual void accept(StmtVisitor &visitor) = 0;
 };
 
+enum class LiteralKind { Int, Float, Str };
+
 class LiteralExpr : public Expr {
 public:
+  LiteralKind kind;
   std::string value;
-  LiteralExpr(const std::string &v) : value(v) {}
+  LiteralExpr(LiteralKind k, const std::string &v) : kind(k), value(v) {}
   void accept(ExprVisitor &visitor) override;
 };
 
