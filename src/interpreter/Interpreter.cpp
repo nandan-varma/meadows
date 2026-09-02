@@ -1,6 +1,9 @@
 #include "Interpreter.h"
 
+#include <cctype>
 #include <cstdint>
+#include <stdexcept>
+#include <utility>
 
 namespace meadows {
 
