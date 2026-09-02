@@ -19,7 +19,6 @@ public:
 
   const std::string *intern(const std::string &str);
   size_t poolSize() const { return pool_.size(); }
-  void clear() { pool_.clear(); }
 
   StringPool(const StringPool &) = delete;
   StringPool &operator=(const StringPool &) = delete;

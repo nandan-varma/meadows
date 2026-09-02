@@ -300,20 +300,4 @@ ErrorFormatter::formatMultiple(const std::vector<Diagnostic> &diagnostics,
   return oss.str();
 }
 
-std::string ErrorFormatter::formatForTerminal(const Diagnostic &diagnostic,
-                                              const std::string &filepath) {
-  FormatOptions opts;
-  opts.useColors = true;
-  ErrorFormatter formatter(opts);
-  return formatter.formatWithContext(diagnostic, filepath);
-}
-
-std::string ErrorFormatter::formatForLsp(const Diagnostic &diagnostic) {
-  FormatOptions opts;
-  opts.useColors = false;
-  opts.showSourceContext = false;
-  ErrorFormatter formatter(opts);
-  return formatter.format(diagnostic);
-}
-
 } // namespace meadows

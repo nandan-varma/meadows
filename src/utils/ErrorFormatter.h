@@ -105,26 +105,6 @@ public:
   std::string formatMultiple(const std::vector<Diagnostic> &diagnostics,
                              const std::string &filepath);
 
-  /**
-   * @brief Format for terminal output (with colors)
-   */
-  static std::string formatForTerminal(const Diagnostic &diagnostic,
-                                       const std::string &filepath);
-
-  /**
-   * @brief Format for LSP (plain text, no colors)
-   */
-  static std::string formatForLsp(const Diagnostic &diagnostic);
-
-  /**
-   * @brief Clear file cache
-   */
-  void clearCache() { fileCache_.clear(); }
-
-  /**
-   * @brief Set format options
-   */
-  void setOptions(const FormatOptions &options) { options_ = options; }
 };
 
 } // namespace meadows
