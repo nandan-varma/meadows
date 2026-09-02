@@ -78,13 +78,18 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 - Use `constexpr` for compile-time constants
 
 ### Error Handling
-- Custom exceptions in `src/utils/Exceptions.h`:
-  - `LexicalException` - lexer errors with `SourceLocation`
-  - `ParseException` - parser errors with `SourceLocation`
-  - `MeadowsException` - general errors with `ErrorCode`
-- Include line numbers: `"Error at line " + std::to_string(line)`
-- Use `DiagnosticsCollector` for non-fatal error collection
-- Exit codes: 1 = usage error, 2 = critical error
+- `MeadowsException` (base, in `src/utils/Exceptions.h`) carries an
+  `ErrorCode`, message, and `SourceLocation`. Subclasses: `LexicalException`,
+  `ParseException` are actually thrown today; `SemanticException`,
+  `CodeGenException`, `SystemException` are declared but not yet wired to
+  their intended call sites (SemanticAnalyzer reports via
+  `DiagnosticsCollector` instead; CodeGen throws plain `std::runtime_error`)
+  — see `docs/ARCHITECTURE.md`'s Exception Hierarchy for the full picture.
+- Prefer `DiagnosticsCollector::reportError()`/`reportWarning()` over
+  throwing when the caller can keep parsing/analyzing after the error —
+  that's what lets the CLI report multiple problems in one pass.
+- Exit codes: 0 = success, 1 = any failure. There's no separate code for
+  different failure categories.
 
 ### Class Design
 - Virtual destructor for base classes: `virtual ~Expr() = default;`
@@ -95,37 +100,49 @@ cmake -B build -DENABLE_COVERAGE=ON && ./build.sh tests  # Coverage
 
 ### Security
 - Never use `system()`; use `fork()` + `execvp()`
-- Validate paths for traversal (`..`, dangerous chars)
-- Check file sizes (10MB max via `MAX_ALLOC_SIZE`)
-- Reject dangerous chars: `;|&`$\(){}[]<>!\`
-- Use `MemoryUtils.h` for safe allocation
+- Validate paths (CLI entry file and `import` targets) via
+  `src/utils/PathValidation.h` — don't duplicate its checks
+- File size cap: 10MB (`kMaxSourceFileSize`)
+- Dangerous-char rejection excludes `(` `)` deliberately (real paths like
+  `Program Files (x86)`) — see `PathValidation::hasDangerousChars` for the
+  exact set before changing it
 
 ## Testing Guidelines
 
-- Use Catch2 v3.x for unit tests
-- Place tests in `tests/unit/<module>/`
-- One test file per module: `Lexer.test.cpp`
-- Use tags: `[lexer]`, `[parser]`, `[exceptions]`, `[diagnostics]`
-- Include positive and negative test cases
-- Test edge cases: empty input, large files, nesting
+- Place tests in `tests/unit/<module>/`, one file per module (e.g.
+  `Lexer.test.cpp`), and register it in `tests/CMakeLists.txt`
+- Include both positive and negative cases; test boundaries (empty input,
+  large input, max nesting)
+- See [docs/TESTING.md](docs/TESTING.md) for tags, running a single test,
+  and the full test-file template
 
 ## Module Structure
 
 ```
 src/
-  lexer/          - Tokenization
+  lexer/          - Tokenization + CLI-only import resolution (ModuleResolver)
   parser/         - Syntax analysis
   ast/            - AST node definitions
-  codegen/        - LLVM IR generation
-  lsp/            - Language Server Protocol support
-  utils/          - Utilities (exceptions, diagnostics, warnings, timer)
+  sema/           - Semantic analysis (name resolution, arity/type checks)
+  codegen/        - LLVM IR generation (native backend)
+  interpreter/    - Tree-walking interpreter (browser playground backend)
+  wasm/           - Emscripten/embind bridge for the browser playground
+  lsp/            - JSON diagnostics for the --lsp-diagnostics CLI flag
+  utils/          - Exceptions, diagnostics, warnings, timer, path validation
   main/           - Entry point
 
 tests/
-  unit/           - Unit tests by module
+  unit/           - Unit tests by module (ast, codegen, interpreter, lexer,
+                    parser, sema, utils)
   integration/    - Full program tests (.ms files)
   security/       - Security and fuzz tests
+  edge_cases/      - Boundary/pathological input programs
+  performance/     - Performance regression benchmarks
 ```
+
+Note: `lsp/` at the **repo root** (not under `src/`) is a separate
+TypeScript project — the real language server and VS Code extension. See
+[`lsp/README.md`](lsp/README.md).
 
 ## Common Patterns
 
@@ -133,9 +150,17 @@ tests/
 1. Define class in `src/ast/AST.h` inheriting from `Expr` or `Stmt`
 2. Add visitor methods to `ExprVisitor`/`StmtVisitor`
 3. Implement `accept()` in `src/ast/AST.cpp`
-4. Add visitor implementation in `src/codegen/CodeGen.cpp`
-5. Add parser support in `src/parser/Parser.cpp`
-6. Add lexer token in `src/lexer/Token.h` if needed
+4. Add parser support in `src/parser/Parser.cpp`/`ParserExpressions.cpp`
+5. Add lexer token in `src/lexer/Token.h` if needed
+6. Add a visitor implementation everywhere the interface requires one —
+   `SemanticAnalyzer` (`src/sema/`), `CodeGen` (`src/codegen/`),
+   `Interpreter` (`src/interpreter/`), and `ASTPrinter` (`src/utils/`).
+   CodeGen and the Interpreter are two independent backends for the same
+   language — if a feature lands in one but not the other, it silently works
+   in the CLI but not the browser playground, or vice versa. Keep their
+   observable behavior identical for anything both support; where the native
+   backend has to narrow (e.g. no closures, i32-only arrays), reject it at
+   compile time with a clear error rather than miscompiling.
 
 ### Adding Compiler Pass
 1. Add method declaration to appropriate class
@@ -150,28 +175,18 @@ tests/
 4. Add tests in `tests/unit/utils/Exceptions.test.cpp`
 
 ## Git Workflow
-- Commit messages: imperative mood, 50-char summary
+- Commit messages: imperative mood, 50-char summary (e.g. "Add lexer token
+  validation", not "Added lexer token validation")
 - One logical change per commit
-- Run tests before committing: `./test.sh unit`
+- Run `./test.sh unit` before committing; run `./test.sh security` too for
+  anything touching path validation, subprocess invocation, or parsing of
+  untrusted input
 - Don't commit build artifacts or `.vsix` files
-- Include test coverage for new features
+- New features need unit test coverage; new language features also need an
+  integration test under `tests/integration/`
 
 ## Performance Tips
 - Profile before optimizing
 - Use `std::unordered_map` for O(1) lookups
 - Reserve vector capacity when size known
 - Avoid O(n²) string concatenation
-
-## Cursor and Copilot Rules
-
-No specific Cursor rules (.cursor/rules/ or .cursorrules) or Copilot instructions (.github/copilot-instructions.md) were found in this repository.
-
-## Additional Guidelines
-
-- Use meaningful commit messages with imperative mood (e.g., "Add lexer token validation", not "Added lexer token validation")
-- Run full test suite before pushing changes
-- For security-critical changes, run the security test suite specifically
-- Use the provided scripts for consistency across development environments
-- When adding new features, include corresponding unit tests
-- Follow LLVM coding standards for any LLVM-interfacing code
-- Use RAII principles extensively for resource management

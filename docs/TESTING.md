@@ -49,10 +49,8 @@ tests/
 Create a new file in `tests/unit/<module>/`:
 
 ```cpp
-#include "catch_amalgamated.hpp"
 #include "<module>/Module.h"
-
-using namespace meadows;
+#include <catch2/catch_all.hpp>
 
 TEST_CASE("ModuleName operation", "[module]") {
     SECTION("Specific scenario") {
@@ -66,17 +64,20 @@ TEST_CASE("Another operation", "[module][other-tag]") {
 }
 ```
 
+Add the new file to `TEST_SOURCES` in `tests/CMakeLists.txt`.
+
 ### Test Tags
-- Use module tags: `[lexer]`, `[parser]`, `[codegen]`, `[ast]`, `[utils]`
-- Use feature tags: `[exceptions]`, `[diagnostics]`, `[warnings]`, `[timer]`
-- Use property tags: `[property]` for property-based tests
+- Module tags: `[lexer]`, `[parser]`, `[ast]`, `[sema]`, `[codegen]`,
+  `[interpreter]`, `[utils]`
+- Feature tags: `[exceptions]`, `[diagnostics]`, `[warnings]`, `[security]`
+- Property tags: `[property]` for property-based tests
 
 ### Example
 ```cpp
 TEST_CASE("Lexer tokenizes identifiers", "[lexer]") {
     Lexer lexer("let x = 5;");
     auto tokens = lexer.tokenize();
-    
+
     REQUIRE(tokens.size() == 5);
     REQUIRE(tokens[0].type == TokenType::LET);
     REQUIRE(tokens[1].value == "x");

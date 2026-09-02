@@ -1,318 +1,164 @@
-# Meadows Compiler
+# Meadows
 
-A simple compiled programming language called "Meadows" that compiles to LLVM IR and then to native executables.
+Meadows is a small, C-like compiled programming language. It compiles `.ms`
+source files to LLVM IR and then to a native executable via `clang++`.
 
-## Quick Start
+Try it in the browser — no install required: **[meadows.nandanvarma.com](https://meadows.nandanvarma.com)**
+
+```meadows
+func fib(n) {
+  if (n <= 1) { return n; }
+  return fib(n - 1) + fib(n - 2);
+}
+
+for (i in range(0, 8)) {
+  print(fib(i));
+}
+```
+
+## Quick start
+
+Requires CMake 3.16+, LLVM 17.x, and a C++17 compiler.
 
 ```bash
-# Build everything (compiler + tests)
-./build.sh
-
-# Run all tests
-./test.sh
-
-# Compile and run a Meadows program
-./build/meadows hello.ms
-./hello.ms.out
-```
-
-## Features
-
-- **Variables**: `let name = "Alice"; let age = 30;`
-- **Functions**: `func greet(person) { print("Hello, " + person); }`
-- **Conditionals**: `if (age > 18) { print("Adult"); } else { print("Minor"); }`
-- **Loops**: `for (i in range(0, 5)) { print(i); }` and `while` loops
-- **Comments**: `# comment` or `// comment`
-- **Print**: `print("Hello, world");`
-
-## Building
-
-The project uses a modular build system. All build commands are available through the main `./build.sh` script.
-
-```bash
-./build.sh                    # Build everything (default)
-./build.sh debug             # Build debug version only
-./build.sh release           # Build release version only
-./build.sh tests             # Build test executables
-./build.sh clean             # Clean all build artifacts
-```
-
-### Build Options
-
-```bash
-./build.sh [TARGET] [OPTIONS]
-
-Options:
-  -j N         Use N parallel jobs (default: auto-detect)
-  -v           Verbose output
-  --llvm PATH  Specify LLVM cmake directory
-
-Examples:
-  ./build.sh release -j8              # Release build with 8 jobs
-  ./build.sh tests --verbose          # Build tests verbosely
-  ./build.sh debug --llvm /usr/lib/llvm-17/lib/cmake/llvm
-```
-
-### Build Outputs
-
-- **Debug**: `build-debug/bin/Meadows`
-- **Release**: `build-release/bin/Meadows`
-- **Tests**: `build-debug/tests/meadows_tests`
-
-## Testing
-
-Comprehensive test suite with unit tests, integration tests, and security tests.
-
-```bash
-./test.sh                    # Run all tests (default)
-./test.sh unit              # Run unit tests only
-./test.sh integration       # Run integration tests (.ms files)
-./test.sh security          # Run security tests
-./test.sh coverage          # Generate coverage report
-```
-
-### Test Options
-
-```bash
-./test.sh [SUITE] [OPTIONS]
-
-Options:
-  -v, --verbose    Verbose output
-  -f, --fail-fast  Stop on first failure
-  --no-build       Don't rebuild before testing
-
-Examples:
-  ./test.sh unit -v              # Verbose unit tests
-  ./test.sh all -f               # All tests, fail fast
-  ./test.sh integration --no-build  # Skip rebuild
-```
-
-### Test Coverage
-
-```bash
-./test.sh coverage
-# Generates coverage_report/index.html
-```
-
-See [TESTING.md](TESTING.md) for detailed testing documentation.
-
-## Usage
-
-Compile a `.ms` file:
-
-```bash
-./build/meadows path/to/file.ms
-```
-
-This generates:
-- `file.ms.ll` - LLVM IR
-- `file.ms.out` - Native executable
-
-Run the executable:
-
-```bash
-./file.ms.out
-```
-
-## Project Structure
-
-```
-meadows/
-├── src/                    # Source code
-│   ├── lexer/             # Lexical analysis
-│   ├── parser/            # Syntax parsing
-│   ├── ast/               # Abstract syntax tree
-│   ├── codegen/           # LLVM IR generation
-│   └── main/              # Compiler entry point
-├── scripts/               # Build and development scripts
-│   ├── build/             # Build scripts
-│   ├── test/              # Test scripts
-│   └── dev/               # Development utilities
-├── tests/                 # Test cases
-│   ├── *.ms               # Meadows test files
-│   ├── *.expected         # Expected output files
-│   └── unit/              # Unit tests (Catch2)
-├── docs/                  # Documentation
-├── build.sh               # Main build script
-├── test.sh                # Main test script
-└── CMakeLists.txt         # CMake configuration
-```
-
-## Dependencies
-
-- **CMake** (3.10+)
-- **LLVM** (17.x) - Install via Homebrew on macOS: `brew install llvm@17`
-- **clang++** - For final compilation to executable
-- **Python 3** - For some test utilities (optional)
-
-### macOS Setup
-
-```bash
+# macOS
 brew install cmake llvm@17
-```
 
-### Linux Setup
-
-```bash
+# Linux (Debian/Ubuntu)
 sudo apt-get install cmake llvm-17-dev clang
 ```
 
-## Development Scripts
+```bash
+git clone https://github.com/nandan-varma/meadows.git
+cd meadows
+./build.sh release          # builds ./build-release/bin/Meadows
 
-Located in `scripts/` directory:
+./build-release/bin/Meadows examples/hello.ms
+./hello.out
+```
+
+If LLVM isn't on the default search path, point the build at it directly:
 
 ```bash
-# Format code
-./scripts/dev/format.sh           # Format all source files
-./scripts/dev/format.sh --check   # Check formatting (CI mode)
+./build.sh release --llvm /opt/homebrew/opt/llvm@17/lib/cmake/llvm
 ```
 
-## Language Syntax Quick Reference
+## What's here
 
-Meadows is a C-style compiled language with simple syntax.
+Meadows is more than just a compiler — this repo is the whole toolchain:
 
-### Statements & Comments
+| Piece | Where | What it is |
+|---|---|---|
+| Compiler (native) | `src/` → `Meadows` binary | Lexer → Parser → Semantic Analyzer → LLVM CodeGen → `clang++` |
+| Browser playground | `web/`, `src/wasm/`, `src/interpreter/` | Same front end compiled to WebAssembly, running a tree-walking interpreter client-side. Deployed at [meadows.nandanvarma.com](https://meadows.nandanvarma.com) |
+| Language Server | `lsp/meadows-lsp/` | LSP implementation for editors, backed by the compiler's `--lsp-diagnostics` mode — see [`lsp/README.md`](lsp/README.md) |
+| VS Code extension | `lsp/meadows-vscode/` | Syntax highlighting + the language server, packaged for VS Code |
 
-```meadows
-let x = 42;           # Variable declaration (ends with ;)
-print("Hello");       # Print statement
-// This is a comment
-```
+The playground runs a **second backend** (an interpreter, not LLVM) because
+there's no way to shell out to `clang++` inside a browser sandbox. It's kept
+at feature parity with the native compiler; where they still differ, that's
+documented in [`docs/LANGUAGE.md`](docs/LANGUAGE.md#current-limitations).
 
-### Variables & Types
-
-```meadows
-let name = "Alice";        # String
-let age = 30;              # Integer
-let numbers = [1, 2, 3];   # Array
-let person = {            # Object
-    name: "Bob",
-    age: 25
-};
-```
-
-### Operators
+## The language
 
 ```meadows
-# Arithmetic
-let sum = 10 + 5;         # Addition
-let diff = 10 - 5;        # Subtraction
-let prod = 10 * 5;        # Multiplication
-let quot = 10 / 5;        # Division
-let neg = -10;            # Unary minus
+let name = "Alice";
+let age = 30;
+let scores = [95, 88, 72];
+let person = {name: "Bob", age: 25};
 
-# Comparison
-let eq = 10 == 10;        # Equal
-let gt = 10 > 5;          # Greater than
-let lt = 5 < 10;          # Less than
-let ge = 10 >= 10;        # Greater or equal
-let le = 5 <= 10;         # Less or equal
-```
+func greet(who) {
+  print("Hello, " + who);
+}
 
-### Control Flow
-
-```meadows
-if (age > 18) {
-    print("Adult");
+if (age >= 18) {
+  greet(name);
 } else {
-    print("Minor");
+  print("too young");
 }
 
-while (count > 0) {
-    print(count);
-    count = count - 1;
-}
-
-for (i in range(0, 5)) {
-    print(i);  # Prints 0, 1, 2, 3, 4
+for (i in range(0, len(scores))) {
+  print(scores[i]);
 }
 ```
 
-### Functions
+Variables, functions, `if`/`else`, `while`, range-based `for`, arrays,
+objects, ints, floats, strings, and single-file `import`. Full reference,
+including built-ins, error codes, and exact semantics:
+**[docs/LANGUAGE.md](docs/LANGUAGE.md)**.
 
-```meadows
-func factorial(n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
-}
+## Usage
 
-let result = factorial(5);
-print result;
+```bash
+Meadows <file.ms> [OPTIONS]
+
+  -o, --output <path>   Output executable path (default: <name>.out)
+  -O, --opt-level <0-3> Optimization level
+  -v, --verbose         Show compilation phases and timing
+  --dump-ast            Print the AST and exit
+  --dump-ir             Print generated LLVM IR and exit
+  --lsp-diagnostics     Emit diagnostics as JSON (used by the language server)
 ```
 
-### String Escapes
+Compiling `path/to/file.ms` produces `path/to/file.ms.ll` (LLVM IR, deleted
+after a successful build) and `file.out` (the executable, written to the
+*current directory* — its name is the source file's stem, not its full
+path), unless `-o` is given.
 
-```meadows
-let newline = "line1\nline2";
-let tab = "col1\tcol2";
-let quote = "He said \"hello\"";
-let path = "C:\\path\\to\\file";
+## Building and testing
+
+```bash
+./build.sh                    # build debug + release + tests
+./build.sh debug               # build-debug/bin/Meadows
+./build.sh release             # build-release/bin/Meadows
+./build.sh tests               # build/tests/meadows_tests
+./build.sh clean               # remove all build directories
+
+./test.sh                      # run everything: unit + integration + security
+./test.sh unit                 # unit tests only
+./test.sh integration           # integration tests only (.ms programs)
 ```
 
-### Complete Example
+`build.sh`/`test.sh` are thin wrappers; the project is plain CMake underneath:
 
-```meadows
-func factorial(n) {
-    if (n <= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    }
-}
-
-let result = factorial(5);
-print result;
+```bash
+cmake -S . -B build -DBUILD_TESTS=ON -DLLVM_DIR=<path-to-llvm-17-cmake-dir>
+cmake --build build -j
+ctest --test-dir build
 ```
 
-## Testing Status
+See [docs/TESTING.md](docs/TESTING.md) for the full testing guide and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the compiler is put
+together internally.
 
-| Test Type | Status |
-|-----------|--------|
-| Unit Tests (Catch2) | ✅ Passing |
-| Integration Tests | ✅ Passing |
-| Security Tests | ✅ Passing |
+## Project layout
 
-## Continuous Integration
-
-GitHub Actions automatically builds and tests on every push:
-- Multi-platform builds (Linux, macOS)
-- Debug and release configurations
-- Automated unit tests
-- Integration tests
-- Security tests
-
-See [`.github/workflows/release.yml`](.github/workflows/release.yml) for details.
-
-## Releases
-
-Automated releases are created when version tags (e.g., `v1.0.0`) are pushed:
-- Pre-built binaries for Linux x64 and macOS x64
-- Debug and release builds
-- Installation scripts
+```
+meadows/
+├── src/
+│   ├── lexer/        Tokenizer + CLI-only multi-file import resolution
+│   ├── parser/       Recursive-descent parser → AST
+│   ├── ast/          AST node definitions (visitor pattern)
+│   ├── sema/         Semantic analysis (name resolution, type/arity checks)
+│   ├── codegen/      LLVM IR generation (native backend)
+│   ├── interpreter/  Tree-walking interpreter (playground backend)
+│   ├── wasm/         Emscripten/embind bridge for the playground
+│   ├── lsp/          JSON diagnostics output for --lsp-diagnostics
+│   ├── utils/        Diagnostics, error codes, exceptions, path validation
+│   └── main/         CLI entry point
+├── web/               Browser playground (static site, WebAssembly)
+├── lsp/               Language Server (TypeScript) + VS Code extension
+├── tests/             Unit (Catch2), integration (.ms), and security tests
+├── examples/          Example .ms programs
+├── docs/              Language reference, architecture, testing guide
+└── scripts/           Build, test, and dev tooling
+```
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `./test.sh`
-5. Format code: `./scripts/dev/format.sh`
-6. Submit a pull request
-
-## Documentation
-
-- [TESTING.md](TESTING.md) - Detailed testing guide
-- [LANGUAGE.md](LANGUAGE.md) - Language reference
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports and security issues:
+see [SECURITY.md](SECURITY.md) for the latter.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Acknowledgments
-
-Built with:
-- LLVM Project
-- Catch2 Testing Framework
-- CMake Build System

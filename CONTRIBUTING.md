@@ -19,10 +19,14 @@ cd meadows
 
 ## Code style
 
-- C++17, clang-format enforced (`.clang-format` at root).
+- C++17, styled per `.clang-format` at the repo root (not currently CI-enforced —
+  run `./scripts/dev/format.sh` before submitting).
 - No raw owning pointers — use `std::unique_ptr`.
 - New compiler passes must have unit tests under `tests/unit/`.
-- New language features must have an integration test under `tests/integration/`.
+- New language features must have an integration test under `tests/integration/`,
+  and should generally work in both backends (native CodeGen and the
+  interpreter) — see [AGENTS.md](AGENTS.md#adding-ast-nodes) if you're
+  adding a new AST node.
 
 ## Reporting bugs
 

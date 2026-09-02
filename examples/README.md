@@ -5,11 +5,12 @@ This directory contains example Meadows programs that demonstrate the language f
 ## Running Examples
 
 ```bash
-# Compile an example
-./build/meadows examples/hello.ms
+# Compile an example (see the root README for how to build the compiler)
+./build-release/bin/Meadows examples/hello.ms
 
-# Run the compiled program
-./examples/hello.ms.out
+# Run the compiled program (the executable's name is the source file's
+# stem, written to the current directory — not examples/hello.out)
+./hello.out
 ```
 
 ## Available Examples
@@ -36,7 +37,7 @@ For loop demonstration using range.
 
 ```meadows
 # Your example program here
-print "Hello, Meadows!";
+print("Hello, Meadows!");
 ```
 
 Expected output file (`.expected`):
