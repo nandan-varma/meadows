@@ -29,7 +29,7 @@ suite and a differential fuzzer enforce it.
 
 ### Added
 
-- Meadows `--run` interprets a program without a C toolchain.
+- `Meadows --run` interprets a program without a C toolchain.
 - `else if`, calls on any expression (`f(1)(2)`, `fs[0](x)`), and mixed
   indexing, field access and calls in one chain (`a[0].b[1]`).
 - Reference counting in compiled programs with exact reclamation of acyclic data.

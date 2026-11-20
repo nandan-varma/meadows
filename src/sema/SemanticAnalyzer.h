@@ -39,6 +39,7 @@ private:
   void exitScope();
   void declare(const std::string& name, Location location, bool isParam);
   Variable* lookup(const std::string& name);
+  bool shadowsOuterScope(const std::string& name) const;
   bool conflictsWithCallable(const std::string& name, Location location);
   void analyzeBody(StmtList& body);
   void reportUndefined(ErrorCode code, const std::string& what,

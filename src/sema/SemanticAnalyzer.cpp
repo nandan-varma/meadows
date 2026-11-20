@@ -86,19 +86,24 @@ void SemanticAnalyzer::declare(const std::string& name, Location location,
       return;
     }
   }
+  if (shadowsOuterScope(name)) {
+    diagnostics_.report(ErrorCode::WARN_SHADOWING_VARIABLE,
+                        "Variable '" + name +
+                            "' shadows a declaration in an outer scope",
+                        location, nameLength(name));
+  }
+  scopes_.back().push_back({name, location, false, isParam});
+}
+
+bool SemanticAnalyzer::shadowsOuterScope(const std::string& name) const {
   for (size_t i = 0; i + 1 < scopes_.size(); ++i) {
     for (const Variable& outer : scopes_[i]) {
       if (outer.name == name) {
-        diagnostics_.report(ErrorCode::WARN_SHADOWING_VARIABLE,
-                            "Variable '" + name +
-                                "' shadows a declaration in an outer scope",
-                            location, nameLength(name));
-        i = scopes_.size();
-        break;
+        return true;
       }
     }
   }
-  scopes_.back().push_back({name, location, false, isParam});
+  return false;
 }
 
 SemanticAnalyzer::Variable* SemanticAnalyzer::lookup(const std::string& name) {

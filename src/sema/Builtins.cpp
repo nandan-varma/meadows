@@ -1,7 +1,5 @@
 #include "Builtins.h"
 
-#include <iterator>
-
 namespace meadows {
 
 namespace {
