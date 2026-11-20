@@ -23,10 +23,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion
-                    -Wnon-virtual-dtor -Woverloaded-virtual)
+add_library(meadows_warnings INTERFACE)
+target_compile_options(meadows_warnings INTERFACE
+  -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wnon-virtual-dtor
+  -Woverloaded-virtual)
 if(ENABLE_WERROR)
-  add_compile_options(-Werror)
+  target_compile_options(meadows_warnings INTERFACE -Werror)
 endif()
 if(ENABLE_COVERAGE)
   add_compile_options(--coverage -O0 -g)
@@ -51,6 +53,7 @@ add_library(meadows_core STATIC
   src/utils/SourceMap.cpp
 )
 target_include_directories(meadows_core PUBLIC src)
+target_link_libraries(meadows_core PUBLIC meadows_warnings)
 if(EMSCRIPTEN)
   target_compile_options(meadows_core PUBLIC -fwasm-exceptions)
 else()
