@@ -1,0 +1,14 @@
+#include "RuntimeSources.h"
+
+namespace meadows {
+
+const std::vector<RuntimeFile>& runtimeFiles() {
+  static const std::vector<RuntimeFile> files = {
+      {"Limits.h", R"MEADOWS_RT(@LIMITS_H@)MEADOWS_RT"},
+      {"meadows_rt.h", R"MEADOWS_RT(@RUNTIME_H@)MEADOWS_RT"},
+      {"meadows_rt.c", R"MEADOWS_RT(@RUNTIME_C@)MEADOWS_RT"},
+  };
+  return files;
+}
+
+} // namespace meadows

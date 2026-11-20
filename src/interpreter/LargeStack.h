@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <functional>
 
+#include "../runtime/Limits.h"
+
 namespace meadows {
 
-constexpr size_t LARGE_STACK_SIZE = size_t{256} * 1024 * 1024;
-constexpr size_t STACK_RESERVE = size_t{1} * 1024 * 1024;
+constexpr size_t LARGE_STACK_SIZE = MEADOWS_STACK_SIZE;
+constexpr size_t STACK_RESERVE = MEADOWS_STACK_RESERVE;
 
 void runOnLargeStack(const std::function<void()>& task);
 bool stackNearlyExhausted();

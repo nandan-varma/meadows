@@ -5,7 +5,11 @@
 #include <iterator>
 #include <unistd.h>
 
+#include <filesystem>
+
 #include "../ast/AstPrinter.h"
+#include "../codegen/CodeGen.h"
+#include "../codegen/NativeCompiler.h"
 #include "../driver/Frontend.h"
 #include "../interpreter/Interpreter.h"
 #include "../utils/PathValidation.h"
@@ -70,6 +74,41 @@ int execute(Analysis& analysis) {
   return 0;
 }
 
+void phase(const Options& options, const char* name) {
+  if (options.verbose) {
+    std::cerr << "[" << name << "]\n";
+  }
+}
+
+int compile(Analysis& analysis, const Options& options) {
+  phase(options, "codegen");
+  CodeGen codegen(analysis.sources);
+  std::string ir = codegen.generate(analysis.program);
+  if (ir.empty()) {
+    std::cerr << "error: code generation produced invalid IR:\n"
+              << codegen.verificationError();
+    return 1;
+  }
+  if (options.dumpIr) {
+    std::cout << ir;
+    return 0;
+  }
+
+  NativeBuild build;
+  build.ir = std::move(ir);
+  build.optLevel = options.optLevel;
+  build.output = options.output.empty()
+                     ? std::filesystem::path(options.input).stem().string()
+                     : options.output;
+  phase(options, "link");
+  std::string error;
+  if (!buildExecutable(build, error)) {
+    std::cerr << "error: " << error << "\n";
+    return 1;
+  }
+  return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -127,6 +166,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  phase(options, "analyze");
   if (options.dumpAst) {
     std::cout << AstPrinter().print(analysis.program);
     return 0;
@@ -134,6 +174,5 @@ int main(int argc, char** argv) {
   if (options.run) {
     return execute(analysis);
   }
-  std::cerr << "error: native compilation is unavailable in this build\n";
-  return 1;
+  return compile(analysis, options);
 }

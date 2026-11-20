@@ -10,7 +10,7 @@ set(CLI11_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(CLI11)
 
 add_executable(Meadows main.cpp)
-target_link_libraries(Meadows PRIVATE meadows_core CLI11::CLI11)
+target_link_libraries(Meadows PRIVATE meadows_codegen CLI11::CLI11)
 target_compile_definitions(Meadows PRIVATE MEADOWS_VERSION="${MEADOWS_VERSION}")
 set_target_properties(Meadows PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                       ${CMAKE_BINARY_DIR}/bin)
