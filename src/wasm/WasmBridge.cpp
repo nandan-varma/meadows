@@ -5,6 +5,7 @@
 
 #include "../ast/AstPrinter.h"
 #include "../driver/Frontend.h"
+#include "../interpreter/Disassembler.h"
 #include "../interpreter/Interpreter.h"
 #include "../lexer/Lexer.h"
 #include "../utils/PathValidation.h"
@@ -19,6 +20,7 @@ struct AnalysisReport {
   std::string diagnosticsJson;
   std::string tokens;
   std::string ast;
+  std::string bytecode;
 };
 
 struct ExecutionReport {
@@ -70,6 +72,7 @@ AnalysisReport analyze(const std::string& path) {
       diagnosticsToJson(analysis.diagnostics.diagnostics(), analysis.sources);
   if (report.ok) {
     report.ast = AstPrinter().print(analysis.program);
+    report.bytecode = disassemble(compileProgram(analysis.program));
   }
   return report;
 }
@@ -115,7 +118,8 @@ EMSCRIPTEN_BINDINGS(meadows) {
       .field("diagnostics", &AnalysisReport::diagnostics)
       .field("diagnosticsJson", &AnalysisReport::diagnosticsJson)
       .field("tokens", &AnalysisReport::tokens)
-      .field("ast", &AnalysisReport::ast);
+      .field("ast", &AnalysisReport::ast)
+      .field("bytecode", &AnalysisReport::bytecode);
   emscripten::value_object<ExecutionReport>("ExecutionReport")
       .field("compiled", &ExecutionReport::compiled)
       .field("exitCode", &ExecutionReport::exitCode)

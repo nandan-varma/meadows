@@ -35,6 +35,7 @@ add_library(meadows_core STATIC
   src/ast/AstPrinter.cpp
   src/driver/Frontend.cpp
   src/interpreter/BytecodeCompiler.cpp
+  src/interpreter/Disassembler.cpp
   src/interpreter/Interpreter.cpp
   src/interpreter/Value.cpp
   src/lexer/Lexer.cpp

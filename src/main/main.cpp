@@ -11,6 +11,7 @@
 #include "../codegen/CodeGen.h"
 #include "../codegen/NativeCompiler.h"
 #include "../driver/Frontend.h"
+#include "../interpreter/Disassembler.h"
 #include "../interpreter/Interpreter.h"
 #include "../utils/PathValidation.h"
 
@@ -24,6 +25,7 @@ struct Options {
   int optLevel = 0;
   bool run = false;
   bool dumpAst = false;
+  bool dumpBytecode = false;
   bool dumpIr = false;
   bool lspDiagnostics = false;
   bool readStdin = false;
@@ -123,6 +125,8 @@ int main(int argc, char** argv) {
   app.add_flag("--run", options.run,
                "Interpret the program instead of compiling");
   app.add_flag("--dump-ast", options.dumpAst, "Print the syntax tree and exit");
+  app.add_flag("--dump-bytecode", options.dumpBytecode,
+               "Print the interpreter bytecode and exit");
   app.add_flag("--dump-ir", options.dumpIr, "Print the LLVM IR and exit");
   app.add_flag("--lsp-diagnostics", options.lspDiagnostics,
                "Print diagnostics as JSON for editor integration");
@@ -173,6 +177,10 @@ int main(int argc, char** argv) {
   phase(options, "analyze");
   if (options.dumpAst) {
     std::cout << AstPrinter().print(analysis.program);
+    return 0;
+  }
+  if (options.dumpBytecode) {
+    std::cout << disassemble(compileProgram(analysis.program));
     return 0;
   }
   if (options.run) {

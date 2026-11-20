@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "TestSupport.h"
+#include "interpreter/Disassembler.h"
 
 using namespace meadows;
 using testing::execute;
@@ -205,4 +206,17 @@ TEST_CASE("deep structures are released without recursion", "[interpreter]") {
                "list = {next: list}; } print(1);") == "1\n");
   CHECK(output("let a = []; for (i in range(0, 300000)) { a = [a]; } "
                "print(1);") == "1\n");
+}
+
+TEST_CASE("the disassembler lists every function with its operands",
+          "[interpreter]") {
+  Analysis analysis = testing::analyze(
+      "func twice(n) { return n * 2; }\nprint(twice(21) + \"!\");\n");
+  REQUIRE(analysis.ok());
+  std::string listing = disassemble(compileProgram(analysis.program));
+  CHECK(listing.find("func twice  params 1  slots 1") != std::string::npos);
+  CHECK(listing.find("Mul") != std::string::npos);
+  CHECK(listing.find("print  1 args") != std::string::npos);
+  CHECK(listing.find("\"!\"") != std::string::npos);
+  CHECK(listing.find("func main") != std::string::npos);
 }

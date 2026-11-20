@@ -41,6 +41,7 @@ Meadows hello.ms              # compile to ./hello
 Meadows hello.ms -o greet -O2 # name the output, optimize
 Meadows --run hello.ms        # interpret without a C toolchain
 Meadows --dump-ast hello.ms   # print the syntax tree
+Meadows --dump-bytecode hello.ms # print the interpreter bytecode
 Meadows --dump-ir hello.ms    # print the LLVM IR
 ```
 
@@ -49,7 +50,7 @@ Meadows --dump-ir hello.ms    # print the LLVM IR
 | `-o, --output <path>`    | Executable to write (default: the source name without `.ms`) |
 | `-O, --opt-level 0-3`    | Optimization level for the generated program                 |
 | `--run`                  | Interpret instead of compiling                               |
-| `--dump-ast`, `--dump-ir`| Print the syntax tree or IR and exit                         |
+| `--dump-ast`, `--dump-bytecode`, `--dump-ir` | Print the syntax tree, interpreter bytecode or LLVM IR and exit |
 | `--lsp-diagnostics`      | Print diagnostics as JSON; with `--stdin`, read the source from standard input |
 | `-Werror`, `-Wno-<name>` | Promote warnings to errors, or silence `unused-variable`, `unreachable-code`, `shadowing` |
 | `-v, --verbose`          | Report each phase                                            |
