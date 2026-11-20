@@ -1,54 +1,29 @@
-# Meadows Language Server & VS Code Extension
+# Meadows editor support
 
-Two TypeScript packages, independent of the C++ compiler's build system:
+Two TypeScript packages that sit beside the compiler:
 
-- **`meadows-lsp/`** — an LSP server (`vscode-languageserver`). It spawns the
-  `Meadows` CLI with `--lsp-diagnostics <file>` per document change, parses
-  the JSON diagnostics it prints on stdout (see `src/lsp/LSPInterface.cpp`
-  in the compiler), and forwards them to the editor. Also provides hover
-  and semantic-token support (`src/hover-provider.ts`,
-  `src/semantic-tokens.ts`).
-- **`meadows-vscode/`** — a VS Code extension bundling the server above plus
-  a TextMate grammar (`syntaxes/meadows.tmLanguage.json`) for syntax
-  highlighting.
+- **`meadows-lsp/`**: a language server (`vscode-languageserver`). On each
+  change it runs `Meadows --lsp-diagnostics --stdin <path>`, sending the unsaved
+  buffer and naming the document's real path so relative imports resolve, and
+  forwards the JSON diagnostics for that file. It also provides hover and
+  semantic tokens.
+- **`meadows-vscode/`**: a VS Code extension that starts the server and adds a
+  TextMate grammar and language configuration.
 
-The extension loads the server via a relative path
-(`../meadows-lsp/dist/server.js`), so the two packages must stay siblings on
-disk, in this layout, and `meadows-lsp` must be built before the extension
-can find it.
-
-## Prerequisites
-
-- Node.js 18+
-- The `Meadows` compiler binary on your `PATH` (build it first — see the
-  [root README](../README.md#quick-start)). The server spawns it by name
-  (`Meadows`, case-sensitive on Linux); there's currently no setting to
-  point it at a different location.
+The extension loads the server from `../meadows-lsp/dist/server.js`, so the two
+packages must stay siblings and `meadows-lsp` must be built first.
 
 ## Build
 
-```bash
-cd lsp/meadows-lsp
-npm install
-npm run build          # compiles src/ -> dist/server.js
-
-cd ../meadows-vscode
-npm install
-npm run build           # compiles src/ -> dist/extension.js
-```
-
-## Run the extension
-
-Open `lsp/meadows-vscode/` in VS Code and press F5 (Run Extension) to launch
-an Extension Development Host with it loaded. To package a `.vsix` for
-manual installation, use [`vsce`](https://github.com/microsoft/vscode-vsce)
-(`npx vsce package` from `lsp/meadows-vscode/`).
-
-## Iterating on the server
+Requires Node.js 18 or later and the `Meadows` compiler on your `PATH` (or set
+`meadows.compilerPath` in VS Code).
 
 ```bash
-cd lsp/meadows-lsp
-npm run watch           # recompiles on change
+cd lsp/meadows-lsp && npm ci && npm run build
+cd ../meadows-vscode && npm ci && npm run build
 ```
 
-Reload the Extension Development Host window to pick up changes.
+## Run
+
+Open `lsp/meadows-vscode` in VS Code and press F5 to launch an Extension
+Development Host, then open any `.ms` file.

@@ -34,6 +34,9 @@ export function activate(context: ExtensionContext) {
       { scheme: 'file', language: 'meadows' },
       { scheme: 'untitled', language: 'meadows' }
     ],
+    initializationOptions: {
+      compilerPath: workspace.getConfiguration('meadows').get<string>('compilerPath', 'Meadows')
+    },
     synchronize: {
       // Notify server about file changes to .ms files
       fileEvents: workspace.createFileSystemWatcher('**/*.ms')

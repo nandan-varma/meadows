@@ -1,6 +1,13 @@
 import { TextDocument, Hover, Position, MarkupKind } from 'vscode-languageserver/node';
 import { Logger } from './logger';
 
+const BUILTIN_DOCS: Record<string, { signature: string; summary: string }> = {
+  print: { signature: 'print(value)', summary: 'Writes an integer, float or string followed by a newline.' },
+  len: { signature: 'len(value)', summary: 'Length in bytes of a string, or number of elements of an array.' },
+  str: { signature: 'str(number)', summary: 'Formats an integer or float as a string.' },
+  push: { signature: 'push(array, value)', summary: 'Appends a value to an array in place and returns the array.' }
+};
+
 export class HoverProvider {
   private logger: Logger;
 
@@ -69,29 +76,15 @@ export class HoverProvider {
 
   private getHoverInfo(word: string, text: string, currentLine: number): string | null {
     // Check if it's a keyword
-    const keywords = ['let', 'func', 'if', 'else', 'for', 'while', 'return', 'in', 'break', 'continue'];
+    const keywords = ['let', 'func', 'if', 'else', 'for', 'while', 'return', 'in', 'break', 'continue', 'import'];
     if (keywords.includes(word)) {
       return this.getKeywordDocumentation(word);
     }
 
     // Check if it's a built-in function
-    if (word === 'print') {
-      return [
-        '```meadows',
-        'print(value)',
-        '```',
-        '',
-        'Prints a value to stdout with a newline.',
-        '',
-        '**Parameters:**',
-        '- `value`: The value to print (i32 or string)',
-        '',
-        '**Example:**',
-        '```meadows',
-        'print("Hello, World!");',
-        'print(42);',
-        '```'
-      ].join('\n');
+    const builtin = BUILTIN_DOCS[word];
+    if (builtin) {
+      return ['```meadows', builtin.signature, '```', '', builtin.summary].join('\n');
     }
 
     if (word === 'range') {
@@ -134,7 +127,7 @@ export class HoverProvider {
         params ? `- ${params}` : 'None',
         '',
         '**Returns:**',
-        'i32'
+        'Any value (`0` if the function does not return one)'
       ].join('\n');
     }
 
@@ -168,7 +161,7 @@ export class HoverProvider {
           `func ...(${paramMatch[1]})`,
           '```',
           '',
-          `Parameter **${word}**: \`i32\``
+          `Parameter **${word}**`
         ].join('\n');
       }
     }
@@ -288,7 +281,7 @@ export class HoverProvider {
     
     // Check for array
     if (value.startsWith('[') && value.endsWith(']')) {
-      return 'i32[]';
+      return 'array';
     }
     
     // Check for object
@@ -298,7 +291,10 @@ export class HoverProvider {
     
     // Check for number
     if (/^-?\d+$/.test(value)) {
-      return 'i32';
+      return 'integer';
+    }
+    if (/^-?\d+\.\d+$/.test(value)) {
+      return 'float';
     }
     
     // Default

@@ -36,7 +36,7 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // Initialize components
 const logger = new Logger(connection);
-const compilerBridge = new CompilerBridge('Meadows', logger);
+let compilerBridge = new CompilerBridge('Meadows', logger);
 const tokenProvider = new SemanticTokenProvider(logger);
 const hoverProvider = new HoverProvider(logger);
 
@@ -57,6 +57,10 @@ connection.onInitialize((params: InitializeParams) => {
   const capabilities = params.capabilities;
   
   logger.info('Initializing Meadows Language Server...');
+  const compilerPath = params.initializationOptions?.compilerPath;
+  if (typeof compilerPath === 'string' && compilerPath.length > 0) {
+    compilerBridge = new CompilerBridge(compilerPath, logger);
+  }
   logger.debug(`Client capabilities: ${JSON.stringify(capabilities.textDocument)}`);
 
   // Check client capabilities

@@ -43,7 +43,17 @@
         "scopeName": "source.meadows",
         "path": "./syntaxes/meadows.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Meadows",
+      "properties": {
+        "meadows.compilerPath": {
+          "type": "string",
+          "default": "Meadows",
+          "description": "Path to the Meadows compiler used for diagnostics. Restart the language server after changing it."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "tsc",
