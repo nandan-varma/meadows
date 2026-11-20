@@ -1,0 +1,2 @@
+RuntimeError: Cannot call an integer
+  at errors/not_callable.ms:2:2

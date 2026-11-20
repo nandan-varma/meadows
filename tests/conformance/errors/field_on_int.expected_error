@@ -1,0 +1,2 @@
+RuntimeError: Cannot access field 'x' on an integer
+  at errors/field_on_int.ms:2:8

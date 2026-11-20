@@ -1,0 +1,6 @@
+let unused = 1;
+func f() {
+  return 1;
+  print(2);
+}
+print(f());

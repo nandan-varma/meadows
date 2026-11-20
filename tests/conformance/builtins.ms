@@ -1,0 +1,15 @@
+print(len("abc"));
+print(len([1, 2, 3, 4]));
+print(len([]));
+print(len(""));
+print(str(7));
+print(str(-7));
+print(str(1.25));
+print(str(2147483647));
+print(str(100.0));
+print(len(str(12345)));
+let a = [1];
+let b = push(a, 2);
+print(len(a));
+print(a == b);
+print(push([], "x")[0]);

@@ -1,0 +1,2 @@
+RuntimeError: push() requires an array as its first argument, got integer
+  at errors/push_non_array.ms:1:5

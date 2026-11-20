@@ -1,0 +1,2 @@
+RuntimeError: Condition must be an integer, got string
+  at errors/bad_condition.ms:1:5

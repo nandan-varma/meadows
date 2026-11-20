@@ -2,7 +2,7 @@
   "name": "meadows-vscode",
   "displayName": "Meadows Language",
   "description": "Language support for Meadows programming language",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "publisher": "meadows-lang",
   "engines": {
     "vscode": "^1.85.0"

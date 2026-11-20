@@ -1,0 +1,2 @@
+RuntimeError: Object has no field 'b'
+  at errors/no_field.ms:2:8

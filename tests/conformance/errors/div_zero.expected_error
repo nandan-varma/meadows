@@ -1,0 +1,2 @@
+RuntimeError: Division by zero
+  at errors/div_zero.ms:3:9

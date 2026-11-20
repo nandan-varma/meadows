@@ -1,0 +1,15 @@
+warning[W6001]: Variable 'g' is declared but never used
+ --> diagnostics/closed_function.ms:1:5
+  |
+1 | let g = 1;
+  |     ^
+  = help: Prefix the name with '_' to silence this warning
+
+error[E3001]: Undefined variable 'g'
+ --> diagnostics/closed_function.ms:2:19
+  |
+2 | func f() { return g; }
+  |                   ^
+  = help: Functions cannot access top-level variables; pass 'g' as a parameter
+
+1 error, 1 warning

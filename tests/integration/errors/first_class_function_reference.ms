@@ -1,3 +1,0 @@
-func add(a, b) { return a + b; }
-let f = add;
-print(f(1, 2));

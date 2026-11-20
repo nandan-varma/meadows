@@ -1,0 +1,13 @@
+error[E2002]: Expected an expression, found ';'
+ --> diagnostics/multiple_errors.ms:1:9
+  |
+1 | let a = ;
+  |         ^
+
+error[E2002]: Expected an expression, found ';'
+ --> diagnostics/multiple_errors.ms:4:9
+  |
+4 | let d = ;
+  |         ^
+
+2 errors, 0 warnings

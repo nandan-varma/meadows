@@ -1,117 +1,92 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef MEADOWS_PARSER_H
+#define MEADOWS_PARSER_H
 
-#include <memory>
 #include <vector>
 
 #include "../ast/AST.h"
 #include "../lexer/Token.h"
-#include "../utils/DiagnosticsCollector.h"
+#include "../utils/Diagnostics.h"
 
-/**
- * @class Parser
- * @brief Performs syntax analysis on tokenized Meadows source code.
- *
- * The Parser uses recursive descent parsing to build an Abstract Syntax Tree
- * (AST) from the token stream produced by the Lexer. It enforces language
- * grammar rules and provides meaningful error messages with line numbers.
- *
- * Supports error recovery - continues parsing after non-fatal errors to
- * report multiple issues in a single pass.
- */
+namespace meadows {
+
+struct ImportRequest {
+  size_t position;
+  std::string path;
+  Location location;
+};
+
+struct ParsedFile {
+  StmtList statements;
+  std::vector<ImportRequest> imports;
+};
+
 class Parser {
 public:
-  /**
-   * @brief Constructs a Parser with diagnostics collection.
-   * @param tokens The token stream to parse.
-   * @param diagnostics Collector for errors and warnings.
-   */
-  Parser(std::vector<Token> tokens, meadows::DiagnosticsCollector &diagnostics);
+  static constexpr uint32_t MAX_NESTING = 256;
 
-  /**
-   * @brief Parses the entire token stream into an AST.
-   * @return A vector of statement AST nodes. Non-fatal errors are reported
-   *         to the diagnostics collector and parsing continues; only a
-   *         handful of unrecoverable conditions (e.g. pathological nesting
-   *         depth) throw meadows::ParseException.
-   */
-  std::vector<std::unique_ptr<Stmt>> parse();
+  Parser(std::vector<Token> tokens, DiagnosticSink& diagnostics);
 
-  /**
-   * @brief Check if any errors were reported during parsing.
-   */
-  bool hasErrors() const;
+  ParsedFile parse();
 
 private:
+  struct ParseAbort {};
+
+  class DepthScope {
+  public:
+    explicit DepthScope(Parser& parser);
+    ~DepthScope() { --parser_.depth_; }
+
+  private:
+    Parser& parser_;
+  };
+
   std::vector<Token> tokens_;
-  size_t current_;
-  meadows::DiagnosticsCollector &diagnostics_;
-  bool inErrorRecovery_;
-  int consecutiveErrors_;
-  static constexpr int MAX_CONSECUTIVE_ERRORS = 3;
+  DiagnosticSink& diagnostics_;
+  size_t current_ = 0;
+  uint32_t depth_ = 0;
+  bool abandoned_ = false;
 
-  bool isAtEnd() const;
-  const Token &peek() const;
-  const Token &previous() const;
-  const Token &advance();
-  bool check(TokenType type) const;
+  const Token& peek() const { return tokens_[current_]; }
+  const Token& previous() const { return tokens_[current_ - 1]; }
+  bool check(TokenType type) const { return peek().type == type; }
+  bool atEnd() const { return abandoned_ || check(TokenType::END_OF_FILE); }
+  const Token& advance();
   bool match(TokenType type);
-  const Token &consume(TokenType type, meadows::ErrorCode code,
-                       const std::string &message);
+  const Token& expect(TokenType type, ErrorCode code, const std::string& what);
+  Location expectedLocation() const;
 
-  /**
-   * @brief Report an error at current position.
-   */
-  void error(meadows::ErrorCode code, const std::string &message);
+  void error(ErrorCode code, const std::string& message, Location location,
+             uint32_t length, const std::string& help = {});
+  [[noreturn]] void fail(ErrorCode code, const std::string& message,
+                         Location location, uint32_t length,
+                         const std::string& help = {});
+  void synchronize(bool insideBlock);
 
-  /**
-   * @brief Synchronize parser state after error (panic mode recovery).
-   * Skips tokens until a synchronization point is found.
-   */
-  void synchronize();
+  void parseTopLevel(ParsedFile& file);
+  StmtPtr parseStatement(bool topLevel);
+  StmtPtr parseLet();
+  StmtPtr parseFunc();
+  StmtPtr parseIf();
+  StmtPtr parseFor();
+  StmtPtr parseWhile();
+  StmtPtr parseReturn();
+  StmtPtr parseExpressionStatement();
+  StmtList parseBlock();
+  ImportRequest parseImport(size_t position);
 
-  /**
-   * @brief Check if we should stop recovery attempts.
-   */
-  bool shouldAbortRecovery() const;
+  ExprPtr parseExpression();
+  ExprPtr parseAssignment();
+  ExprPtr parseBinary(int level);
+  ExprPtr parseUnary();
+  ExprPtr parsePostfix();
+  ExprPtr parsePrimary();
+  ExprPtr parseNumber(const Token& token, bool negated);
+  ExprPtr parseObject(const Token& open);
+  std::vector<ExprPtr> parseArguments();
 
-  std::unique_ptr<Stmt> parseStmt();
-  std::unique_ptr<Stmt> parseLetStmt();
-  std::unique_ptr<Stmt> parseFuncStmt();
-  std::unique_ptr<Stmt> parseIfStmt();
-  std::unique_ptr<Stmt> parseForStmt();
-  std::unique_ptr<Stmt> parseWhileStmt();
-  std::unique_ptr<Stmt> parseReturnStmt();
-  std::unique_ptr<Stmt> parseBlockStmt();
-  std::unique_ptr<Stmt> parseExprStmt();
-  std::unique_ptr<Stmt> parseBreakStmt();
-  std::unique_ptr<Stmt> parseContinueStmt();
-
-  template <typename T>
-  std::unique_ptr<T> withLocation(std::unique_ptr<T> node) {
-    if (node) {
-      node->line = peek().line;
-      node->column = peek().column;
-    }
-    return node;
-  }
-
-  std::unique_ptr<Expr> parseExpr(int depth = 0);
-  std::unique_ptr<Expr> parseAssignment(int depth = 0);
-  std::unique_ptr<Expr> parseOr(int depth = 0);
-  std::unique_ptr<Expr> parseAnd(int depth = 0);
-  std::unique_ptr<Expr> parseEquality(int depth = 0);
-  std::unique_ptr<Expr> parseComparison(int depth = 0);
-  std::unique_ptr<Expr> parseTerm(int depth = 0);
-  std::unique_ptr<Expr> parseFactor(int depth = 0);
-  std::unique_ptr<Expr> parseUnary(int depth = 0);
-  std::unique_ptr<Expr> parseCall(int depth = 0);
-  std::unique_ptr<Expr> parseIndex(int depth = 0);
-  std::unique_ptr<Expr> parseFieldAccess(int depth = 0);
-  std::unique_ptr<Expr> parsePrimary(int depth = 0);
-
-  std::vector<std::unique_ptr<Expr>> parseArgs(int depth);
-  std::vector<std::unique_ptr<Stmt>> parseBlock();
+  ExprPtr bounded(ExprPtr expr, Location location);
 };
+
+} // namespace meadows
 
 #endif

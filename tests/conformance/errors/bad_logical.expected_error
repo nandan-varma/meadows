@@ -1,0 +1,2 @@
+RuntimeError: Operator '&&' cannot be applied to float
+  at errors/bad_logical.ms:1:11

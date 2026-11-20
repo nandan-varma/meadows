@@ -1,0 +1,2 @@
+RuntimeError: Division by zero
+  at errors/runtime_in_function.ms:2:12

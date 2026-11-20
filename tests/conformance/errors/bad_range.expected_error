@@ -1,0 +1,2 @@
+RuntimeError: Range bounds must be integers, got float
+  at errors/bad_range.ms:1:1

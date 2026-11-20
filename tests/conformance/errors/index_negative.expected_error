@@ -1,0 +1,2 @@
+RuntimeError: Array index -1 out of bounds for length 2
+  at errors/index_negative.ms:2:2

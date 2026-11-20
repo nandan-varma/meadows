@@ -1,0 +1,2 @@
+RuntimeError: Division by zero
+  at errors/float_div_zero.ms:1:11

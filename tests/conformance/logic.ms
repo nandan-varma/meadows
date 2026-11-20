@@ -1,0 +1,18 @@
+print(1 && 1);
+print(1 && 0);
+print(0 && 1);
+print(5 && 7);
+print(0 || 0);
+print(0 || 9);
+print(3 || 0);
+print(!0);
+print(!1);
+print(!5);
+print(!!5);
+print(0 && 1 / 0);
+print(1 || 1 / 0);
+print(1 < 2 && 2 < 3);
+print(1 > 2 || 2 > 1);
+print(true);
+print(false);
+print(true && !false);

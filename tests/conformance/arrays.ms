@@ -1,0 +1,31 @@
+let a = [1, 2, 3];
+print(len(a));
+print(a[0] + a[2]);
+a[1] = 20;
+print(a[1]);
+print(a[0] = 7);
+let mixed = [1, "two", 3.5, [4, 5], {six: 6}];
+print(mixed[1]);
+print(mixed[2]);
+print(mixed[3][1]);
+print(mixed[4].six);
+let empty = [];
+print(len(empty));
+let b = a;
+b[0] = 99;
+print(a[0]);
+let grid = [[1, 2], [3, 4]];
+grid[1][0] = 30;
+print(grid[1][0] + grid[0][1]);
+let c = push(a, 4);
+print(len(a));
+print(len(c));
+print(c == a);
+print(c[3]);
+let d = [];
+for (i in range(0, 5)) {
+  d = push(d, i * i);
+}
+print(len(d));
+print(d[4]);
+print(len(push(push([], 1), 2)));

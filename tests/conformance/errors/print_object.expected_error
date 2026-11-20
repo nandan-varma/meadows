@@ -1,0 +1,2 @@
+RuntimeError: print() cannot print an object
+  at errors/print_object.ms:1:6

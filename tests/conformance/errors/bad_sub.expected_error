@@ -1,0 +1,2 @@
+RuntimeError: Operator '-' cannot be applied to string and integer
+  at errors/bad_sub.ms:1:11

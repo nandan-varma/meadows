@@ -1,0 +1,2 @@
+RuntimeError: Array index 3 out of bounds for length 1
+  at errors/assign_order.ms:6:2

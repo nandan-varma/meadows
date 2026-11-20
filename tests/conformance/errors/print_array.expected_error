@@ -1,0 +1,2 @@
+RuntimeError: print() cannot print an array
+  at errors/print_array.ms:1:6

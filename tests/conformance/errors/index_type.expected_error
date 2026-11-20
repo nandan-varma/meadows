@@ -1,0 +1,2 @@
+RuntimeError: Array index must be an integer, got string
+  at errors/index_type.ms:1:10

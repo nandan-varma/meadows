@@ -1,0 +1,2 @@
+RuntimeError: print() cannot print a function
+  at errors/print_function.ms:2:6

@@ -1,293 +1,310 @@
-#include <cctype>
-#include <stdexcept>
-#include <unordered_map>
-
-#include "../utils/ErrorCodes.h"
-#include "../utils/Exceptions.h"
-#include "../utils/MemoryUtils.h"
 #include "Lexer.h"
 
-static std::unordered_map<std::string, TokenType> keywords = {
-    {"let", TokenType::LET},    {"func", TokenType::FUNC},
-    {"if", TokenType::IF},      {"else", TokenType::ELSE},
-    {"for", TokenType::FOR},    {"while", TokenType::WHILE},
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <unordered_map>
+
+#include "../runtime/Limits.h"
+
+namespace meadows {
+
+namespace {
+
+const std::unordered_map<std::string_view, TokenType> KEYWORDS = {
+    {"let", TokenType::LET},       {"func", TokenType::FUNC},
+    {"if", TokenType::IF},         {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},       {"while", TokenType::WHILE},
     {"return", TokenType::RETURN}, {"in", TokenType::IN},
-    {"range", TokenType::RANGE}, {"true", TokenType::TRUE},
-    {"false", TokenType::FALSE}, {"break", TokenType::BREAK},
+    {"range", TokenType::RANGE},   {"true", TokenType::TRUE},
+    {"false", TokenType::FALSE},   {"break", TokenType::BREAK},
     {"continue", TokenType::CONTINUE}, {"import", TokenType::IMPORT}};
 
-Lexer::Lexer(const std::string &source)
-    : source_(source), pos_(0), line_(1), column_(1), currentLineStart_(0) {}
+bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
-std::vector<Token> Lexer::tokenize() {
-  std::vector<Token> tokens;
-  while (!isAtEnd()) {
-    tokens.push_back(nextToken());
+bool isWordStart(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+bool isWordPart(char c) { return isWordStart(c) || isDigit(c); }
+
+} // namespace
+
+const char* tokenTypeName(TokenType type) {
+  switch (type) {
+  case TokenType::LET: return "LET";
+  case TokenType::FUNC: return "FUNC";
+  case TokenType::IF: return "IF";
+  case TokenType::ELSE: return "ELSE";
+  case TokenType::FOR: return "FOR";
+  case TokenType::WHILE: return "WHILE";
+  case TokenType::RETURN: return "RETURN";
+  case TokenType::IN: return "IN";
+  case TokenType::RANGE: return "RANGE";
+  case TokenType::TRUE: return "TRUE";
+  case TokenType::FALSE: return "FALSE";
+  case TokenType::BREAK: return "BREAK";
+  case TokenType::CONTINUE: return "CONTINUE";
+  case TokenType::IMPORT: return "IMPORT";
+  case TokenType::IDENTIFIER: return "IDENTIFIER";
+  case TokenType::STRING: return "STRING";
+  case TokenType::NUMBER: return "NUMBER";
+  case TokenType::PLUS: return "PLUS";
+  case TokenType::MINUS: return "MINUS";
+  case TokenType::STAR: return "STAR";
+  case TokenType::SLASH: return "SLASH";
+  case TokenType::PERCENT: return "PERCENT";
+  case TokenType::EQUAL: return "EQUAL";
+  case TokenType::EQUAL_EQUAL: return "EQUAL_EQUAL";
+  case TokenType::BANG: return "BANG";
+  case TokenType::BANG_EQUAL: return "BANG_EQUAL";
+  case TokenType::GREATER: return "GREATER";
+  case TokenType::LESS: return "LESS";
+  case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
+  case TokenType::LESS_EQUAL: return "LESS_EQUAL";
+  case TokenType::AND: return "AND";
+  case TokenType::OR: return "OR";
+  case TokenType::LEFT_PAREN: return "LEFT_PAREN";
+  case TokenType::RIGHT_PAREN: return "RIGHT_PAREN";
+  case TokenType::LEFT_BRACE: return "LEFT_BRACE";
+  case TokenType::RIGHT_BRACE: return "RIGHT_BRACE";
+  case TokenType::LEFT_BRACKET: return "LEFT_BRACKET";
+  case TokenType::RIGHT_BRACKET: return "RIGHT_BRACKET";
+  case TokenType::COMMA: return "COMMA";
+  case TokenType::COLON: return "COLON";
+  case TokenType::SEMICOLON: return "SEMICOLON";
+  case TokenType::DOT: return "DOT";
+  case TokenType::END_OF_FILE: return "END_OF_FILE";
   }
-  tokens.push_back(Token(TokenType::EOF_TOKEN, "", line_, column_));
-  return tokens;
+  return "UNKNOWN";
 }
 
-char Lexer::peek() const {
-  if (isAtEnd())
-    return '\0';
-  return source_[pos_];
+std::string describeToken(const Token& token) {
+  if (token.type == TokenType::END_OF_FILE) {
+    return "end of file";
+  }
+  if (token.type == TokenType::STRING) {
+    return "string literal";
+  }
+  return "'" + token.text + "'";
 }
 
-char Lexer::peekNext() const {
-  if (pos_ + 1 >= source_.size())
-    return '\0';
-  return source_[pos_ + 1];
+Lexer::Lexer(std::string_view source, uint32_t file,
+             DiagnosticSink& diagnostics)
+    : source_(source), file_(file), diagnostics_(diagnostics) {}
+
+char Lexer::peek(size_t ahead) const {
+  return pos_ + ahead < source_.size() ? source_[pos_ + ahead] : '\0';
 }
 
 char Lexer::advance() {
   char c = source_[pos_++];
-  column_++;
+  if (c == '\n') {
+    ++line_;
+    column_ = 1;
+  } else {
+    ++column_;
+  }
   return c;
 }
 
-bool Lexer::isAtEnd() const { return pos_ >= source_.size(); }
-
-Token Lexer::nextToken() {
-  skipWhitespace();
-  if (isAtEnd())
-    return Token(TokenType::EOF_TOKEN, "", line_, column_);
-
-  int startColumn = column_;
-  char c = peek();
-  if (c == '#') {
-    skipComment();
-    return nextToken();
-  }
-  if (c == '/' && pos_ + 1 < source_.size() && source_[pos_ + 1] == '/') {
-    skipComment();
-    return nextToken();
-  }
-
-  if (isalpha(c) || c == '_')
-    return identifier();
-  if (isdigit(c))
-    return number();
-  if (c == '"')
-    return string();
-
-  return handleOperator(c, startColumn);
+Token Lexer::make(TokenType type, std::string text, Location start) const {
+  uint32_t length = line_ == start.line ? column_ - start.column : 1;
+  return Token{type, std::move(text), start, length};
 }
 
-Token Lexer::handleOperator(char c, int startColumn) {
-  switch (c) {
-  case '+':
-    advance();
-    return Token(TokenType::PLUS, "+", line_, startColumn);
-  case '-':
-    advance();
-    return Token(TokenType::MINUS, "-", line_, startColumn);
-  case '*':
-    advance();
-    return Token(TokenType::STAR, "*", line_, startColumn);
-  case '/':
-    advance();
-    return Token(TokenType::SLASH, "/", line_, startColumn);
-  case '%':
-    advance();
-    return Token(TokenType::PERCENT, "%", line_, startColumn);
-  case '=':
-    advance();
-    if (peek() == '=') {
-      advance();
-      return Token(TokenType::EQUAL_EQUAL, "==", line_, startColumn);
-    }
-    return Token(TokenType::EQUAL, "=", line_, startColumn);
-  case '&':
-    advance();
-    if (peek() == '&') {
-      advance();
-      return Token(TokenType::AND, "&&", line_, startColumn);
-    }
-    return Token(TokenType::IDENTIFIER, "&", line_, startColumn);
-  case '|':
-    advance();
-    if (peek() == '|') {
-      advance();
-      return Token(TokenType::OR, "||", line_, startColumn);
-    }
-    return Token(TokenType::IDENTIFIER, "|", line_, startColumn);
-  case '>':
-    advance();
-    if (peek() == '=') {
-      advance();
-      return Token(TokenType::GREATER_EQUAL, ">=", line_, startColumn);
-    }
-    return Token(TokenType::GREATER, ">", line_, startColumn);
-  case '<':
-    advance();
-    if (peek() == '=') {
-      advance();
-      return Token(TokenType::LESS_EQUAL, "<=", line_, startColumn);
-    }
-    return Token(TokenType::LESS, "<", line_, startColumn);
-  case '!':
-    advance();
-    if (peek() == '=') {
-      advance();
-      return Token(TokenType::BANG_EQUAL, "!=", line_, startColumn);
-    }
-    return Token(TokenType::BANG, "!", line_, startColumn);
-  case '(':
-    advance();
-    return Token(TokenType::LEFT_PAREN, "(", line_, startColumn);
-  case ')':
-    advance();
-    return Token(TokenType::RIGHT_PAREN, ")", line_, startColumn);
-  case '{':
-    advance();
-    return Token(TokenType::LEFT_BRACE, "{", line_, startColumn);
-  case '}':
-    advance();
-    return Token(TokenType::RIGHT_BRACE, "}", line_, startColumn);
-  case '[':
-    advance();
-    return Token(TokenType::LEFT_BRACKET, "[", line_, startColumn);
-  case ']':
-    advance();
-    return Token(TokenType::RIGHT_BRACKET, "]", line_, startColumn);
-  case ',':
-    advance();
-    return Token(TokenType::COMMA, ",", line_, startColumn);
-  case ':':
-    advance();
-    return Token(TokenType::COLON, ":", line_, startColumn);
-  case ';':
-    advance();
-    return Token(TokenType::SEMICOLON, ";", line_, startColumn);
-  case '.':
-    advance();
-    return Token(TokenType::DOT, ".", line_, startColumn);
-  }
-
-  // Error
-  advance();
-  return Token(TokenType::IDENTIFIER, std::string(1, c), line_,
-               startColumn); // For now, treat as identifier
-}
-
-Token Lexer::identifier() {
-  int startColumn = column_;
-  size_t start = pos_;
-  while (isalnum(peek()) || peek() == '_') {
-    advance();
-  }
-  std::string value = source_.substr(start, pos_ - start);
-  auto it = keywords.find(value);
-  if (it != keywords.end()) {
-    return Token(it->second, value, line_, startColumn);
-  }
-  return Token(TokenType::IDENTIFIER, value, line_, startColumn);
-}
-
-Token Lexer::number() {
-  int startColumn = column_;
-  size_t start = pos_;
-  while (isdigit(peek())) {
-    advance();
-  }
-  // A decimal point only counts as part of the literal when followed by at
-  // least one digit — otherwise it's ambiguous with the '.' used for field
-  // access, and this keeps the lexer to a single token of lookahead.
-  if (peek() == '.' && isdigit(peekNext())) {
-    advance(); // consume '.'
-    while (isdigit(peek())) {
-      advance();
-    }
-  }
-  std::string value = source_.substr(start, pos_ - start);
-  return Token(TokenType::NUMBER, value, line_, startColumn);
-}
-
-static char unescapeChar(char c) {
-  switch (c) {
-  case 'n':
-    return '\n';
-  case 't':
-    return '\t';
-  case '\\':
-    return '\\';
-  case '"':
-    return '"';
-  case 'r':
-    return '\r';
-  case '0':
-    return '\0';
-  case 'b':
-    return '\b';
-  case 'f':
-    return '\f';
-  default:
-    return c;
-  }
-}
-
-Token Lexer::string() {
-  int startColumn = column_;
-  advance();
-  size_t start = pos_;
-  int startLine = line_;
-  size_t nonEscapeCount = 0;
-  while (!isAtEnd() && peek() != '"') {
-    if (peek() == '\\' && pos_ + 1 < source_.size()) {
-      advance();
-    }
-    if (peek() == '\n') {
-      line_++;
-      column_ = 1;
-      currentLineStart_ = pos_ + 1;
-    }
-    advance();
-    nonEscapeCount++;
-  }
-  if (isAtEnd()) {
-    meadows::SourceLocation loc("", startLine, startColumn);
-    throw meadows::LexicalException(meadows::ErrorCode::LEX_UNTERMINATED_STRING,
-                                    "Unterminated string", loc);
-  }
-  std::string value;
-  value.reserve(nonEscapeCount);
-  for (size_t i = start; i < pos_; ++i) {
-    if (source_[i] == '\\' && i + 1 < pos_) {
-      value += unescapeChar(source_[i + 1]);
-      ++i;
-    } else {
-      value += source_[i];
-    }
-  }
-  if (value.size() > meadows::MAX_STRING_LENGTH) {
-    meadows::SourceLocation loc("", startLine, startColumn);
-    throw meadows::LexicalException(meadows::ErrorCode::LEX_INVALID_CHARACTER,
-                                    "String literal exceeds maximum length",
-                                    loc);
-  }
-  advance();
-  return Token(TokenType::STRING, value, line_, startColumn);
-}
-
-void Lexer::skipWhitespace() {
-  while (!isAtEnd()) {
-    char c = peek();
-    if (c == ' ' || c == '\t' || c == '\r') {
-      advance();
-    } else if (c == '\n') {
-      advance();
-      line_++;
-      column_ = 1;
-      currentLineStart_ = pos_;
-    } else {
+std::vector<Token> Lexer::tokenize() {
+  std::vector<Token> tokens;
+  while (true) {
+    skipTrivia();
+    if (atEnd() || diagnostics_.full()) {
       break;
     }
+    lexToken(tokens);
+  }
+  tokens.push_back(Token{TokenType::END_OF_FILE, "", here(), 0});
+  return tokens;
+}
+
+void Lexer::skipTrivia() {
+  while (!atEnd()) {
+    char c = peek();
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      advance();
+    } else if (c == '#' || (c == '/' && peek(1) == '/')) {
+      while (!atEnd() && peek() != '\n') {
+        advance();
+      }
+    } else {
+      return;
+    }
   }
 }
 
-void Lexer::skipComment() {
-  while (!isAtEnd() && peek() != '\n') {
-    advance();
+void Lexer::lexToken(std::vector<Token>& tokens) {
+  Location start = here();
+  char c = peek();
+
+  if (isWordStart(c)) {
+    tokens.push_back(lexWord(start));
+    return;
+  }
+  if (isDigit(c)) {
+    tokens.push_back(lexNumber(start));
+    return;
+  }
+  if (c == '"') {
+    tokens.push_back(lexString(start));
+    return;
+  }
+
+  advance();
+  auto two = [&](char next, TokenType pair, TokenType single) {
+    if (peek() == next) {
+      advance();
+      tokens.push_back(make(pair, std::string{c, next}, start));
+    } else {
+      tokens.push_back(make(single, std::string(1, c), start));
+    }
+  };
+
+  switch (c) {
+  case '+': tokens.push_back(make(TokenType::PLUS, "+", start)); break;
+  case '-': tokens.push_back(make(TokenType::MINUS, "-", start)); break;
+  case '*': tokens.push_back(make(TokenType::STAR, "*", start)); break;
+  case '/': tokens.push_back(make(TokenType::SLASH, "/", start)); break;
+  case '%': tokens.push_back(make(TokenType::PERCENT, "%", start)); break;
+  case '(': tokens.push_back(make(TokenType::LEFT_PAREN, "(", start)); break;
+  case ')': tokens.push_back(make(TokenType::RIGHT_PAREN, ")", start)); break;
+  case '{': tokens.push_back(make(TokenType::LEFT_BRACE, "{", start)); break;
+  case '}': tokens.push_back(make(TokenType::RIGHT_BRACE, "}", start)); break;
+  case '[': tokens.push_back(make(TokenType::LEFT_BRACKET, "[", start)); break;
+  case ']': tokens.push_back(make(TokenType::RIGHT_BRACKET, "]", start)); break;
+  case ',': tokens.push_back(make(TokenType::COMMA, ",", start)); break;
+  case ':': tokens.push_back(make(TokenType::COLON, ":", start)); break;
+  case ';': tokens.push_back(make(TokenType::SEMICOLON, ";", start)); break;
+  case '.': tokens.push_back(make(TokenType::DOT, ".", start)); break;
+  case '=': two('=', TokenType::EQUAL_EQUAL, TokenType::EQUAL); break;
+  case '!': two('=', TokenType::BANG_EQUAL, TokenType::BANG); break;
+  case '<': two('=', TokenType::LESS_EQUAL, TokenType::LESS); break;
+  case '>': two('=', TokenType::GREATER_EQUAL, TokenType::GREATER); break;
+  case '&':
+  case '|':
+    if (peek() == c) {
+      advance();
+      tokens.push_back(make(c == '&' ? TokenType::AND : TokenType::OR,
+                            std::string(2, c), start));
+    } else {
+      diagnostics_.report(ErrorCode::LEX_INVALID_CHARACTER,
+                          std::string("Unexpected character '") + c + "'",
+                          start, 1,
+                          std::string("Did you mean '") + c + c + "'?");
+    }
+    break;
+  default: {
+    char shown[8];
+    if (std::isprint(static_cast<unsigned char>(c))) {
+      std::snprintf(shown, sizeof(shown), "%c", c);
+    } else {
+      std::snprintf(shown, sizeof(shown), "\\x%02x",
+                    static_cast<unsigned char>(c));
+    }
+    diagnostics_.report(ErrorCode::LEX_INVALID_CHARACTER,
+                        std::string("Unexpected character '") + shown + "'",
+                        start);
+  }
   }
 }
+
+Token Lexer::lexWord(Location start) {
+  size_t begin = pos_;
+  while (isWordPart(peek())) {
+    advance();
+  }
+  std::string_view word = source_.substr(begin, pos_ - begin);
+  auto keyword = KEYWORDS.find(word);
+  return make(keyword != KEYWORDS.end() ? keyword->second
+                                        : TokenType::IDENTIFIER,
+              std::string(word), start);
+}
+
+Token Lexer::lexNumber(Location start) {
+  size_t begin = pos_;
+  while (isDigit(peek())) {
+    advance();
+  }
+  bool isFloat = peek() == '.' && isDigit(peek(1));
+  if (isFloat) {
+    advance();
+    while (isDigit(peek())) {
+      advance();
+    }
+  }
+  std::string text(source_.substr(begin, pos_ - begin));
+  Token token = make(TokenType::NUMBER, text, start);
+
+  bool inRange = isFloat ? std::isfinite(std::strtod(text.c_str(), nullptr))
+                         : text.size() < 10 ||
+                               (text.size() == 10 && text <= "2147483648");
+  if (!inRange) {
+    diagnostics_.report(ErrorCode::LEX_NUMBER_OUT_OF_RANGE,
+                        "Number literal '" + text + "' is out of range", start,
+                        token.length);
+    token.text = isFloat ? "0.0" : "0";
+  }
+  return token;
+}
+
+Token Lexer::lexString(Location start) {
+  advance();
+  std::string value;
+  while (!atEnd() && peek() != '"' && peek() != '\n') {
+    Location at = here();
+    char c = advance();
+    if (c != '\\') {
+      value += c;
+      continue;
+    }
+    if (atEnd()) {
+      break;
+    }
+    if (peek() == '\n') {
+      break;
+    }
+    char escaped = advance();
+    switch (escaped) {
+    case 'n': value += '\n'; break;
+    case 't': value += '\t'; break;
+    case 'r': value += '\r'; break;
+    case '0': value += '\0'; break;
+    case 'b': value += '\b'; break;
+    case 'f': value += '\f'; break;
+    case '\\': value += '\\'; break;
+    case '"': value += '"'; break;
+    default:
+      diagnostics_.report(ErrorCode::LEX_INVALID_ESCAPE,
+                          std::string("Invalid escape sequence '\\") +
+                              escaped + "'",
+                          at, 2);
+    }
+  }
+  if (peek() == '"') {
+    advance();
+  } else {
+    diagnostics_.report(ErrorCode::LEX_UNTERMINATED_STRING,
+                        "Unterminated string literal", start, 1,
+                        "String literals cannot span lines; use \\n");
+  }
+  if (value.size() > MEADOWS_MAX_STRING_LENGTH) {
+    diagnostics_.report(ErrorCode::LEX_STRING_TOO_LONG,
+                        "String literal exceeds the maximum length of " +
+                            std::to_string(MEADOWS_MAX_STRING_LENGTH) +
+                            " bytes",
+                        start);
+    value.clear();
+  }
+  return make(TokenType::STRING, std::move(value), start);
+}
+
+} // namespace meadows

@@ -1,0 +1,14 @@
+warning[W6001]: Variable 'unused' is declared but never used
+ --> diagnostics/warnings_only.ms:1:5
+  |
+1 | let unused = 1;
+  |     ^^^^^^
+  = help: Prefix the name with '_' to silence this warning
+
+warning[W6003]: Unreachable statement
+ --> diagnostics/warnings_only.ms:4:3
+  |
+4 |   print(2);
+  |   ^
+
+0 errors, 2 warnings

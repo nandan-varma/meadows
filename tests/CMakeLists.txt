@@ -1,44 +1,32 @@
 include(FetchContent)
-
 FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG        v3.5.2
-    GIT_SHALLOW    TRUE
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG v3.5.2
+  GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(Catch2)
 
-set(TEST_SOURCES
-    unit/lexer/Lexer.test.cpp
-    unit/lexer/ModuleResolver.test.cpp
-    unit/parser/Parser.test.cpp
-    unit/codegen/CodeGen.test.cpp
-    unit/sema/SemanticAnalyzer.test.cpp
-    unit/interpreter/Interpreter.test.cpp
-    unit/utils/Exceptions.test.cpp
-    unit/utils/DiagnosticsCollector.test.cpp
-    unit/utils/ErrorCodes.test.cpp
-    unit/utils/Timer.test.cpp
-    unit/utils/WarningManager.test.cpp
+add_executable(meadows_tests
+  unit/Diagnostics.test.cpp
+  unit/Interpreter.test.cpp
+  unit/Lexer.test.cpp
+  unit/Loader.test.cpp
+  unit/Parser.test.cpp
+  unit/Sema.test.cpp
 )
-
-add_executable(meadows_tests ${TEST_SOURCES})
-
-target_include_directories(meadows_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(meadows_tests PRIVATE
-    meadows_lib
-    Catch2::Catch2WithMain
-    ${LLVM_LIBS}
-)
-
-set_target_properties(meadows_tests PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
+target_link_libraries(meadows_tests PRIVATE meadows_core Catch2::Catch2WithMain)
+target_include_directories(meadows_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+set_target_properties(meadows_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+                      ${CMAKE_BINARY_DIR}/tests)
 
 include(CTest)
 include(Catch)
 catch_discover_tests(meadows_tests)
+
+add_test(NAME conformance-interpreter
+         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_conformance.sh
+                 $<TARGET_FILE:Meadows> interpret)
+add_test(NAME conformance-diagnostics
+         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_conformance.sh
+                 $<TARGET_FILE:Meadows> diagnostics)

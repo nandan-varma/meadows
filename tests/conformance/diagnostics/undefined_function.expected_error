@@ -1,0 +1,7 @@
+error[E3002]: Undefined function 'missing'
+ --> diagnostics/undefined_function.ms:1:1
+  |
+1 | missing(1);
+  | ^^^^^^^
+
+1 error, 0 warnings

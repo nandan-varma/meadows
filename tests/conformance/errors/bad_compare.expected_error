@@ -1,0 +1,2 @@
+RuntimeError: Operator '<' cannot be applied to string and string
+  at errors/bad_compare.ms:1:11

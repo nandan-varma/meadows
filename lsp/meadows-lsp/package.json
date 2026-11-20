@@ -1,6 +1,6 @@
 {
   "name": "meadows-lsp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Language Server for Meadows Language",
   "main": "./dist/server.js",
   "bin": {

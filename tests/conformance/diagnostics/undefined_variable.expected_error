@@ -1,0 +1,7 @@
+error[E3001]: Undefined variable 'missing'
+ --> diagnostics/undefined_variable.ms:1:7
+  |
+1 | print(missing);
+  |       ^^^^^^^
+
+1 error, 0 warnings

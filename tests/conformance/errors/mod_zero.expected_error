@@ -1,0 +1,2 @@
+RuntimeError: Division by zero
+  at errors/mod_zero.ms:1:9

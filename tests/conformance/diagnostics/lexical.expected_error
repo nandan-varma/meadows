@@ -1,0 +1,14 @@
+error[E1001]: Unterminated string literal
+ --> diagnostics/lexical.ms:1:9
+  |
+1 | let s = "unterminated;
+  |         ^
+  = help: String literals cannot span lines; use \n
+
+error[E1002]: Unexpected character '@'
+ --> diagnostics/lexical.ms:2:9
+  |
+2 | let t = @;
+  |         ^
+
+2 errors, 0 warnings

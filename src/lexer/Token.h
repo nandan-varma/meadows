@@ -1,10 +1,13 @@
-#ifndef TOKEN_H
-#define TOKEN_H
+#ifndef MEADOWS_TOKEN_H
+#define MEADOWS_TOKEN_H
 
 #include <string>
 
+#include "../utils/SourceMap.h"
+
+namespace meadows {
+
 enum class TokenType {
-  // Keywords
   LET,
   FUNC,
   IF,
@@ -19,13 +22,9 @@ enum class TokenType {
   BREAK,
   CONTINUE,
   IMPORT,
-
-  // Literals
   IDENTIFIER,
   STRING,
   NUMBER,
-
-  // Operators
   PLUS,
   MINUS,
   STAR,
@@ -41,8 +40,6 @@ enum class TokenType {
   LESS_EQUAL,
   AND,
   OR,
-
-  // Punctuation
   LEFT_PAREN,
   RIGHT_PAREN,
   LEFT_BRACE,
@@ -53,22 +50,19 @@ enum class TokenType {
   COLON,
   SEMICOLON,
   DOT,
-
-  // Comments
-  COMMENT,
-
-  // End of file
-  EOF_TOKEN
+  END_OF_FILE
 };
 
 struct Token {
   TokenType type;
-  std::string value;
-  int line;
-  int column;
-
-  Token(TokenType t, const std::string &v, int l, int c = 0)
-      : type(t), value(v), line(l), column(c) {}
+  std::string text;
+  Location location;
+  uint32_t length;
 };
+
+const char* tokenTypeName(TokenType type);
+std::string describeToken(const Token& token);
+
+} // namespace meadows
 
 #endif

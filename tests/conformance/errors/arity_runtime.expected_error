@@ -1,0 +1,2 @@
+RuntimeError: Function 'f' takes 1 argument, got 2
+  at errors/arity_runtime.ms:3:2

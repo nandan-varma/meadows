@@ -1,53 +1,61 @@
 #include "PathValidation.h"
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 
 namespace fs = std::filesystem;
 
 namespace meadows {
 
-bool hasDangerousChars(const std::string &s) {
-  // Excludes () so paths like "Program Files (x86)" are valid.
-  // Shell metacharacters are harmless here because we use exec-style
-  // invocation (never system()), but we still reject obvious injection chars.
-  static constexpr const char *kDangerous = ";|&`${}[]<>!\\\"'\n\r\t";
-  return s.find_first_of(kDangerous) != std::string::npos;
-}
-
-bool validateSourceFilePath(const std::string &path, std::string &err) {
-  if (hasDangerousChars(path)) {
-    err = "Invalid characters in file path";
+bool validateImportPath(const std::string& path, std::string& error) {
+  fs::path candidate(path);
+  if (candidate.extension() != SOURCE_FILE_EXTENSION) {
+    error = "imported files must have the .ms extension";
     return false;
   }
-  if (path.find("..") != std::string::npos) {
-    err = "Path traversal not allowed (..)";
+  if (candidate.is_absolute()) {
+    error = "absolute import paths are not allowed";
     return false;
   }
-
-  fs::path p(path);
-  if (p.extension().string() != kSourceFileExtension) {
-    err = "File must have .ms extension";
-    return false;
-  }
-  if (!fs::exists(p)) {
-    err = "File does not exist: " + path;
-    return false;
-  }
-  if (!fs::is_regular_file(p)) {
-    err = "Not a regular file: " + path;
-    return false;
-  }
-
-  try {
-    if (fs::file_size(p) > kMaxSourceFileSize) {
-      err = "File too large (max 10 MB)";
+  for (const fs::path& part : candidate) {
+    if (part == "..") {
+      error = "import paths must not contain '..'";
       return false;
     }
-  } catch (const fs::filesystem_error &e) {
-    err = "Cannot read file size: " + std::string(e.what());
-    return false;
   }
   return true;
+}
+
+ReadResult readSourceFile(const std::string& path, std::string& text) {
+  std::error_code ec;
+  if (!fs::is_regular_file(path, ec)) {
+    return ReadResult::NOT_FOUND;
+  }
+  if (fs::file_size(path, ec) > MAX_SOURCE_FILE_SIZE) {
+    return ReadResult::TOO_LARGE;
+  }
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    return ReadResult::UNREADABLE;
+  }
+  text.assign(std::istreambuf_iterator<char>(file),
+              std::istreambuf_iterator<char>());
+  return ReadResult::OK;
+}
+
+const char* describeReadFailure(ReadResult result) {
+  switch (result) {
+  case ReadResult::NOT_FOUND:
+    return "no such file";
+  case ReadResult::TOO_LARGE:
+    return "file is larger than 10 MB";
+  case ReadResult::UNREADABLE:
+    return "file cannot be read";
+  case ReadResult::OK:
+    break;
+  }
+  return "";
 }
 
 } // namespace meadows

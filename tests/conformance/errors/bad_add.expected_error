@@ -1,0 +1,2 @@
+RuntimeError: Operator '+' cannot be applied to array and integer
+  at errors/bad_add.ms:1:11

@@ -1,381 +1,371 @@
 #include "SemanticAnalyzer.h"
 
+#include "Builtins.h"
+
 namespace meadows {
 
-SemanticAnalyzer::SemanticAnalyzer(DiagnosticsCollector &diagnostics,
-                                   WarningManager &warnings,
-                                   const std::string &filename)
-    : diag_(diagnostics), warnings_(warnings), filename_(filename) {}
+namespace {
 
-bool SemanticAnalyzer::analyze(
-    const std::vector<std::unique_ptr<Stmt>> &stmts) {
+std::string arguments(size_t count) {
+  return std::to_string(count) + (count == 1 ? " argument" : " arguments");
+}
+
+uint32_t nameLength(const std::string& name) {
+  return static_cast<uint32_t>(name.size());
+}
+
+} // namespace
+
+void SemanticAnalyzer::analyze(StmtList& statements) {
   scopes_.clear();
   functions_.clear();
+  topLevelVariables_.clear();
   inFunction_ = false;
   inLoop_ = false;
   unreachable_ = false;
 
-  enterScope();
-
-  // Pre-pass: register all top-level function names so mutual/forward calls work.
-  // Also detect duplicate definitions here so forward-declared names are checked.
-  for (const auto &stmt : stmts) {
-    if (auto *fn = dynamic_cast<FuncStmt *>(stmt.get())) {
-      if (functions_.count(fn->name)) {
-        SourceLocation loc(filename_, fn->line, fn->column);
-        reportError(ErrorCode::SEM_REDEFINED_FUNCTION,
-                    "Function '" + fn->name + "' is already defined", loc);
-      } else {
-        functions_[fn->name] = fn->params.size();
+  for (const StmtPtr& stmt : statements) {
+    if (auto* func = dynamic_cast<FuncStmt*>(stmt.get())) {
+      if (findBuiltin(func->name)) {
+        diagnostics_.report(ErrorCode::SEM_NAME_CONFLICT,
+                            "'" + func->name + "' is a built-in function",
+                            func->nameLocation, nameLength(func->name));
+      } else if (!functions_.emplace(func->name, func->params.size()).second) {
+        diagnostics_.report(ErrorCode::SEM_REDEFINED_FUNCTION,
+                            "Function '" + func->name + "' is already defined",
+                            func->nameLocation, nameLength(func->name));
       }
+    } else if (auto* let = dynamic_cast<LetStmt*>(stmt.get())) {
+      topLevelVariables_.insert(let->name);
     }
   }
 
-  analyzeBlock(stmts);
+  enterScope();
+  analyzeBody(statements);
   exitScope();
-
-  return !diag_.hasErrors();
 }
 
-// ── Scope helpers ─────────────────────────────────────────────────────────────
-
-void SemanticAnalyzer::enterScope() { scopes_.emplace_back(); }
-
 void SemanticAnalyzer::exitScope() {
-  if (scopes_.empty()) return;
-
-  for (auto &[name, info] : scopes_.back()) {
-    if (!info.used && !info.isParam) {
-      reportWarning(ErrorCode::WARN_UNUSED_VARIABLE,
-                    "Variable '" + name + "' declared but never used",
-                    info.loc);
+  for (const Variable& variable : scopes_.back()) {
+    if (!variable.used && !variable.isParam && variable.name[0] != '_') {
+      diagnostics_.report(ErrorCode::WARN_UNUSED_VARIABLE,
+                          "Variable '" + variable.name +
+                              "' is declared but never used",
+                          variable.location, nameLength(variable.name),
+                          "Prefix the name with '_' to silence this warning");
     }
   }
   scopes_.pop_back();
 }
 
-void SemanticAnalyzer::declareVar(const std::string &name,
-                                  const SourceLocation &loc, bool isParam) {
-  // Redeclaration in the current scope is an error (not just a warning)
-  if (scopes_.back().count(name)) {
-    reportError(ErrorCode::SEM_REDEFINED_VARIABLE,
-                "Variable '" + name + "' is already declared in this scope", loc);
-    return;
+bool SemanticAnalyzer::conflictsWithCallable(const std::string& name,
+                                             Location location) {
+  const char* kind = findBuiltin(name)          ? "a built-in function"
+                     : functions_.count(name) ? "a function"
+                                              : nullptr;
+  if (!kind) {
+    return false;
   }
-  // Check for shadowing in an outer scope
-  for (int i = static_cast<int>(scopes_.size()) - 2; i >= 0; --i) {
-    if (scopes_[static_cast<size_t>(i)].count(name)) {
-      reportWarning(ErrorCode::WARN_SHADOWING_VARIABLE,
-                    "Variable '" + name + "' shadows a declaration in an outer scope",
-                    loc);
-      break;
-    }
-  }
-  scopes_.back()[name] = {loc, false, isParam};
+  diagnostics_.report(ErrorCode::SEM_NAME_CONFLICT,
+                      "'" + name + "' is already defined as " + kind, location,
+                      nameLength(name));
+  return true;
 }
 
-SemanticAnalyzer::VarInfo *SemanticAnalyzer::lookupVar(const std::string &name) {
-  for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-    auto found = it->find(name);
-    if (found != it->end()) return &found->second;
+void SemanticAnalyzer::declare(const std::string& name, Location location,
+                               bool isParam) {
+  if (conflictsWithCallable(name, location)) {
+    return;
+  }
+  for (const Variable& existing : scopes_.back()) {
+    if (existing.name == name) {
+      diagnostics_.report(ErrorCode::SEM_REDEFINED_VARIABLE,
+                          "Variable '" + name +
+                              "' is already declared in this scope",
+                          location, nameLength(name));
+      return;
+    }
+  }
+  for (size_t i = 0; i + 1 < scopes_.size(); ++i) {
+    for (const Variable& outer : scopes_[i]) {
+      if (outer.name == name) {
+        diagnostics_.report(ErrorCode::WARN_SHADOWING_VARIABLE,
+                            "Variable '" + name +
+                                "' shadows a declaration in an outer scope",
+                            location, nameLength(name));
+        i = scopes_.size();
+        break;
+      }
+    }
+  }
+  scopes_.back().push_back({name, location, false, isParam});
+}
+
+SemanticAnalyzer::Variable* SemanticAnalyzer::lookup(const std::string& name) {
+  for (auto scope = scopes_.rbegin(); scope != scopes_.rend(); ++scope) {
+    for (Variable& variable : *scope) {
+      if (variable.name == name) {
+        return &variable;
+      }
+    }
   }
   return nullptr;
 }
 
-void SemanticAnalyzer::markVarUsed(const std::string &name) {
-  for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-    auto found = it->find(name);
-    if (found != it->end()) {
-      found->second.used = true;
-      return;
-    }
+void SemanticAnalyzer::reportUndefined(ErrorCode code, const std::string& what,
+                                       const std::string& name,
+                                       const Expr& expr) {
+  std::string help;
+  if (inFunction_ && topLevelVariables_.count(name)) {
+    help = "Functions cannot access top-level variables; pass '" + name +
+           "' as a parameter";
   }
+  diagnostics_.report(code, "Undefined " + what + " '" + name + "'",
+                      expr.location, nameLength(name), help);
 }
 
-void SemanticAnalyzer::reportError(ErrorCode code, const std::string &msg,
-                                   const SourceLocation &loc) {
-  diag_.reportError(code, msg, loc);
-}
-
-void SemanticAnalyzer::reportWarning(ErrorCode code, const std::string &msg,
-                                     const SourceLocation &loc) {
-  if (!warnings_.isEnabled(code)) return;
-  if (warnings_.treatAsErrors()) {
-    diag_.reportError(code, msg, loc);
-  } else {
-    diag_.reportWarning(code, msg, loc);
-  }
-}
-
-// ── Block analysis ────────────────────────────────────────────────────────────
-
-void SemanticAnalyzer::analyzeBlock(
-    const std::vector<std::unique_ptr<Stmt>> &stmts) {
-  bool wasUnreachable = unreachable_;
+void SemanticAnalyzer::analyzeBody(StmtList& body) {
+  bool outerUnreachable = unreachable_;
   unreachable_ = false;
-
-  for (const auto &stmt : stmts) {
+  for (StmtPtr& stmt : body) {
     if (unreachable_) {
-      SourceLocation loc(filename_, stmt->line, stmt->column);
-      reportWarning(ErrorCode::WARN_UNREACHABLE_CODE,
-                    "Unreachable statement", loc);
+      diagnostics_.report(ErrorCode::WARN_UNREACHABLE_CODE,
+                          "Unreachable statement", stmt->location);
       break;
     }
     stmt->accept(*this);
   }
-
-  unreachable_ = wasUnreachable || unreachable_;
+  unreachable_ = outerUnreachable || unreachable_;
 }
 
-// ── Expression visitors ───────────────────────────────────────────────────────
+void SemanticAnalyzer::visitLiteralExpr(LiteralExpr&) {}
 
-void SemanticAnalyzer::visitLiteralExpr(LiteralExpr &) {}
-
-void SemanticAnalyzer::visitVarExpr(VarExpr &expr) {
-  // Check if it's a known function name first (functions aren't in var scopes)
-  if (functions_.count(expr.name)) return;
-
-  SourceLocation loc(filename_, expr.line, expr.column);
-  if (!lookupVar(expr.name)) {
-    reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
-                "Undefined variable '" + expr.name + "'", loc);
-    return;
+void SemanticAnalyzer::visitVarExpr(VarExpr& expr) {
+  if (Variable* variable = lookup(expr.name)) {
+    variable->used = true;
+  } else if (findBuiltin(expr.name)) {
+    diagnostics_.report(ErrorCode::SEM_BUILTIN_AS_VALUE,
+                        "Built-in function '" + expr.name +
+                            "' can only be called, not used as a value",
+                        expr.location, nameLength(expr.name));
+  } else if (!functions_.count(expr.name)) {
+    reportUndefined(ErrorCode::SEM_UNDEFINED_VARIABLE, "variable", expr.name,
+                    expr);
   }
-  markVarUsed(expr.name);
 }
 
-void SemanticAnalyzer::visitAssignExpr(AssignExpr &expr) {
-  if (auto *varTarget = dynamic_cast<VarExpr *>(expr.target.get())) {
-    SourceLocation loc(filename_, expr.line, expr.column);
-    if (!lookupVar(varTarget->name)) {
-      reportError(ErrorCode::SEM_UNDEFINED_VARIABLE,
-                  "Assignment to undefined variable '" + varTarget->name + "'",
-                  loc);
+void SemanticAnalyzer::visitAssignExpr(AssignExpr& expr) {
+  if (auto* target = dynamic_cast<VarExpr*>(expr.target.get())) {
+    if (Variable* variable = lookup(target->name)) {
+      variable->used = true;
+    } else if (findBuiltin(target->name) || functions_.count(target->name)) {
+      diagnostics_.report(ErrorCode::SEM_ASSIGN_TO_NON_VARIABLE,
+                          "Cannot assign to function '" + target->name + "'",
+                          target->location, nameLength(target->name));
     } else {
-      markVarUsed(varTarget->name);
+      reportUndefined(ErrorCode::SEM_UNDEFINED_VARIABLE, "variable",
+                      target->name, *target);
     }
   } else {
-    // IndexExpr or FieldAccessExpr target (the parser guarantees the target
-    // is one of these three kinds) — reuse the same checks a read would get:
-    // visitIndexExpr validates the array/index subexpressions, and
-    // visitFieldAccessExpr rejects an unknown field on an inline literal.
     expr.target->accept(*this);
   }
   expr.value->accept(*this);
 }
 
-void SemanticAnalyzer::visitBinaryExpr(BinaryExpr &expr) {
+void SemanticAnalyzer::visitBinaryExpr(BinaryExpr& expr) {
   expr.left->accept(*this);
   expr.right->accept(*this);
 }
 
-void SemanticAnalyzer::visitUnaryExpr(UnaryExpr &expr) {
+void SemanticAnalyzer::visitUnaryExpr(UnaryExpr& expr) {
   expr.operand->accept(*this);
 }
 
-void SemanticAnalyzer::visitLogicalExpr(LogicalExpr &expr) {
+void SemanticAnalyzer::visitLogicalExpr(LogicalExpr& expr) {
   expr.left->accept(*this);
   expr.right->accept(*this);
 }
 
-void SemanticAnalyzer::visitIndexExpr(IndexExpr &expr) {
-  expr.array->accept(*this);
+void SemanticAnalyzer::visitIndexExpr(IndexExpr& expr) {
+  expr.object->accept(*this);
   expr.index->accept(*this);
 }
 
-void SemanticAnalyzer::visitFieldAccessExpr(FieldAccessExpr &expr) {
+void SemanticAnalyzer::visitFieldExpr(FieldExpr& expr) {
   expr.object->accept(*this);
-  // If the object is a literal `{a: 1, b: 2}`, we can statically verify
-  // the field exists. For computed/dynamic objects we can't check here.
-  if (auto *obj = dynamic_cast<ObjectExpr *>(expr.object.get())) {
-    if (obj->pairs.find(expr.fieldName) == obj->pairs.end()) {
-      SourceLocation loc(filename_, expr.line, expr.column);
-      reportError(ErrorCode::SEM_UNKNOWN_FIELD,
-                  "Object has no field '" + expr.fieldName + "'", loc);
+  if (auto* literal = dynamic_cast<ObjectExpr*>(expr.object.get())) {
+    for (const ObjectField& field : literal->fields) {
+      if (field.name == expr.name) {
+        return;
+      }
     }
+    diagnostics_.report(ErrorCode::SEM_UNKNOWN_FIELD,
+                        "Object has no field '" + expr.name + "'",
+                        expr.location);
   }
 }
 
-void SemanticAnalyzer::visitCallExpr(CallExpr &expr) {
-  auto *varExpr = dynamic_cast<VarExpr *>(expr.callee.get());
-  if (!varExpr) {
-    SourceLocation loc(filename_, expr.line, expr.column);
-    reportError(ErrorCode::SEM_INVALID_CALL_TARGET,
-                "Callee must be a function name", loc);
-    return;
-  }
-
-  SourceLocation loc(filename_, varExpr->line, varExpr->column);
-
-  // Built-ins: validate arg count but skip the user-function table.
-  static const std::unordered_map<std::string, size_t> kBuiltins = {
-      {"print", 1}, {"len", 1}, {"str", 1}, {"push", 2},
-  };
-  if (auto bi = kBuiltins.find(varExpr->name); bi != kBuiltins.end()) {
-    if (expr.args.size() != bi->second) {
-      reportError(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
-                  varExpr->name + "() takes exactly " +
-                      std::to_string(bi->second) + " argument(s)",
-                  loc);
+void SemanticAnalyzer::visitCallExpr(CallExpr& expr) {
+  auto* callee = dynamic_cast<VarExpr*>(expr.callee.get());
+  if (!callee) {
+    expr.callee->accept(*this);
+  } else if (Variable* variable = lookup(callee->name)) {
+    variable->used = true;
+  } else if (const BuiltinInfo* builtin = findBuiltin(callee->name)) {
+    if (expr.args.size() != builtin->arity) {
+      diagnostics_.report(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
+                          callee->name + "() takes " +
+                              arguments(builtin->arity) + ", got " +
+                              std::to_string(expr.args.size()),
+                          callee->location, nameLength(callee->name));
     }
-    for (auto &arg : expr.args) arg->accept(*this);
-    return;
-  }
-
-  auto it = functions_.find(varExpr->name);
-  if (it != functions_.end()) {
-    if (it->second != expr.args.size()) {
-      reportError(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
-                  "Function '" + varExpr->name + "' expects " +
-                      std::to_string(it->second) + " arguments, got " +
-                      std::to_string(expr.args.size()),
-                  loc);
+  } else if (auto function = functions_.find(callee->name);
+             function != functions_.end()) {
+    if (expr.args.size() != function->second) {
+      diagnostics_.report(ErrorCode::SEM_INVALID_ARGUMENT_COUNT,
+                          "Function '" + callee->name + "' takes " +
+                              arguments(function->second) + ", got " +
+                              std::to_string(expr.args.size()),
+                          callee->location, nameLength(callee->name));
     }
-  } else if (lookupVar(varExpr->name)) {
-    // Not a function name, but a local variable — may hold a first-class
-    // function reference (`let f = add; f(1, 2);`), which the Interpreter
-    // supports but the native backend doesn't (see Value.h). Argument count
-    // can't be validated here since the variable's target function isn't
-    // known statically; Interpreter::callFunction checks it at the call.
-    markVarUsed(varExpr->name);
   } else {
-    reportError(ErrorCode::SEM_UNDEFINED_FUNCTION,
-                "Undefined function '" + varExpr->name + "'", loc);
+    reportUndefined(ErrorCode::SEM_UNDEFINED_FUNCTION, "function", callee->name,
+                    *callee);
   }
-  for (auto &arg : expr.args) arg->accept(*this);
+  for (ExprPtr& arg : expr.args) {
+    arg->accept(*this);
+  }
 }
 
-void SemanticAnalyzer::visitArrayExpr(ArrayExpr &expr) {
-  for (auto &e : expr.elements) e->accept(*this);
+void SemanticAnalyzer::visitArrayExpr(ArrayExpr& expr) {
+  for (ExprPtr& element : expr.elements) {
+    element->accept(*this);
+  }
 }
 
-void SemanticAnalyzer::visitObjectExpr(ObjectExpr &expr) {
-  for (auto &[key, val] : expr.pairs) val->accept(*this);
+void SemanticAnalyzer::visitObjectExpr(ObjectExpr& expr) {
+  std::set<std::string> seen;
+  for (ObjectField& field : expr.fields) {
+    if (!seen.insert(field.name).second) {
+      diagnostics_.report(ErrorCode::SEM_DUPLICATE_FIELD,
+                          "Field '" + field.name +
+                              "' is defined more than once in this object",
+                          field.location, nameLength(field.name));
+    }
+    field.value->accept(*this);
+  }
 }
 
-// ── Statement visitors ────────────────────────────────────────────────────────
-
-void SemanticAnalyzer::visitExprStmt(ExprStmt &stmt) {
+void SemanticAnalyzer::visitExprStmt(ExprStmt& stmt) {
   stmt.expr->accept(*this);
 }
 
-void SemanticAnalyzer::visitLetStmt(LetStmt &stmt) {
+void SemanticAnalyzer::visitLetStmt(LetStmt& stmt) {
   stmt.initializer->accept(*this);
-  SourceLocation loc(filename_, stmt.line, stmt.column);
-  declareVar(stmt.name, loc);
+  declare(stmt.name, stmt.nameLocation, false);
 }
 
-void SemanticAnalyzer::visitFuncStmt(FuncStmt &stmt) {
-  // Register in function table (may already be there from pre-pass)
-  functions_[stmt.name] = stmt.params.size();
-
-  bool savedInFunction = inFunction_;
-  bool savedInLoop = inLoop_;
-  bool savedUnreachable = unreachable_;
-
+void SemanticAnalyzer::visitFuncStmt(FuncStmt& stmt) {
+  std::vector<Scope> outer = std::move(scopes_);
+  scopes_.clear();
+  bool outerInFunction = inFunction_;
+  bool outerInLoop = inLoop_;
+  bool outerUnreachable = unreachable_;
   inFunction_ = true;
   inLoop_ = false;
-  unreachable_ = false;
 
   enterScope();
-  SourceLocation funcLoc(filename_, stmt.line, stmt.column);
-  for (const auto &param : stmt.params) {
-    declareVar(param, funcLoc, /*isParam=*/true);
+  for (const Param& param : stmt.params) {
+    declare(param.name, param.location, true);
   }
-  analyzeBlock(stmt.body);
+  analyzeBody(stmt.body);
   exitScope();
 
-  inFunction_ = savedInFunction;
-  inLoop_ = savedInLoop;
-  unreachable_ = savedUnreachable;
+  scopes_ = std::move(outer);
+  inFunction_ = outerInFunction;
+  inLoop_ = outerInLoop;
+  unreachable_ = outerUnreachable;
 }
 
-void SemanticAnalyzer::visitIfStmt(IfStmt &stmt) {
+void SemanticAnalyzer::visitIfStmt(IfStmt& stmt) {
   stmt.condition->accept(*this);
+  bool outerUnreachable = unreachable_;
 
-  bool savedUnreachable = unreachable_;
   unreachable_ = false;
   enterScope();
-  analyzeBlock(stmt.thenBranch);
+  analyzeBody(stmt.thenBody);
   exitScope();
   bool thenTerminates = unreachable_;
 
   unreachable_ = false;
-  if (!stmt.elseBranch.empty()) {
-    enterScope();
-    analyzeBlock(stmt.elseBranch);
-    exitScope();
-  }
-  bool elseTerminates = unreachable_;
+  enterScope();
+  analyzeBody(stmt.elseBody);
+  exitScope();
+  bool elseTerminates = !stmt.elseBody.empty() && unreachable_;
 
-  unreachable_ = savedUnreachable || (thenTerminates && elseTerminates);
+  unreachable_ = outerUnreachable || (thenTerminates && elseTerminates);
 }
 
-void SemanticAnalyzer::visitForStmt(ForStmt &stmt) {
-  stmt.rangeStart->accept(*this);
-  stmt.rangeEnd->accept(*this);
+void SemanticAnalyzer::visitForStmt(ForStmt& stmt) {
+  stmt.start->accept(*this);
+  stmt.end->accept(*this);
 
-  bool savedInLoop = inLoop_;
-  bool savedUnreachable = unreachable_;
+  bool outerInLoop = inLoop_;
+  bool outerUnreachable = unreachable_;
   inLoop_ = true;
   unreachable_ = false;
-
   enterScope();
-  SourceLocation loc(filename_, stmt.line, stmt.column);
-  declareVar(stmt.var, loc);
-  analyzeBlock(stmt.body);
+  declare(stmt.var, stmt.varLocation, false);
+  analyzeBody(stmt.body);
   exitScope();
-
-  inLoop_ = savedInLoop;
-  unreachable_ = savedUnreachable;
+  inLoop_ = outerInLoop;
+  unreachable_ = outerUnreachable;
 }
 
-void SemanticAnalyzer::visitWhileStmt(WhileStmt &stmt) {
+void SemanticAnalyzer::visitWhileStmt(WhileStmt& stmt) {
   stmt.condition->accept(*this);
 
-  bool savedInLoop = inLoop_;
-  bool savedUnreachable = unreachable_;
+  bool outerInLoop = inLoop_;
+  bool outerUnreachable = unreachable_;
   inLoop_ = true;
   unreachable_ = false;
-
   enterScope();
-  analyzeBlock(stmt.body);
+  analyzeBody(stmt.body);
   exitScope();
-
-  inLoop_ = savedInLoop;
-  unreachable_ = savedUnreachable;
+  inLoop_ = outerInLoop;
+  unreachable_ = outerUnreachable;
 }
 
-void SemanticAnalyzer::visitReturnStmt(ReturnStmt &stmt) {
-  SourceLocation loc(filename_, stmt.line, stmt.column);
+void SemanticAnalyzer::visitReturnStmt(ReturnStmt& stmt) {
   if (!inFunction_) {
-    reportError(ErrorCode::SEM_RETURN_OUTSIDE_FUNCTION,
-                "'return' outside function", loc);
+    diagnostics_.report(ErrorCode::SEM_RETURN_OUTSIDE_FUNCTION,
+                        "'return' outside of a function", stmt.location, 6);
   }
-  if (stmt.value) stmt.value->accept(*this);
+  if (stmt.value) {
+    stmt.value->accept(*this);
+  }
   unreachable_ = true;
 }
 
-void SemanticAnalyzer::visitBreakStmt(BreakStmt &stmt) {
-  SourceLocation loc(filename_, stmt.line, stmt.column);
+void SemanticAnalyzer::visitBreakStmt(BreakStmt& stmt) {
   if (!inLoop_) {
-    reportError(ErrorCode::SEM_BREAK_OUTSIDE_LOOP, "'break' outside loop", loc);
+    diagnostics_.report(ErrorCode::SEM_BREAK_OUTSIDE_LOOP,
+                        "'break' outside of a loop", stmt.location, 5);
   }
   unreachable_ = true;
 }
 
-void SemanticAnalyzer::visitContinueStmt(ContinueStmt &stmt) {
-  SourceLocation loc(filename_, stmt.line, stmt.column);
+void SemanticAnalyzer::visitContinueStmt(ContinueStmt& stmt) {
   if (!inLoop_) {
-    reportError(ErrorCode::SEM_CONTINUE_OUTSIDE_LOOP,
-                "'continue' outside loop", loc);
+    diagnostics_.report(ErrorCode::SEM_CONTINUE_OUTSIDE_LOOP,
+                        "'continue' outside of a loop", stmt.location, 8);
   }
   unreachable_ = true;
 }
 
-void SemanticAnalyzer::visitBlockStmt(BlockStmt &stmt) {
+void SemanticAnalyzer::visitBlockStmt(BlockStmt& stmt) {
   enterScope();
-  analyzeBlock(stmt.body);
+  analyzeBody(stmt.body);
   exitScope();
 }
 

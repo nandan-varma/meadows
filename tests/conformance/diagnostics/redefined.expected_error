@@ -1,0 +1,7 @@
+error[E3003]: Variable 'a' is already declared in this scope
+ --> diagnostics/redefined.ms:2:5
+  |
+2 | let a = 2;
+  |     ^
+
+1 error, 0 warnings

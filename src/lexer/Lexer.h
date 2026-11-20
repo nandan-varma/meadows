@@ -1,61 +1,41 @@
-#ifndef LEXER_H
-#define LEXER_H
+#ifndef MEADOWS_LEXER_H
+#define MEADOWS_LEXER_H
 
-#include <string>
+#include <string_view>
 #include <vector>
 
+#include "../utils/Diagnostics.h"
 #include "Token.h"
 
-/**
- * @class Lexer
- * @brief Performs lexical analysis on Meadows source code.
- *
- * The Lexer converts raw source code into a sequence of tokens that can be
- * parsed by the Parser. It identifies keywords, literals, operators, and
- * punctuation while tracking line numbers for error reporting.
- *
- * @ Responsibility
- * - Tokenize source code into lexical tokens
- * - Recognize and categorize language keywords
- * - Parse numeric and string literals
- * - Handle comments (both # and // styles)
- * - Track line numbers for error messages
- */
+namespace meadows {
+
 class Lexer {
 public:
-  /**
-   * @brief Constructs a Lexer for the given source code.
-   * @param source The Meadows source code to tokenize.
-   */
-  Lexer(const std::string &source);
+  Lexer(std::string_view source, uint32_t file, DiagnosticSink& diagnostics);
 
-  int getColumn() const { return column_; }
-
-  /**
-   * @brief Tokenizes the entire source code.
-   * @return A vector of tokens representing the tokenized source.
-   * @throws std::runtime_error If an unterminated string is encountered.
-   */
   std::vector<Token> tokenize();
 
 private:
-  std::string source_;
-  size_t pos_;
-  int line_;
-  int column_;
-  int currentLineStart_;
+  std::string_view source_;
+  uint32_t file_;
+  DiagnosticSink& diagnostics_;
+  size_t pos_ = 0;
+  uint32_t line_ = 1;
+  uint32_t column_ = 1;
 
-  char peek() const;
-  char peekNext() const;
+  bool atEnd() const { return pos_ >= source_.size(); }
+  char peek(size_t ahead = 0) const;
   char advance();
-  bool isAtEnd() const;
-  Token nextToken();
-  Token handleOperator(char c, int startColumn);
-  Token identifier();
-  Token number();
-  Token string();
-  void skipWhitespace();
-  void skipComment();
+  Location here() const { return {file_, line_, column_}; }
+  Token make(TokenType type, std::string text, Location start) const;
+
+  void skipTrivia();
+  void lexToken(std::vector<Token>& tokens);
+  Token lexWord(Location start);
+  Token lexNumber(Location start);
+  Token lexString(Location start);
 };
+
+} // namespace meadows
 
 #endif
