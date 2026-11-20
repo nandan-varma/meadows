@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "serve": "node serve.mjs",
-    "test": "node --test test/"
+    "test": "node --test \"test/*.test.mjs\""
   },
   "license": "MIT",
   "dependencies": {

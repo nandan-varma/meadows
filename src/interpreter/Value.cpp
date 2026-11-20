@@ -28,8 +28,8 @@ void releaseChildren(std::vector<Value>& children) {
   }
   draining() = true;
   while (!pending.empty()) {
-    Value next = std::move(pending.back());
-    pending.pop_back();
+    std::vector<Value> batch;
+    batch.swap(pending);
   }
   draining() = false;
 }

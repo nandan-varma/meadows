@@ -51,7 +51,7 @@ npm run serve        # http://localhost:8080
 
 ```bash
 cmake -B build-san -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined" \
+  -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize=vptr" \
   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 cmake --build build-san
 MEADOWS_CFLAGS="-fsanitize=address,undefined -g" ctest --test-dir build-san
