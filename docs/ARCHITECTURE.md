@@ -50,7 +50,8 @@ errors identically, including the source location of the failing operation.
 
 ## Browser playground (`src/wasm`, `web`)
 
-`WasmBridge.cpp` exposes `analyze` and `execute` through Embind. The files of a
+`WasmBridge.cpp` exposes `analyze` (diagnostics, tokens, syntax tree and the
+interpreter's bytecode listing) and `execute` through Embind. The files of a
 project are written into the module's in-memory file system, so `import` works
 as it does on disk. Output reaches JavaScript as raw bytes, which keeps embedded
 NUL bytes intact. In the page, each run is a fresh Web Worker, so it can be

@@ -38,8 +38,11 @@ suite and a differential fuzzer enforce it.
   WebAssembly.
 - Source locations on runtime errors, and diagnostics with source context,
   sorted by position, reported across all imported files.
-- A browser playground with multi-file projects and imports, inline
-  diagnostics, a Stop button, shareable links and examples.
+- A browser playground with multi-file projects and imports, a command palette,
+  completion and hover documentation, go to definition, formatting, Vim keys,
+  clickable errors, token, syntax tree and bytecode views, a language reference,
+  run on change, benchmarking, themes, zip export, embeddable share links and
+  offline support.
 - `--lsp-diagnostics --stdin` for analysing unsaved editor buffers at their real
   path.
 - `MEADOWS_CFLAGS` to add flags when building compiled programs.

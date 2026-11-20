@@ -1,0 +1,11 @@
+{
+  "name": "Meadows Playground",
+  "short_name": "Meadows",
+  "description": "Write, run and inspect Meadows programs in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8f6",
+  "theme_color": "#2f9e6f",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -11,8 +11,7 @@ const KEYWORDS = new Set([
   "break", "continue", "import",
 ]);
 const CONSTANTS = new Set(["true", "false"]);
-export const BUILTINS = ["print", "len", "str", "push"];
-export const KEYWORD_LIST = [...KEYWORDS, ...CONSTANTS];
+const BUILTINS = ["print", "len", "str", "push"];
 
 const OPENERS = "([{";
 const CLOSERS = ")]}";

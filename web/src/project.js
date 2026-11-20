@@ -25,6 +25,36 @@ export function addFile(project, name) {
   project.active = name;
 }
 
+export function renameFile(project, from, to) {
+  if (from === ENTRY_FILE) {
+    throw new Error(`${ENTRY_FILE} is the entry point and cannot be renamed`);
+  }
+  if (from === to) {
+    return;
+  }
+  if (!isValidFileName(to)) {
+    throw new Error("File names may contain letters, digits, '_' and '-' and must end in .ms");
+  }
+  if (project.files.some((file) => file.name === to)) {
+    throw new Error(`${to} already exists`);
+  }
+  const file = project.files.find((candidate) => candidate.name === from);
+  file.name = to;
+  if (project.active === from) {
+    project.active = to;
+  }
+}
+
+export function upsertFile(project, name, text) {
+  const existing = project.files.find((file) => file.name === name);
+  if (existing) {
+    existing.text = text;
+    return;
+  }
+  addFile(project, name);
+  project.files.find((file) => file.name === name).text = text;
+}
+
 export function removeFile(project, name) {
   if (name === ENTRY_FILE) {
     throw new Error(`${ENTRY_FILE} is the entry point and cannot be removed`);

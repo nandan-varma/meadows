@@ -31,6 +31,7 @@ function analyze(module, { files, entry }) {
     diagnosticsJson: report.diagnosticsJson,
     tokens: report.tokens,
     ast: report.ast,
+    bytecode: report.bytecode,
   };
 }
 
