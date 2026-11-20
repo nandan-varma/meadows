@@ -80,8 +80,8 @@ void DiagnosticSink::report(ErrorCode code, std::string message,
   if (full()) {
     return;
   }
-  diagnostics_.push_back({code, std::move(message), std::move(help), location,
-                          length});
+  diagnostics_.push_back(
+      {code, std::move(message), std::move(help), location, length});
 }
 
 std::string formatDiagnostic(const Diagnostic& diagnostic,
@@ -104,8 +104,8 @@ std::string formatDiagnostic(const Diagnostic& diagnostic,
     out += paint(options, BLUE, std::to_string(loc.line) + " |") + " " +
            std::string(line) + "\n";
     size_t pad = loc.column > 0 ? loc.column - 1 : 0;
-    size_t width = std::min<size_t>(
-        diagnostic.length, line.size() > pad ? line.size() - pad : 1);
+    size_t width = std::min<size_t>(diagnostic.length,
+                                    line.size() > pad ? line.size() - pad : 1);
     out += gutter + paint(options, BLUE, " |") + " " + std::string(pad, ' ') +
            paint(options, diagnostic.isWarning() ? YELLOW : RED,
                  std::string(std::max<size_t>(width, 1), '^')) +
@@ -130,8 +130,8 @@ std::string formatDiagnostics(const std::vector<Diagnostic>& diagnostics,
   }
   if (errors + warnings > 0) {
     out += std::to_string(errors) + (errors == 1 ? " error, " : " errors, ") +
-           std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings") +
-           "\n";
+           std::to_string(warnings) +
+           (warnings == 1 ? " warning" : " warnings") + "\n";
   }
   return out;
 }
@@ -148,9 +148,9 @@ std::string diagnosticsToJson(const std::vector<Diagnostic>& unsorted,
     out += i ? "," : "";
     out += "{\"file\":\"" + escapeJson(sources.path(loc.file)) + "\"";
     out += ",\"range\":{\"start\":{\"line\":" + std::to_string(line) +
-           ",\"character\":" + std::to_string(start) + "},\"end\":{\"line\":" +
-           std::to_string(line) + ",\"character\":" +
-           std::to_string(start + d.length) + "}}";
+           ",\"character\":" + std::to_string(start) +
+           "},\"end\":{\"line\":" + std::to_string(line) +
+           ",\"character\":" + std::to_string(start + d.length) + "}}";
     out += ",\"severity\":" + std::string(d.isWarning() ? "2" : "1");
     out += ",\"code\":\"" + codeString(d.code) + "\"";
     out += ",\"message\":\"" + escapeJson(d.message) + "\"";

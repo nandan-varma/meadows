@@ -220,9 +220,9 @@ StmtPtr Parser::parseStatement(bool topLevel) {
 }
 
 StmtPtr Parser::parseLet() {
-  const Token& name = expect(TokenType::IDENTIFIER,
-                             ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                             "Expected a variable name after 'let'");
+  const Token& name =
+      expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+             "Expected a variable name after 'let'");
   std::string text = name.text;
   Location nameLocation = name.location;
   expect(TokenType::EQUAL, ErrorCode::PARSE_EXPECTED_EQUALS,
@@ -235,9 +235,9 @@ StmtPtr Parser::parseLet() {
 }
 
 StmtPtr Parser::parseFunc() {
-  const Token& name = expect(TokenType::IDENTIFIER,
-                             ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                             "Expected a function name after 'func'");
+  const Token& name =
+      expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+             "Expected a function name after 'func'");
   std::string text = name.text;
   Location nameLocation = name.location;
   expect(TokenType::LEFT_PAREN, ErrorCode::PARSE_EXPECTED_LPAREN,
@@ -245,9 +245,9 @@ StmtPtr Parser::parseFunc() {
   std::vector<Param> params;
   if (!check(TokenType::RIGHT_PAREN)) {
     do {
-      const Token& param = expect(TokenType::IDENTIFIER,
-                                  ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                                  "Expected a parameter name");
+      const Token& param =
+          expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+                 "Expected a parameter name");
       params.push_back({param.text, param.location});
     } while (match(TokenType::COMMA));
   }
@@ -281,9 +281,9 @@ StmtPtr Parser::parseIf() {
 StmtPtr Parser::parseFor() {
   expect(TokenType::LEFT_PAREN, ErrorCode::PARSE_EXPECTED_LPAREN,
          "Expected '(' after 'for'");
-  const Token& var = expect(TokenType::IDENTIFIER,
-                            ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                            "Expected a loop variable name");
+  const Token& var =
+      expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+             "Expected a loop variable name");
   std::string name = var.text;
   Location varLocation = var.location;
   expect(TokenType::IN, ErrorCode::PARSE_EXPECTED_IN,
@@ -351,7 +351,9 @@ StmtList Parser::parseBlock() {
   return body;
 }
 
-ExprPtr Parser::parseExpression() { return parseAssignment(); }
+ExprPtr Parser::parseExpression() {
+  return parseAssignment();
+}
 
 ExprPtr Parser::bounded(ExprPtr expr, Location location) {
   expr->location = location;
@@ -440,8 +442,9 @@ ExprPtr Parser::parsePostfix() {
       std::vector<ExprPtr> args = parseArguments();
       expect(TokenType::RIGHT_PAREN, ErrorCode::PARSE_EXPECTED_RPAREN,
              "Expected ')' after the arguments");
-      expr = bounded(std::make_unique<CallExpr>(std::move(expr), std::move(args)),
-                     location);
+      expr =
+          bounded(std::make_unique<CallExpr>(std::move(expr), std::move(args)),
+                  location);
     } else if (check(TokenType::LEFT_BRACKET)) {
       Location location = advance().location;
       ExprPtr index = parseExpression();
@@ -452,9 +455,9 @@ ExprPtr Parser::parsePostfix() {
           location);
     } else if (check(TokenType::DOT)) {
       Location location = advance().location;
-      const Token& name = expect(TokenType::IDENTIFIER,
-                                 ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                                 "Expected a field name after '.'");
+      const Token& name =
+          expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+                 "Expected a field name after '.'");
       expr = bounded(std::make_unique<FieldExpr>(std::move(expr), name.text),
                      location);
     } else {
@@ -485,8 +488,8 @@ ExprPtr Parser::parseNumber(const Token& token, bool negated) {
            "Number literal '" + token.text + "' is out of range",
            token.location, token.length);
     }
-    literal = LiteralExpr::integer(
-        static_cast<int32_t>(negated ? -value : value));
+    literal =
+        LiteralExpr::integer(static_cast<int32_t>(negated ? -value : value));
   }
   literal->location = token.location;
   return literal;
@@ -549,9 +552,9 @@ ExprPtr Parser::parseObject(const Token& open) {
   std::vector<ObjectField> fields;
   if (!check(TokenType::RIGHT_BRACE)) {
     do {
-      const Token& key = expect(TokenType::IDENTIFIER,
-                                ErrorCode::PARSE_EXPECTED_IDENTIFIER,
-                                "Expected a field name");
+      const Token& key =
+          expect(TokenType::IDENTIFIER, ErrorCode::PARSE_EXPECTED_IDENTIFIER,
+                 "Expected a field name");
       std::string name = key.text;
       Location keyLocation = key.location;
       expect(TokenType::COLON, ErrorCode::PARSE_EXPECTED_COLON,

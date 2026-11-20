@@ -23,8 +23,7 @@ TEST_CASE("sema resolves names", "[sema]") {
         Codes{ErrorCode::SEM_UNDEFINED_VARIABLE});
 }
 
-TEST_CASE("sema lets functions be called before they are defined",
-          "[sema]") {
+TEST_CASE("sema lets functions be called before they are defined", "[sema]") {
   CHECK(codes(analyze("print(f());\nfunc f() { return 1; }")).empty());
   CHECK(codes(analyze("func a() { return b(); }\nfunc b() { return 1; }\n"
                       "print(a());"))
@@ -90,8 +89,7 @@ TEST_CASE("sema checks object literals", "[sema]") {
 }
 
 TEST_CASE("sema warns about unused variables", "[sema]") {
-  CHECK(codes(analyze("let a = 1;")) ==
-        Codes{ErrorCode::WARN_UNUSED_VARIABLE});
+  CHECK(codes(analyze("let a = 1;")) == Codes{ErrorCode::WARN_UNUSED_VARIABLE});
   CHECK(codes(analyze("let _a = 1;")).empty());
   CHECK(codes(analyze("func f(a) { return 1; }")).empty());
   CHECK(analyze("let a = 1;").ok());
@@ -105,8 +103,7 @@ TEST_CASE("sema warns about shadowing and unreachable code", "[sema]") {
   CHECK(codes(analyze("func f(c) { if (c) { return 1; } else { return 2; } "
                       "print(3); }")) ==
         Codes{ErrorCode::WARN_UNREACHABLE_CODE});
-  CHECK(codes(analyze("func f(c) { if (c) { return 1; } print(3); }"))
-            .empty());
+  CHECK(codes(analyze("func f(c) { if (c) { return 1; } print(3); }")).empty());
 }
 
 TEST_CASE("warning policy can silence warnings or promote them", "[sema]") {

@@ -31,8 +31,8 @@ inline Execution execute(const std::string& source) {
   Analysis analysis = analyze(source);
   Execution execution;
   if (!analysis.ok()) {
-    execution.output = formatDiagnostics(analysis.diagnostics.diagnostics(),
-                                         analysis.sources);
+    execution.output =
+        formatDiagnostics(analysis.diagnostics.diagnostics(), analysis.sources);
     return execution;
   }
   Interpreter interpreter(

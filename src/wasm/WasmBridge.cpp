@@ -33,8 +33,8 @@ bool readEntry(const std::string& path, std::string& text,
                std::string& problem) {
   ReadResult result = readSourceFile(path, text);
   if (result != ReadResult::OK) {
-    problem = "cannot read '" + path + "': " + describeReadFailure(result) +
-              "\n";
+    problem =
+        "cannot read '" + path + "': " + describeReadFailure(result) + "\n";
   }
   return result == ReadResult::OK;
 }
@@ -64,10 +64,10 @@ AnalysisReport analyze(const std::string& path) {
   report.tokens = describeTokens(text);
   Analysis analysis = analyzeSource(path, std::move(text));
   report.ok = analysis.ok();
-  report.diagnostics = formatDiagnostics(analysis.diagnostics.diagnostics(),
-                                         analysis.sources);
-  report.diagnosticsJson = diagnosticsToJson(analysis.diagnostics.diagnostics(),
-                                             analysis.sources);
+  report.diagnostics =
+      formatDiagnostics(analysis.diagnostics.diagnostics(), analysis.sources);
+  report.diagnosticsJson =
+      diagnosticsToJson(analysis.diagnostics.diagnostics(), analysis.sources);
   if (report.ok) {
     report.ast = AstPrinter().print(analysis.program);
   }
@@ -82,10 +82,10 @@ ExecutionReport execute(const std::string& path, emscripten::val onOutput) {
     return report;
   }
   Analysis analysis = analyzeSource(path, std::move(text));
-  report.diagnostics = formatDiagnostics(analysis.diagnostics.diagnostics(),
-                                         analysis.sources);
-  report.diagnosticsJson = diagnosticsToJson(analysis.diagnostics.diagnostics(),
-                                             analysis.sources);
+  report.diagnostics =
+      formatDiagnostics(analysis.diagnostics.diagnostics(), analysis.sources);
+  report.diagnosticsJson =
+      diagnosticsToJson(analysis.diagnostics.diagnostics(), analysis.sources);
   report.compiled = analysis.ok();
   if (!report.compiled) {
     return report;
@@ -103,7 +103,9 @@ ExecutionReport execute(const std::string& path, emscripten::val onOutput) {
   return report;
 }
 
-std::string version() { return MEADOWS_VERSION; }
+std::string version() {
+  return MEADOWS_VERSION;
+}
 
 } // namespace
 

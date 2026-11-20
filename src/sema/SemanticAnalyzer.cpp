@@ -60,7 +60,7 @@ void SemanticAnalyzer::exitScope() {
 
 bool SemanticAnalyzer::conflictsWithCallable(const std::string& name,
                                              Location location) {
-  const char* kind = findBuiltin(name)          ? "a built-in function"
+  const char* kind = findBuiltin(name)        ? "a built-in function"
                      : functions_.count(name) ? "a function"
                                               : nullptr;
   if (!kind) {

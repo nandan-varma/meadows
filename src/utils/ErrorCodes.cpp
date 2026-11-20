@@ -2,7 +2,9 @@
 
 namespace meadows {
 
-bool isWarning(ErrorCode code) { return static_cast<int>(code) >= 6000; }
+bool isWarning(ErrorCode code) {
+  return static_cast<int>(code) >= 6000;
+}
 
 std::string codeString(ErrorCode code) {
   return (isWarning(code) ? "W" : "E") + std::to_string(static_cast<int>(code));

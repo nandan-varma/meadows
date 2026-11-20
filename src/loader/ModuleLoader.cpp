@@ -55,8 +55,7 @@ StmtList ModuleLoader::parseModule(const std::string& path, std::string text,
 void ModuleLoader::splice(StmtList& into, const ImportRequest& request,
                           const std::string& importer, int depth) {
   auto fail = [&](ErrorCode code, const std::string& reason) {
-    diagnostics_.report(code,
-                        "Cannot import '" + request.path + "': " + reason,
+    diagnostics_.report(code, "Cannot import '" + request.path + "': " + reason,
                         request.location, 6);
   };
 

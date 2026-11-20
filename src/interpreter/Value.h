@@ -79,8 +79,8 @@ private:
   explicit Value(int32_t v) : data_(v) {}
   explicit Value(double v) : data_(v) {}
   explicit Value(const FunctionCode* v) : data_(v) {}
-  template <typename T> Value(std::in_place_type_t<T> tag, T v)
-      : data_(tag, std::move(v)) {}
+  template <typename T>
+  Value(std::in_place_type_t<T> tag, T v) : data_(tag, std::move(v)) {}
 };
 
 std::string formatFloat(double value);

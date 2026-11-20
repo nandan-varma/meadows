@@ -13,7 +13,8 @@ struct Fixture {
 
 } // namespace
 
-TEST_CASE("diagnostic codes render with their category letter", "[diagnostics]") {
+TEST_CASE("diagnostic codes render with their category letter",
+          "[diagnostics]") {
   CHECK(codeString(ErrorCode::SEM_UNDEFINED_VARIABLE) == "E3001");
   CHECK(codeString(ErrorCode::WARN_UNUSED_VARIABLE) == "W6001");
   CHECK(isWarning(ErrorCode::WARN_SHADOWING_VARIABLE));

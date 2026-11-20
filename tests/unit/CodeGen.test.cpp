@@ -30,7 +30,8 @@ bool contains(const std::string& text, const std::string& part) {
 
 TEST_CASE("codegen emits an entry point and one function per declaration",
           "[codegen]") {
-  std::string ir = generate("func add(a, b) { return a + b; }\nprint(add(1, 2));");
+  std::string ir =
+      generate("func add(a, b) { return a + b; }\nprint(add(1, 2));");
   CHECK(contains(ir, "define i32 @main()"));
   CHECK(contains(ir, "@mrt_run"));
   CHECK(contains(ir, "define internal void @ms.add(ptr"));

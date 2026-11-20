@@ -59,8 +59,7 @@ TEST_CASE("parser makes assignment right associative", "[parser]") {
         "1\n");
 }
 
-TEST_CASE("parser chains calls, indexing and field access freely",
-          "[parser]") {
+TEST_CASE("parser chains calls, indexing and field access freely", "[parser]") {
   CHECK(tree("a[0].x[1](2);") ==
         "ExprStmt\n  Call\n    Index\n      Field x\n        Index\n          "
         "Var a\n          Int 0\n      Int 1\n    Int 2\n");
@@ -151,6 +150,7 @@ TEST_CASE("parser bounds nesting depth", "[parser]") {
 }
 
 TEST_CASE("parser accepts moderately deep nesting", "[parser]") {
-  Parsed parsed = parse(std::string(60, '(') + "1" + std::string(60, ')') + ";");
+  Parsed parsed =
+      parse(std::string(60, '(') + "1" + std::string(60, ')') + ";");
   CHECK_FALSE(parsed.sink.hasErrors());
 }

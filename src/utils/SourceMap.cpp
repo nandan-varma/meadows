@@ -19,8 +19,8 @@ std::string_view SourceMap::lineText(uint32_t file, uint32_t line) const {
     return {};
   }
   size_t start = f.lineStarts[line - 1];
-  size_t end = line < f.lineStarts.size() ? f.lineStarts[line] - 1
-                                          : f.text.size();
+  size_t end =
+      line < f.lineStarts.size() ? f.lineStarts[line] - 1 : f.text.size();
   if (end > start && f.text[end - 1] == '\r') {
     --end;
   }

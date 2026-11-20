@@ -44,3 +44,9 @@ if(Python3_FOUND)
                    ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/differential.py
                    $<TARGET_FILE:Meadows> --programs 40)
 endif()
+
+foreach(mode interpret native)
+  add_test(NAME examples-${mode}
+           COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_examples.sh
+                   $<TARGET_FILE:Meadows> ${mode})
+endforeach()

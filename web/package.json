@@ -1,6 +1,6 @@
 {
   "name": "meadows-playground",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "private": true,
   "description": "Browser playground for the Meadows language",
   "type": "module",

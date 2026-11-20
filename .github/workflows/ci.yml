@@ -1,121 +1,117 @@
 name: CI
+
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
-  build:
+  native:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
+      - uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
-        # Sets LLVM_PATH env var to the install root
-
-      - uses: jwlawson/actions-setup-cmake@v2
-
-      - name: Build and Test
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_WERROR=ON \
+            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm"
+          cmake --build build --parallel
+      - name: Test
         env:
-          # LLVM_PATH is set by KyleMayes/install-llvm-action
-          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
-          # LD_LIBRARY_PATH: Linux needs it for dynamic LLVM libs.
-          # macOS: omitted — KyleMayes prebuilt uses static libs, and setting
-          # DYLD_LIBRARY_PATH globally poisons bash with LLVM's older libc++abi.
+          MEADOWS_CLANG: ${{ runner.os == 'macOS' && '/usr/bin/clang' || format('{0}/bin/clang', env.LLVM_PATH) }}
           LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('{0}/lib', env.LLVM_PATH) || '' }}
-          # MEADOWS_CLANG: which clang++ to invoke for the final .ll → binary step.
-          # Linux: use LLVM 17 clang++ (matches the IR version).
-          # macOS: use system Apple Clang — LLVM 17's clang++ doesn't know the
-          #        Xcode 16+ SDK paths (macOS 15 runner), so linking fails.
-          #        Apple Clang can read LLVM 17 IR and knows its own SDK.
-          MEADOWS_CLANG: ${{ runner.os == 'macOS' && '/usr/bin/clang++' || format('{0}/bin/clang++', env.LLVM_PATH) }}
-        run: ./scripts/ci/run_ci.sh --llvm "$LLVM_DIR"
+        run: ctest --test-dir build --output-on-failure --parallel 4
 
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: test-results-${{ matrix.os }}
-          path: build*/
-
-  static-analysis:
+  sanitizers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
-      - run: ./scripts/dev/run_static_analysis.sh
-
-  sanitizers:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "17"
-
-      - uses: jwlawson/actions-setup-cmake@v2
-
-      - name: Build with ASan + UBSan
-        env:
-          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
-          LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
+      - name: Build with AddressSanitizer and UBSan
         run: |
-          cmake -B build-san \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_DIR="$LLVM_DIR" \
-            -DBUILD_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer" \
+          cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="$LLVM_PATH/bin/clang" \
+            -DCMAKE_CXX_COMPILER="$LLVM_PATH/bin/clang++" \
+            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm" \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
-          cmake --build build-san --parallel
-
-      - name: Run unit tests under sanitizers
+          cmake --build build --parallel
+      - name: Test the compiler, the interpreter and compiled programs
         env:
+          MEADOWS_CLANG: ${{ env.LLVM_PATH }}/bin/clang
+          MEADOWS_CFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined -g
+          ASAN_OPTIONS: detect_leaks=0
           LD_LIBRARY_PATH: ${{ env.LLVM_PATH }}/lib
-          ASAN_OPTIONS: halt_on_error=1:detect_leaks=0
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ./build-san/tests/meadows_tests
+        run: ctest --test-dir build --output-on-failure --parallel 4
 
-  security:
+  format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
+      - uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
+      - run: CLANG_FORMAT="$LLVM_PATH/bin/clang-format" scripts/format.sh --check
 
-      - uses: jwlawson/actions-setup-cmake@v2
+  webassembly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the WebAssembly module
+        run: |
+          emcmake cmake -B build-wasm -DBUILD_WASM=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-wasm --parallel
+      - name: Run the conformance suite on WebAssembly
+        run: ctest --test-dir build-wasm --output-on-failure
+      - name: Test and build the playground
+        working-directory: web
+        run: |
+          npm ci
+          MEADOWS_WASM=../build-wasm/bin/meadows.js npm test
+          npm run build
 
-      - uses: github/codeql-action/init@v4
+  language-server:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [meadows-lsp, meadows-vscode]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - working-directory: lsp/${{ matrix.package }}
+        run: |
+          npm ci
+          npm run build
+          npm audit --omit=dev
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17"
+      - uses: github/codeql-action/init@v3
         with:
           languages: cpp
-
-      - name: Build for CodeQL
-        env:
-          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_DIR="$LLVM_DIR" \
-            -DBUILD_TESTS=OFF
+      - run: |
+          cmake -B build -DBUILD_TESTS=OFF -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm"
           cmake --build build --parallel
-
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@v3

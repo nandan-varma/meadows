@@ -43,7 +43,8 @@ TEST_CASE("floats promote integers and print with %g", "[interpreter]") {
 
 TEST_CASE("equality compares numbers by value and strings by content",
           "[interpreter]") {
-  CHECK(output("print(1 == 1.0); print(\"a\" == \"a\"); print(\"a\" != \"b\");") ==
+  CHECK(output(
+            "print(1 == 1.0); print(\"a\" == \"a\"); print(\"a\" != \"b\");") ==
         "1\n1\n1\n");
   CHECK(output("print(1 == \"1\");") == "0\n");
   CHECK(output("print([1] == [1]);") == "0\n");
@@ -67,7 +68,8 @@ TEST_CASE("logical operators short-circuit and yield 0 or 1", "[interpreter]") {
 TEST_CASE("arrays and objects have reference semantics", "[interpreter]") {
   CHECK(output("let a = [1, 2]; let b = a; b[0] = 9; print(a[0]);") == "9\n");
   CHECK(output("let o = {x: 1}; let p = o; p.x = 5; print(o.x);") == "5\n");
-  CHECK(output("let a = [1]; let b = push(a, 2); print(len(a)); print(b == a);") ==
+  CHECK(output(
+            "let a = [1]; let b = push(a, 2); print(len(a)); print(b == a);") ==
         "2\n1\n");
   CHECK(output("let a = [1]; a = push(push(a, 2), 3); print(len(a));") ==
         "3\n");
@@ -103,8 +105,9 @@ TEST_CASE("functions return zero by default", "[interpreter]") {
 }
 
 TEST_CASE("scopes end with their block", "[interpreter]") {
-  CHECK(output("let x = 1; { let y = 2; print(x + y); } let y = 5; print(y);") ==
-        "3\n5\n");
+  CHECK(
+      output("let x = 1; { let y = 2; print(x + y); } let y = 5; print(y);") ==
+      "3\n5\n");
   CHECK(output("let i = 10; for (i in range(0, 2)) { print(i); } print(i);") ==
         "0\n1\n10\n");
 }
@@ -162,8 +165,10 @@ TEST_CASE("runtime errors have stable messages", "[interpreter]") {
   CHECK(failure("print(!1.5);") == "Operator '!' cannot be applied to float");
   CHECK(failure("print(1.5 && 1);") ==
         "Operator '&&' cannot be applied to float");
-  CHECK(failure("if (\"a\") { }") == "Condition must be an integer, got string");
-  CHECK(failure("while (1.0) { }") == "Condition must be an integer, got float");
+  CHECK(failure("if (\"a\") { }") ==
+        "Condition must be an integer, got string");
+  CHECK(failure("while (1.0) { }") ==
+        "Condition must be an integer, got float");
   CHECK(failure("for (i in range(0, 1.5)) { }") ==
         "Range bounds must be integers, got float");
   CHECK(failure("let x = 3; x();") == "Cannot call an integer");
@@ -172,8 +177,7 @@ TEST_CASE("runtime errors have stable messages", "[interpreter]") {
   CHECK(failure("print([1]);") == "print() cannot print an array");
   CHECK(failure("print(len(5));") ==
         "len() requires a string or an array, got integer");
-  CHECK(failure("print(str(\"a\"));") ==
-        "str() requires a number, got string");
+  CHECK(failure("print(str(\"a\"));") == "str() requires a number, got string");
   CHECK(failure("push(1, 2);") ==
         "push() requires an array as its first argument, got integer");
 }
@@ -181,8 +185,9 @@ TEST_CASE("runtime errors have stable messages", "[interpreter]") {
 TEST_CASE("call depth is bounded", "[interpreter]") {
   CHECK(failure("func f(n) { return f(n + 1); } f(0);") ==
         "Maximum call depth exceeded");
-  CHECK(output("func sum(n) { if (n == 0) { return 0; } return n + sum(n - 1); }"
-               "\nprint(sum(5000));") == "12502500\n");
+  CHECK(
+      output("func sum(n) { if (n == 0) { return 0; } return n + sum(n - 1); }"
+             "\nprint(sum(5000));") == "12502500\n");
 }
 
 TEST_CASE("string length is bounded", "[interpreter]") {

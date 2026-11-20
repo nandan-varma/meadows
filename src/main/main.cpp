@@ -41,9 +41,9 @@ bool buildWarningPolicy(const std::vector<std::string>& flags,
     if (flag.rfind("no-", 0) == 0) {
       std::string name = flag.substr(3);
       bool known = false;
-      for (ErrorCode code : {ErrorCode::WARN_UNUSED_VARIABLE,
-                             ErrorCode::WARN_UNREACHABLE_CODE,
-                             ErrorCode::WARN_SHADOWING_VARIABLE}) {
+      for (ErrorCode code :
+           {ErrorCode::WARN_UNUSED_VARIABLE, ErrorCode::WARN_UNREACHABLE_CODE,
+            ErrorCode::WARN_SHADOWING_VARIABLE}) {
         if (name == warningName(code)) {
           policy.disabled.insert(code);
           known = true;
@@ -120,15 +120,19 @@ int main(int argc, char** argv) {
   app.add_option("-o,--output", options.output, "Output executable path");
   app.add_option("-O,--opt-level", options.optLevel, "Optimization level")
       ->check(CLI::Range(0, 3));
-  app.add_flag("--run", options.run, "Interpret the program instead of compiling");
+  app.add_flag("--run", options.run,
+               "Interpret the program instead of compiling");
   app.add_flag("--dump-ast", options.dumpAst, "Print the syntax tree and exit");
   app.add_flag("--dump-ir", options.dumpIr, "Print the LLVM IR and exit");
   app.add_flag("--lsp-diagnostics", options.lspDiagnostics,
                "Print diagnostics as JSON for editor integration");
-  app.add_flag("--stdin", options.readStdin,
-               "Read the source from standard input; the file argument names it");
-  app.add_flag("-v,--verbose", options.verbose, "Report each compilation phase");
-  app.add_option("-W", options.warnings, "Warning options: -Werror, -Wno-<name>")
+  app.add_flag(
+      "--stdin", options.readStdin,
+      "Read the source from standard input; the file argument names it");
+  app.add_flag("-v,--verbose", options.verbose,
+               "Report each compilation phase");
+  app.add_option("-W", options.warnings,
+                 "Warning options: -Werror, -Wno-<name>")
       ->allow_extra_args(false);
   CLI11_PARSE(app, argc, argv);
 

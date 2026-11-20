@@ -73,9 +73,8 @@ llvm::GlobalVariable* CodeGen::cString(const std::string& text) {
     return found->second;
   }
   llvm::Constant* data = llvm::ConstantDataArray::getString(context_, text);
-  auto* global = new llvm::GlobalVariable(module_, data->getType(), true,
-                                          llvm::GlobalValue::PrivateLinkage,
-                                          data);
+  auto* global = new llvm::GlobalVariable(
+      module_, data->getType(), true, llvm::GlobalValue::PrivateLinkage, data);
   global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   return cStrings_[text] = global;
 }
@@ -104,8 +103,8 @@ llvm::GlobalVariable* CodeGen::shape(const std::vector<ObjectField>& fields) {
     names.push_back(cString(field.name));
   }
   llvm::ArrayType* namesType = llvm::ArrayType::get(pointerType_, names.size());
-  llvm::StructType* type = llvm::StructType::get(
-      context_, {int32Type_, int32Type_, namesType});
+  llvm::StructType* type =
+      llvm::StructType::get(context_, {int32Type_, int32Type_, namesType});
   llvm::Constant* initializer = llvm::ConstantStruct::get(
       type, {llvm::ConstantInt::get(int32Type_, names.size()),
              llvm::ConstantInt::get(int32Type_, 0),
@@ -122,8 +121,8 @@ llvm::Value* CodeGen::site(const Location& location) {
   if (found != sites_.end()) {
     return found->second;
   }
-  llvm::StructType* type = llvm::StructType::get(
-      context_, {pointerType_, int32Type_, int32Type_});
+  llvm::StructType* type =
+      llvm::StructType::get(context_, {pointerType_, int32Type_, int32Type_});
   llvm::Constant* initializer = llvm::ConstantStruct::get(
       type, {cString(sources_.path(location.file)),
              llvm::ConstantInt::get(int32Type_, location.line),
@@ -141,10 +140,10 @@ llvm::CallInst* CodeGen::runtime(const char* name,
   for (llvm::Value* arg : args) {
     types.push_back(arg->getType());
   }
-  llvm::FunctionType* type = llvm::FunctionType::get(
-      returnsInt ? static_cast<llvm::Type*>(int32Type_)
-                 : llvm::Type::getVoidTy(context_),
-      types, false);
+  llvm::FunctionType* type =
+      llvm::FunctionType::get(returnsInt ? static_cast<llvm::Type*>(int32Type_)
+                                         : llvm::Type::getVoidTy(context_),
+                              types, false);
   return builder_.CreateCall(module_.getOrInsertFunction(name, type), args);
 }
 
@@ -152,7 +151,9 @@ void CodeGen::move(llvm::Value* target, llvm::Value* source) {
   builder_.CreateStore(builder_.CreateLoad(valueType_, source), target);
 }
 
-void CodeGen::release(llvm::Value* value) { runtime("mrt_release", {value}); }
+void CodeGen::release(llvm::Value* value) {
+  runtime("mrt_release", {value});
+}
 
 llvm::Value* CodeGen::intSlot(int32_t value) {
   llvm::Value* out = slot();
@@ -235,19 +236,19 @@ void CodeGen::emitReturn(llvm::Value* valueSlot) {
 
 void CodeGen::declareFunctions(StmtList& program) {
   llvm::Type* voidType = llvm::Type::getVoidTy(context_);
-  llvm::FunctionType* signature = llvm::FunctionType::get(
-      voidType, {pointerType_, pointerType_}, false);
-  llvm::StructType* descriptorType = llvm::StructType::get(
-      context_, {pointerType_, int32Type_, pointerType_});
+  llvm::FunctionType* signature =
+      llvm::FunctionType::get(voidType, {pointerType_, pointerType_}, false);
+  llvm::StructType* descriptorType =
+      llvm::StructType::get(context_, {pointerType_, int32Type_, pointerType_});
 
   for (StmtPtr& stmt : program) {
     auto* function = dynamic_cast<FuncStmt*>(stmt.get());
     if (!function) {
       continue;
     }
-    llvm::Function* code = llvm::Function::Create(
-        signature, llvm::GlobalValue::InternalLinkage, "ms." + function->name,
-        module_);
+    llvm::Function* code =
+        llvm::Function::Create(signature, llvm::GlobalValue::InternalLinkage,
+                               "ms." + function->name, module_);
     llvm::Constant* initializer = llvm::ConstantStruct::get(
         descriptorType,
         {code, llvm::ConstantInt::get(int32Type_, function->params.size()),
@@ -299,7 +300,8 @@ void CodeGen::emitMain(StmtList& program) {
   builder_.SetInsertPoint(llvm::BasicBlock::Create(context_, "entry", main));
   llvm::Value* status = builder_.CreateCall(
       module_.getOrInsertFunction(
-          "mrt_run", llvm::FunctionType::get(int32Type_, {pointerType_}, false)),
+          "mrt_run",
+          llvm::FunctionType::get(int32Type_, {pointerType_}, false)),
       {entry});
   builder_.CreateRet(status);
 }
@@ -319,8 +321,9 @@ void CodeGen::visitLiteralExpr(LiteralExpr& expr) {
     runtime("mrt_make_int", {out, int32(expr.intValue)});
     break;
   case LiteralKind::Float:
-    runtime("mrt_make_float",
-            {out, llvm::ConstantFP::get(context_, llvm::APFloat(expr.floatValue))});
+    runtime(
+        "mrt_make_float",
+        {out, llvm::ConstantFP::get(context_, llvm::APFloat(expr.floatValue))});
     break;
   case LiteralKind::String:
     runtime("mrt_make_string", {out, stringLiteral(expr.stringValue)});
@@ -376,17 +379,39 @@ void CodeGen::visitBinaryExpr(BinaryExpr& expr) {
   llvm::Value* out = slot();
   llvm::Value* where = site(expr.location);
   switch (expr.op) {
-  case BinaryOp::Add: runtime("mrt_add", {out, left, right, where}); break;
-  case BinaryOp::Sub: runtime("mrt_sub", {out, left, right, where}); break;
-  case BinaryOp::Mul: runtime("mrt_mul", {out, left, right, where}); break;
-  case BinaryOp::Div: runtime("mrt_div", {out, left, right, where}); break;
-  case BinaryOp::Mod: runtime("mrt_mod", {out, left, right, where}); break;
-  case BinaryOp::Eq: runtime("mrt_eq", {out, left, right}); break;
-  case BinaryOp::Ne: runtime("mrt_ne", {out, left, right}); break;
-  case BinaryOp::Lt: runtime("mrt_lt", {out, left, right, where}); break;
-  case BinaryOp::Le: runtime("mrt_le", {out, left, right, where}); break;
-  case BinaryOp::Gt: runtime("mrt_gt", {out, left, right, where}); break;
-  case BinaryOp::Ge: runtime("mrt_ge", {out, left, right, where}); break;
+  case BinaryOp::Add:
+    runtime("mrt_add", {out, left, right, where});
+    break;
+  case BinaryOp::Sub:
+    runtime("mrt_sub", {out, left, right, where});
+    break;
+  case BinaryOp::Mul:
+    runtime("mrt_mul", {out, left, right, where});
+    break;
+  case BinaryOp::Div:
+    runtime("mrt_div", {out, left, right, where});
+    break;
+  case BinaryOp::Mod:
+    runtime("mrt_mod", {out, left, right, where});
+    break;
+  case BinaryOp::Eq:
+    runtime("mrt_eq", {out, left, right});
+    break;
+  case BinaryOp::Ne:
+    runtime("mrt_ne", {out, left, right});
+    break;
+  case BinaryOp::Lt:
+    runtime("mrt_lt", {out, left, right, where});
+    break;
+  case BinaryOp::Le:
+    runtime("mrt_le", {out, left, right, where});
+    break;
+  case BinaryOp::Gt:
+    runtime("mrt_gt", {out, left, right, where});
+    break;
+  case BinaryOp::Ge:
+    runtime("mrt_ge", {out, left, right, where});
+    break;
   }
   release(left);
   release(right);
@@ -417,9 +442,12 @@ void CodeGen::visitLogicalExpr(LogicalExpr& expr) {
   };
 
   llvm::Value* left = test(*expr.left);
-  llvm::BasicBlock* rightBlock = llvm::BasicBlock::Create(context_, "rhs", function);
-  llvm::BasicBlock* shortBlock = llvm::BasicBlock::Create(context_, "short", function);
-  llvm::BasicBlock* endBlock = llvm::BasicBlock::Create(context_, "end", function);
+  llvm::BasicBlock* rightBlock =
+      llvm::BasicBlock::Create(context_, "rhs", function);
+  llvm::BasicBlock* shortBlock =
+      llvm::BasicBlock::Create(context_, "short", function);
+  llvm::BasicBlock* endBlock =
+      llvm::BasicBlock::Create(context_, "end", function);
   llvm::Value* leftTrue = builder_.CreateICmpNE(left, int32(0));
   builder_.CreateCondBr(leftTrue, isAnd ? rightBlock : shortBlock,
                         isAnd ? shortBlock : rightBlock);
@@ -503,13 +531,16 @@ void CodeGen::emitCall(CallExpr& expr) {
     builder_.CreateCall(functions_.at(name->name).function, {out, args});
     runtime("mrt_leave", {});
   } else {
-    runtime("mrt_call", {out, callee, args, int32(static_cast<int32_t>(count)), where});
+    runtime("mrt_call",
+            {out, callee, args, int32(static_cast<int32_t>(count)), where});
     release(callee);
   }
   result_ = out;
 }
 
-void CodeGen::visitCallExpr(CallExpr& expr) { emitCall(expr); }
+void CodeGen::visitCallExpr(CallExpr& expr) {
+  emitCall(expr);
+}
 
 void CodeGen::visitArrayExpr(ArrayExpr& expr) {
   size_t count = expr.elements.size();
@@ -531,7 +562,9 @@ void CodeGen::visitObjectExpr(ObjectExpr& expr) {
   result_ = out;
 }
 
-void CodeGen::visitExprStmt(ExprStmt& stmt) { release(eval(*stmt.expr)); }
+void CodeGen::visitExprStmt(ExprStmt& stmt) {
+  release(eval(*stmt.expr));
+}
 
 void CodeGen::visitLetStmt(LetStmt& stmt) {
   declare(stmt.name, eval(*stmt.initializer));
@@ -542,9 +575,12 @@ void CodeGen::visitFuncStmt(FuncStmt&) {}
 void CodeGen::visitIfStmt(IfStmt& stmt) {
   llvm::Function* function = builder_.GetInsertBlock()->getParent();
   llvm::Value* flag = emitCondition(*stmt.condition);
-  llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(context_, "then", function);
-  llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(context_, "else", function);
-  llvm::BasicBlock* endBlock = llvm::BasicBlock::Create(context_, "endif", function);
+  llvm::BasicBlock* thenBlock =
+      llvm::BasicBlock::Create(context_, "then", function);
+  llvm::BasicBlock* elseBlock =
+      llvm::BasicBlock::Create(context_, "else", function);
+  llvm::BasicBlock* endBlock =
+      llvm::BasicBlock::Create(context_, "endif", function);
   builder_.CreateCondBr(flag, thenBlock, elseBlock);
 
   builder_.SetInsertPoint(thenBlock);
@@ -564,9 +600,12 @@ void CodeGen::visitIfStmt(IfStmt& stmt) {
 
 void CodeGen::visitWhileStmt(WhileStmt& stmt) {
   llvm::Function* function = builder_.GetInsertBlock()->getParent();
-  llvm::BasicBlock* conditionBlock = llvm::BasicBlock::Create(context_, "while", function);
-  llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context_, "body", function);
-  llvm::BasicBlock* endBlock = llvm::BasicBlock::Create(context_, "endwhile", function);
+  llvm::BasicBlock* conditionBlock =
+      llvm::BasicBlock::Create(context_, "while", function);
+  llvm::BasicBlock* bodyBlock =
+      llvm::BasicBlock::Create(context_, "body", function);
+  llvm::BasicBlock* endBlock =
+      llvm::BasicBlock::Create(context_, "endwhile", function);
   builder_.CreateBr(conditionBlock);
 
   builder_.SetInsertPoint(conditionBlock);
@@ -597,16 +636,20 @@ void CodeGen::visitForStmt(ForStmt& stmt) {
   release(end);
   llvm::Value* variable = slot();
 
-  llvm::BasicBlock* conditionBlock = llvm::BasicBlock::Create(context_, "for", function);
-  llvm::BasicBlock* bodyBlock = llvm::BasicBlock::Create(context_, "body", function);
-  llvm::BasicBlock* stepBlock = llvm::BasicBlock::Create(context_, "step", function);
-  llvm::BasicBlock* endBlock = llvm::BasicBlock::Create(context_, "endfor", function);
+  llvm::BasicBlock* conditionBlock =
+      llvm::BasicBlock::Create(context_, "for", function);
+  llvm::BasicBlock* bodyBlock =
+      llvm::BasicBlock::Create(context_, "body", function);
+  llvm::BasicBlock* stepBlock =
+      llvm::BasicBlock::Create(context_, "step", function);
+  llvm::BasicBlock* endBlock =
+      llvm::BasicBlock::Create(context_, "endfor", function);
   builder_.CreateBr(conditionBlock);
 
   builder_.SetInsertPoint(conditionBlock);
-  llvm::Value* inRange = builder_.CreateICmpSLT(
-      builder_.CreateLoad(int32Type_, current),
-      builder_.CreateLoad(int32Type_, limit));
+  llvm::Value* inRange =
+      builder_.CreateICmpSLT(builder_.CreateLoad(int32Type_, current),
+                             builder_.CreateLoad(int32Type_, limit));
   builder_.CreateCondBr(inRange, bodyBlock, endBlock);
 
   builder_.SetInsertPoint(bodyBlock);
@@ -644,6 +687,8 @@ void CodeGen::visitContinueStmt(ContinueStmt&) {
   builder_.CreateBr(loops_.back().continueBlock);
 }
 
-void CodeGen::visitBlockStmt(BlockStmt& stmt) { emitScopedBody(stmt.body); }
+void CodeGen::visitBlockStmt(BlockStmt& stmt) {
+  emitScopedBody(stmt.body);
+}
 
 } // namespace meadows

@@ -1,69 +1,50 @@
 name: Release
+
 on:
   push:
     tags: [v*.*.*]
 
+permissions:
+  contents: write
+
 jobs:
-  build-release:
+  package:
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: linux
+            name: linux
           - os: macos-latest
-            artifact: macos
-          - os: windows-latest
-            artifact: windows
+            name: macos
     runs-on: ${{ matrix.os }}
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
+      - uses: KyleMayes/install-llvm-action@v2
         with:
           version: "17"
-        # Sets LLVM_PATH env var to the install root
-
-      - uses: jwlawson/actions-setup-cmake@v2
-
-      - name: Build Release
-        shell: bash
-        env:
-          LLVM_DIR: ${{ env.LLVM_PATH }}/lib/cmake/llvm
+      - name: Build
         run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DLLVM_DIR="$LLVM_DIR" \
-            -DBUILD_TESTS=OFF
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF \
+            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm"
           cmake --build build --parallel
-
       - name: Package
-        shell: bash
-        run: ./scripts/ci/package_release.sh
-
+        run: |
+          cpack --config build/CPackConfig.cmake -B dist
+          mv dist/meadows-*.tar.gz "dist/meadows-${{ github.ref_name }}-${{ matrix.name }}.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
-          name: meadows-${{ matrix.artifact }}
-          path: release/
+          name: meadows-${{ matrix.name }}
+          path: dist/*.tar.gz
 
-  release:
-    needs: build-release
+  publish:
+    needs: package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts/
-
-      - uses: softprops/action-gh-release@v1
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
           name: Meadows ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: artifacts/*.tar.gz

@@ -22,15 +22,24 @@ std::string arguments(size_t count) {
 
 BinaryOp binaryOpFor(Op op) {
   switch (op) {
-  case Op::Add: return BinaryOp::Add;
-  case Op::Sub: return BinaryOp::Sub;
-  case Op::Mul: return BinaryOp::Mul;
-  case Op::Div: return BinaryOp::Div;
-  case Op::Mod: return BinaryOp::Mod;
-  case Op::Lt: return BinaryOp::Lt;
-  case Op::Le: return BinaryOp::Le;
-  case Op::Gt: return BinaryOp::Gt;
-  default: return BinaryOp::Ge;
+  case Op::Add:
+    return BinaryOp::Add;
+  case Op::Sub:
+    return BinaryOp::Sub;
+  case Op::Mul:
+    return BinaryOp::Mul;
+  case Op::Div:
+    return BinaryOp::Div;
+  case Op::Mod:
+    return BinaryOp::Mod;
+  case Op::Lt:
+    return BinaryOp::Lt;
+  case Op::Le:
+    return BinaryOp::Le;
+  case Op::Gt:
+    return BinaryOp::Gt;
+  default:
+    return BinaryOp::Ge;
   }
 }
 
@@ -132,8 +141,8 @@ void Interpreter::execute() {
       if (operand.isFloat()) {
         push(Value::real(-operand.asFloat()));
       } else if (operand.isInt()) {
-        push(Value::integer(static_cast<int32_t>(
-            0u - static_cast<uint32_t>(operand.asInt()))));
+        push(Value::integer(
+            static_cast<int32_t>(0u - static_cast<uint32_t>(operand.asInt()))));
       } else {
         unsupported("-", operand.typeName(), at);
       }
@@ -295,9 +304,12 @@ Value Interpreter::arithmetic(BinaryOp op, const Value& left,
     double a = left.asDouble();
     double b = right.asDouble();
     switch (op) {
-    case BinaryOp::Add: return Value::real(a + b);
-    case BinaryOp::Sub: return Value::real(a - b);
-    case BinaryOp::Mul: return Value::real(a * b);
+    case BinaryOp::Add:
+      return Value::real(a + b);
+    case BinaryOp::Sub:
+      return Value::real(a - b);
+    case BinaryOp::Mul:
+      return Value::real(a * b);
     default:
       if (b == 0.0) {
         fail("Division by zero", at);
@@ -312,9 +324,12 @@ Value Interpreter::arithmetic(BinaryOp op, const Value& left,
     return Value::integer(static_cast<int32_t>(static_cast<uint32_t>(value)));
   };
   switch (op) {
-  case BinaryOp::Add: return wrap(int64_t{a} + b);
-  case BinaryOp::Sub: return wrap(int64_t{a} - b);
-  case BinaryOp::Mul: return wrap(int64_t{a} * b);
+  case BinaryOp::Add:
+    return wrap(int64_t{a} + b);
+  case BinaryOp::Sub:
+    return wrap(int64_t{a} - b);
+  case BinaryOp::Mul:
+    return wrap(int64_t{a} * b);
   default:
     if (b == 0) {
       fail("Division by zero", at);
@@ -336,8 +351,7 @@ void Interpreter::compare(const Instruction& at) {
   Value right = pop();
   Value left = pop();
   if (!left.isNumber() || !right.isNumber()) {
-    unsupported(binaryOpSymbol(binaryOpFor(at.op)), typeNames(left, right),
-                at);
+    unsupported(binaryOpSymbol(binaryOpFor(at.op)), typeNames(left, right), at);
   }
   double a = left.asDouble();
   double b = right.asDouble();

@@ -13,69 +13,123 @@ namespace meadows {
 namespace {
 
 const std::unordered_map<std::string_view, TokenType> KEYWORDS = {
-    {"let", TokenType::LET},       {"func", TokenType::FUNC},
-    {"if", TokenType::IF},         {"else", TokenType::ELSE},
-    {"for", TokenType::FOR},       {"while", TokenType::WHILE},
-    {"return", TokenType::RETURN}, {"in", TokenType::IN},
-    {"range", TokenType::RANGE},   {"true", TokenType::TRUE},
-    {"false", TokenType::FALSE},   {"break", TokenType::BREAK},
-    {"continue", TokenType::CONTINUE}, {"import", TokenType::IMPORT}};
+    {"let", TokenType::LET},
+    {"func", TokenType::FUNC},
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},
+    {"while", TokenType::WHILE},
+    {"return", TokenType::RETURN},
+    {"in", TokenType::IN},
+    {"range", TokenType::RANGE},
+    {"true", TokenType::TRUE},
+    {"false", TokenType::FALSE},
+    {"break", TokenType::BREAK},
+    {"continue", TokenType::CONTINUE},
+    {"import", TokenType::IMPORT}};
 
-bool isDigit(char c) { return c >= '0' && c <= '9'; }
+bool isDigit(char c) {
+  return c >= '0' && c <= '9';
+}
 
 bool isWordStart(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-bool isWordPart(char c) { return isWordStart(c) || isDigit(c); }
+bool isWordPart(char c) {
+  return isWordStart(c) || isDigit(c);
+}
 
 } // namespace
 
 const char* tokenTypeName(TokenType type) {
   switch (type) {
-  case TokenType::LET: return "LET";
-  case TokenType::FUNC: return "FUNC";
-  case TokenType::IF: return "IF";
-  case TokenType::ELSE: return "ELSE";
-  case TokenType::FOR: return "FOR";
-  case TokenType::WHILE: return "WHILE";
-  case TokenType::RETURN: return "RETURN";
-  case TokenType::IN: return "IN";
-  case TokenType::RANGE: return "RANGE";
-  case TokenType::TRUE: return "TRUE";
-  case TokenType::FALSE: return "FALSE";
-  case TokenType::BREAK: return "BREAK";
-  case TokenType::CONTINUE: return "CONTINUE";
-  case TokenType::IMPORT: return "IMPORT";
-  case TokenType::IDENTIFIER: return "IDENTIFIER";
-  case TokenType::STRING: return "STRING";
-  case TokenType::NUMBER: return "NUMBER";
-  case TokenType::PLUS: return "PLUS";
-  case TokenType::MINUS: return "MINUS";
-  case TokenType::STAR: return "STAR";
-  case TokenType::SLASH: return "SLASH";
-  case TokenType::PERCENT: return "PERCENT";
-  case TokenType::EQUAL: return "EQUAL";
-  case TokenType::EQUAL_EQUAL: return "EQUAL_EQUAL";
-  case TokenType::BANG: return "BANG";
-  case TokenType::BANG_EQUAL: return "BANG_EQUAL";
-  case TokenType::GREATER: return "GREATER";
-  case TokenType::LESS: return "LESS";
-  case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
-  case TokenType::LESS_EQUAL: return "LESS_EQUAL";
-  case TokenType::AND: return "AND";
-  case TokenType::OR: return "OR";
-  case TokenType::LEFT_PAREN: return "LEFT_PAREN";
-  case TokenType::RIGHT_PAREN: return "RIGHT_PAREN";
-  case TokenType::LEFT_BRACE: return "LEFT_BRACE";
-  case TokenType::RIGHT_BRACE: return "RIGHT_BRACE";
-  case TokenType::LEFT_BRACKET: return "LEFT_BRACKET";
-  case TokenType::RIGHT_BRACKET: return "RIGHT_BRACKET";
-  case TokenType::COMMA: return "COMMA";
-  case TokenType::COLON: return "COLON";
-  case TokenType::SEMICOLON: return "SEMICOLON";
-  case TokenType::DOT: return "DOT";
-  case TokenType::END_OF_FILE: return "END_OF_FILE";
+  case TokenType::LET:
+    return "LET";
+  case TokenType::FUNC:
+    return "FUNC";
+  case TokenType::IF:
+    return "IF";
+  case TokenType::ELSE:
+    return "ELSE";
+  case TokenType::FOR:
+    return "FOR";
+  case TokenType::WHILE:
+    return "WHILE";
+  case TokenType::RETURN:
+    return "RETURN";
+  case TokenType::IN:
+    return "IN";
+  case TokenType::RANGE:
+    return "RANGE";
+  case TokenType::TRUE:
+    return "TRUE";
+  case TokenType::FALSE:
+    return "FALSE";
+  case TokenType::BREAK:
+    return "BREAK";
+  case TokenType::CONTINUE:
+    return "CONTINUE";
+  case TokenType::IMPORT:
+    return "IMPORT";
+  case TokenType::IDENTIFIER:
+    return "IDENTIFIER";
+  case TokenType::STRING:
+    return "STRING";
+  case TokenType::NUMBER:
+    return "NUMBER";
+  case TokenType::PLUS:
+    return "PLUS";
+  case TokenType::MINUS:
+    return "MINUS";
+  case TokenType::STAR:
+    return "STAR";
+  case TokenType::SLASH:
+    return "SLASH";
+  case TokenType::PERCENT:
+    return "PERCENT";
+  case TokenType::EQUAL:
+    return "EQUAL";
+  case TokenType::EQUAL_EQUAL:
+    return "EQUAL_EQUAL";
+  case TokenType::BANG:
+    return "BANG";
+  case TokenType::BANG_EQUAL:
+    return "BANG_EQUAL";
+  case TokenType::GREATER:
+    return "GREATER";
+  case TokenType::LESS:
+    return "LESS";
+  case TokenType::GREATER_EQUAL:
+    return "GREATER_EQUAL";
+  case TokenType::LESS_EQUAL:
+    return "LESS_EQUAL";
+  case TokenType::AND:
+    return "AND";
+  case TokenType::OR:
+    return "OR";
+  case TokenType::LEFT_PAREN:
+    return "LEFT_PAREN";
+  case TokenType::RIGHT_PAREN:
+    return "RIGHT_PAREN";
+  case TokenType::LEFT_BRACE:
+    return "LEFT_BRACE";
+  case TokenType::RIGHT_BRACE:
+    return "RIGHT_BRACE";
+  case TokenType::LEFT_BRACKET:
+    return "LEFT_BRACKET";
+  case TokenType::RIGHT_BRACKET:
+    return "RIGHT_BRACKET";
+  case TokenType::COMMA:
+    return "COMMA";
+  case TokenType::COLON:
+    return "COLON";
+  case TokenType::SEMICOLON:
+    return "SEMICOLON";
+  case TokenType::DOT:
+    return "DOT";
+  case TokenType::END_OF_FILE:
+    return "END_OF_FILE";
   }
   return "UNKNOWN";
 }
@@ -170,25 +224,63 @@ void Lexer::lexToken(std::vector<Token>& tokens) {
   };
 
   switch (c) {
-  case '+': tokens.push_back(make(TokenType::PLUS, "+", start)); break;
-  case '-': tokens.push_back(make(TokenType::MINUS, "-", start)); break;
-  case '*': tokens.push_back(make(TokenType::STAR, "*", start)); break;
-  case '/': tokens.push_back(make(TokenType::SLASH, "/", start)); break;
-  case '%': tokens.push_back(make(TokenType::PERCENT, "%", start)); break;
-  case '(': tokens.push_back(make(TokenType::LEFT_PAREN, "(", start)); break;
-  case ')': tokens.push_back(make(TokenType::RIGHT_PAREN, ")", start)); break;
-  case '{': tokens.push_back(make(TokenType::LEFT_BRACE, "{", start)); break;
-  case '}': tokens.push_back(make(TokenType::RIGHT_BRACE, "}", start)); break;
-  case '[': tokens.push_back(make(TokenType::LEFT_BRACKET, "[", start)); break;
-  case ']': tokens.push_back(make(TokenType::RIGHT_BRACKET, "]", start)); break;
-  case ',': tokens.push_back(make(TokenType::COMMA, ",", start)); break;
-  case ':': tokens.push_back(make(TokenType::COLON, ":", start)); break;
-  case ';': tokens.push_back(make(TokenType::SEMICOLON, ";", start)); break;
-  case '.': tokens.push_back(make(TokenType::DOT, ".", start)); break;
-  case '=': two('=', TokenType::EQUAL_EQUAL, TokenType::EQUAL); break;
-  case '!': two('=', TokenType::BANG_EQUAL, TokenType::BANG); break;
-  case '<': two('=', TokenType::LESS_EQUAL, TokenType::LESS); break;
-  case '>': two('=', TokenType::GREATER_EQUAL, TokenType::GREATER); break;
+  case '+':
+    tokens.push_back(make(TokenType::PLUS, "+", start));
+    break;
+  case '-':
+    tokens.push_back(make(TokenType::MINUS, "-", start));
+    break;
+  case '*':
+    tokens.push_back(make(TokenType::STAR, "*", start));
+    break;
+  case '/':
+    tokens.push_back(make(TokenType::SLASH, "/", start));
+    break;
+  case '%':
+    tokens.push_back(make(TokenType::PERCENT, "%", start));
+    break;
+  case '(':
+    tokens.push_back(make(TokenType::LEFT_PAREN, "(", start));
+    break;
+  case ')':
+    tokens.push_back(make(TokenType::RIGHT_PAREN, ")", start));
+    break;
+  case '{':
+    tokens.push_back(make(TokenType::LEFT_BRACE, "{", start));
+    break;
+  case '}':
+    tokens.push_back(make(TokenType::RIGHT_BRACE, "}", start));
+    break;
+  case '[':
+    tokens.push_back(make(TokenType::LEFT_BRACKET, "[", start));
+    break;
+  case ']':
+    tokens.push_back(make(TokenType::RIGHT_BRACKET, "]", start));
+    break;
+  case ',':
+    tokens.push_back(make(TokenType::COMMA, ",", start));
+    break;
+  case ':':
+    tokens.push_back(make(TokenType::COLON, ":", start));
+    break;
+  case ';':
+    tokens.push_back(make(TokenType::SEMICOLON, ";", start));
+    break;
+  case '.':
+    tokens.push_back(make(TokenType::DOT, ".", start));
+    break;
+  case '=':
+    two('=', TokenType::EQUAL_EQUAL, TokenType::EQUAL);
+    break;
+  case '!':
+    two('=', TokenType::BANG_EQUAL, TokenType::BANG);
+    break;
+  case '<':
+    two('=', TokenType::LESS_EQUAL, TokenType::LESS);
+    break;
+  case '>':
+    two('=', TokenType::GREATER_EQUAL, TokenType::GREATER);
+    break;
   case '&':
   case '|':
     if (peek() == c) {
@@ -244,9 +336,9 @@ Token Lexer::lexNumber(Location start) {
   std::string text(source_.substr(begin, pos_ - begin));
   Token token = make(TokenType::NUMBER, text, start);
 
-  bool inRange = isFloat ? std::isfinite(std::strtod(text.c_str(), nullptr))
-                         : text.size() < 10 ||
-                               (text.size() == 10 && text <= "2147483648");
+  bool inRange =
+      isFloat ? std::isfinite(std::strtod(text.c_str(), nullptr))
+              : text.size() < 10 || (text.size() == 10 && text <= "2147483648");
   if (!inRange) {
     diagnostics_.report(ErrorCode::LEX_NUMBER_OUT_OF_RANGE,
                         "Number literal '" + text + "' is out of range", start,
@@ -274,19 +366,34 @@ Token Lexer::lexString(Location start) {
     }
     char escaped = advance();
     switch (escaped) {
-    case 'n': value += '\n'; break;
-    case 't': value += '\t'; break;
-    case 'r': value += '\r'; break;
-    case '0': value += '\0'; break;
-    case 'b': value += '\b'; break;
-    case 'f': value += '\f'; break;
-    case '\\': value += '\\'; break;
-    case '"': value += '"'; break;
+    case 'n':
+      value += '\n';
+      break;
+    case 't':
+      value += '\t';
+      break;
+    case 'r':
+      value += '\r';
+      break;
+    case '0':
+      value += '\0';
+      break;
+    case 'b':
+      value += '\b';
+      break;
+    case 'f':
+      value += '\f';
+      break;
+    case '\\':
+      value += '\\';
+      break;
+    case '"':
+      value += '"';
+      break;
     default:
-      diagnostics_.report(ErrorCode::LEX_INVALID_ESCAPE,
-                          std::string("Invalid escape sequence '\\") +
-                              escaped + "'",
-                          at, 2);
+      diagnostics_.report(
+          ErrorCode::LEX_INVALID_ESCAPE,
+          std::string("Invalid escape sequence '\\") + escaped + "'", at, 2);
     }
   }
   if (peek() == '"') {

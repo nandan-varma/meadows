@@ -60,11 +60,11 @@ private:
 
 } // namespace
 
-TEST_CASE("imports splice a module at the position of the import",
-          "[loader]") {
+TEST_CASE("imports splice a module at the position of the import", "[loader]") {
   Project p;
   p.write("lib.ms", "func twice(n) { return n * 2; }\nprint(\"lib\");");
-  p.write("main.ms", "print(\"before\");\nimport \"lib.ms\";\nprint(twice(4));");
+  p.write("main.ms",
+          "print(\"before\");\nimport \"lib.ms\";\nprint(twice(4));");
   CHECK(p.run("main.ms").output == "before\nlib\n8\n");
 }
 

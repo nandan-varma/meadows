@@ -80,7 +80,9 @@ static int is_heap(uint32_t tag) {
   return tag == MRT_STRING || tag == MRT_ARRAY || tag == MRT_OBJECT;
 }
 
-static int is_number(const mrt_value* value) { return value->tag <= MRT_FLOAT; }
+static int is_number(const mrt_value* value) {
+  return value->tag <= MRT_FLOAT;
+}
 
 static double as_double(const mrt_value* value) {
   return value->tag == MRT_INT ? (double)value->as.integer : value->as.real;
@@ -191,7 +193,8 @@ void mrt_store(mrt_value* target, mrt_value* value) {
 static void* thread_main(void* unused) {
   (void)unused;
   char marker;
-  stack_limit = (uintptr_t)&marker - (MEADOWS_STACK_SIZE - MEADOWS_STACK_RESERVE);
+  stack_limit =
+      (uintptr_t)&marker - (MEADOWS_STACK_SIZE - MEADOWS_STACK_RESERVE);
   program_entry();
   return NULL;
 }
@@ -213,9 +216,13 @@ int mrt_run(void (*entry)(void)) {
   return 0;
 }
 
-void mrt_make_int(mrt_value* out, int32_t value) { set_int(out, value); }
+void mrt_make_int(mrt_value* out, int32_t value) {
+  set_int(out, value);
+}
 
-void mrt_make_float(mrt_value* out, double value) { set_float(out, value); }
+void mrt_make_float(mrt_value* out, double value) {
+  set_float(out, value);
+}
 
 void mrt_make_string(mrt_value* out, const mrt_string* literal) {
   out->tag = MRT_STRING;
@@ -321,7 +328,9 @@ static void concatenate(mrt_value* out, const mrt_value* a, const mrt_value* b,
   set_string(out, joined);
 }
 
-static int32_t wrap(int64_t value) { return (int32_t)(uint32_t)value; }
+static int32_t wrap(int64_t value) {
+  return (int32_t)(uint32_t)value;
+}
 
 void mrt_add(mrt_value* out, const mrt_value* a, const mrt_value* b,
              const mrt_site* site) {
@@ -544,7 +553,9 @@ void mrt_enter(const mrt_site* site) {
   ++call_depth;
 }
 
-void mrt_leave(void) { --call_depth; }
+void mrt_leave(void) {
+  --call_depth;
+}
 
 void mrt_call(mrt_value* out, const mrt_value* callee, mrt_value* args,
               uint32_t argc, const mrt_site* site) {

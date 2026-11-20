@@ -3,14 +3,7 @@
 
 #include <stdint.h>
 
-enum {
-  MRT_INT,
-  MRT_FLOAT,
-  MRT_STRING,
-  MRT_ARRAY,
-  MRT_OBJECT,
-  MRT_FUNCTION
-};
+enum { MRT_INT, MRT_FLOAT, MRT_STRING, MRT_ARRAY, MRT_OBJECT, MRT_FUNCTION };
 
 typedef struct mrt_string {
   uint32_t refs;
@@ -53,8 +46,7 @@ void mrt_make_float(mrt_value* out, double value);
 void mrt_make_string(mrt_value* out, const mrt_string* literal);
 void mrt_make_function(mrt_value* out, const mrt_function* function);
 void mrt_make_array(mrt_value* out, mrt_value* items, uint32_t count);
-void mrt_make_object(mrt_value* out, const mrt_shape* shape,
-                     mrt_value* fields);
+void mrt_make_object(mrt_value* out, const mrt_shape* shape, mrt_value* fields);
 
 void mrt_copy(mrt_value* out, const mrt_value* value);
 void mrt_store(mrt_value* target, mrt_value* value);
@@ -89,8 +81,8 @@ int32_t mrt_logical(const mrt_value* value, int32_t is_and,
 void mrt_range(const mrt_value* start, const mrt_value* end, int32_t* from,
                int32_t* to, const mrt_site* site);
 
-void mrt_index(mrt_value* out, const mrt_value* object,
-               const mrt_value* index, const mrt_site* site);
+void mrt_index(mrt_value* out, const mrt_value* object, const mrt_value* index,
+               const mrt_site* site);
 void mrt_index_set(const mrt_value* object, const mrt_value* index,
                    const mrt_value* value, const mrt_site* site);
 void mrt_field(mrt_value* out, const mrt_value* object, const char* name,

@@ -48,7 +48,9 @@ void AstPrinter::visitLiteralExpr(LiteralExpr& expr) {
   }
 }
 
-void AstPrinter::visitVarExpr(VarExpr& expr) { line("Var " + expr.name); }
+void AstPrinter::visitVarExpr(VarExpr& expr) {
+  line("Var " + expr.name);
+}
 
 void AstPrinter::visitAssignExpr(AssignExpr& expr) {
   line("Assign");
@@ -159,9 +161,13 @@ void AstPrinter::visitReturnStmt(ReturnStmt& stmt) {
   }
 }
 
-void AstPrinter::visitBreakStmt(BreakStmt&) { line("Break"); }
+void AstPrinter::visitBreakStmt(BreakStmt&) {
+  line("Break");
+}
 
-void AstPrinter::visitContinueStmt(ContinueStmt&) { line("Continue"); }
+void AstPrinter::visitContinueStmt(ContinueStmt&) {
+  line("Continue");
+}
 
 void AstPrinter::visitBlockStmt(BlockStmt& stmt) {
   line("Block");

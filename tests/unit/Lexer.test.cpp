@@ -23,17 +23,16 @@ std::vector<TokenType> types(const std::string& source) {
 
 TEST_CASE("lexer classifies keywords, identifiers and literals", "[lexer]") {
   using T = TokenType;
-  CHECK(types("let x = 1;") ==
-        std::vector<T>{T::LET, T::IDENTIFIER, T::EQUAL, T::NUMBER,
-                       T::SEMICOLON, T::END_OF_FILE});
+  CHECK(types("let x = 1;") == std::vector<T>{T::LET, T::IDENTIFIER, T::EQUAL,
+                                              T::NUMBER, T::SEMICOLON,
+                                              T::END_OF_FILE});
   CHECK(types("func if else for while return in range true false break "
               "continue import") ==
         std::vector<T>{T::FUNC, T::IF, T::ELSE, T::FOR, T::WHILE, T::RETURN,
                        T::IN, T::RANGE, T::TRUE, T::FALSE, T::BREAK,
                        T::CONTINUE, T::IMPORT, T::END_OF_FILE});
-  CHECK(types("letter _x x1") ==
-        std::vector<T>{T::IDENTIFIER, T::IDENTIFIER, T::IDENTIFIER,
-                       T::END_OF_FILE});
+  CHECK(types("letter _x x1") == std::vector<T>{T::IDENTIFIER, T::IDENTIFIER,
+                                                T::IDENTIFIER, T::END_OF_FILE});
 }
 
 TEST_CASE("lexer recognises every operator and punctuation mark", "[lexer]") {

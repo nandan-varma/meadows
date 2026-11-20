@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 #include "RuntimeSources.h"
@@ -54,7 +55,8 @@ int run(const std::vector<std::string>& command) {
 class ScratchDirectory {
 public:
   ScratchDirectory() {
-    std::string pattern = (fs::temp_directory_path() / "meadows-XXXXXX").string();
+    std::string pattern =
+        (fs::temp_directory_path() / "meadows-XXXXXX").string();
     if (mkdtemp(pattern.data())) {
       path_ = pattern;
     }
@@ -69,7 +71,9 @@ public:
   ScratchDirectory& operator=(const ScratchDirectory&) = delete;
 
   bool valid() const { return !path_.empty(); }
-  fs::path path(const std::string& name) const { return fs::path(path_) / name; }
+  fs::path path(const std::string& name) const {
+    return fs::path(path_) / name;
+  }
 
 private:
   std::string path_;
@@ -95,11 +99,10 @@ bool buildExecutable(const NativeBuild& build, std::string& error) {
   fs::path program = scratch.path("program.ll");
   std::ofstream(program) << build.ir;
 
-  int status =
-      run({clang, "-O" + std::to_string(build.optLevel), "-pthread", "-w",
-           "-x", "ir", program.string(), "-x", "c",
-           scratch.path("meadows_rt.c").string(), "-I",
-           scratch.path("").string(), "-o", build.output, "-lm"});
+  int status = run({clang, "-O" + std::to_string(build.optLevel), "-pthread",
+                    "-w", "-x", "ir", program.string(), "-x", "c",
+                    scratch.path("meadows_rt.c").string(), "-I",
+                    scratch.path("").string(), "-o", build.output, "-lm"});
   if (status == 127) {
     error = "cannot run '" + clang + "'";
     return false;
