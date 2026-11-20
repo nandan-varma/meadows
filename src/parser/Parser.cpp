@@ -128,7 +128,7 @@ const Token& Parser::expect(TokenType type, ErrorCode code,
 
 void Parser::synchronize(bool insideBlock) {
   while (!atEnd()) {
-    if (previous().type == TokenType::SEMICOLON) {
+    if (current_ > 0 && previous().type == TokenType::SEMICOLON) {
       return;
     }
     TokenType type = peek().type;
