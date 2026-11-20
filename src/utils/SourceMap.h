@@ -20,7 +20,6 @@ public:
   const std::string& path(uint32_t file) const { return files_[file].path; }
   const std::string& text(uint32_t file) const { return files_[file].text; }
   std::string_view lineText(uint32_t file, uint32_t line) const;
-  size_t size() const { return files_.size(); }
 
 private:
   struct File {

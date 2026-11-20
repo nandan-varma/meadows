@@ -12,7 +12,6 @@ project(Meadows
 option(BUILD_WASM "Build the browser playground module (requires emcmake)" OFF)
 option(BUILD_TESTS "Build the test suites" ON)
 option(ENABLE_WERROR "Treat compiler warnings as errors" OFF)
-option(ENABLE_COVERAGE "Instrument for code coverage" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,10 +28,6 @@ target_compile_options(meadows_warnings INTERFACE
   -Woverloaded-virtual)
 if(ENABLE_WERROR)
   target_compile_options(meadows_warnings INTERFACE -Werror)
-endif()
-if(ENABLE_COVERAGE)
-  add_compile_options(--coverage -O0 -g)
-  add_link_options(--coverage)
 endif()
 
 add_library(meadows_core STATIC

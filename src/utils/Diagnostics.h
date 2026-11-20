@@ -38,7 +38,6 @@ public:
   bool hasErrors() const { return errorCount_ > 0; }
   bool full() const { return diagnostics_.size() >= MAX_DIAGNOSTICS; }
   size_t errorCount() const { return errorCount_; }
-  size_t warningCount() const { return diagnostics_.size() - errorCount_; }
   const std::vector<Diagnostic>& diagnostics() const { return diagnostics_; }
 
 private:
