@@ -29,11 +29,11 @@
       "patterns": [
         {
           "name": "keyword.control.meadows",
-          "match": "\\b(let|func|if|else|for|while|return|in|break|continue)\\b"
+          "match": "\\b(let|func|if|else|for|while|return|in|range|break|continue|import)\\b"
         },
         {
           "name": "support.function.builtin.meadows",
-          "match": "\\b(print|range)\\b"
+          "match": "\\b(print|len|str|push)\\b"
         },
         {
           "name": "constant.language.meadows",
@@ -48,13 +48,13 @@
       "patterns": [
         {
           "name": "constant.character.escape.meadows",
-          "match": "\\\\(n|t|r|0|b|f|\\\\|\"|')"
+          "match": "\\\\(n|t|r|0|b|f|\\\\|\")"
         }
       ]
     },
     "numbers": {
       "name": "constant.numeric.meadows",
-      "match": "\\b\\d+\\b"
+      "match": "\\b\\d+(\\.\\d+)?\\b"
     },
     "functions": {
       "patterns": [

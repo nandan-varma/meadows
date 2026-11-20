@@ -93,7 +93,7 @@ export class SemanticTokenProvider {
     const tokens: TokenInfo[] = [];
     
     // Keywords
-    const keywords = /\b(let|func|if|else|for|while|return|print|in|break|continue)\b/g;
+    const keywords = /\b(let|func|if|else|for|while|return|in|range|break|continue|import)\b/g;
     let match;
     while ((match = keywords.exec(line)) !== null) {
       tokens.push({
@@ -106,7 +106,7 @@ export class SemanticTokenProvider {
     }
 
     // Built-in functions
-    const builtins = /\b(print|range)\b/g;
+    const builtins = /\b(print|len|str|push)\b/g;
     while ((match = builtins.exec(line)) !== null) {
       tokens.push({
         line: lineIndex,
