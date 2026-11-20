@@ -1,50 +1,72 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Meadows Playground</title>
-<link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-<header>
-  <h1>Meadows</h1>
-  <p class="tagline">
-    A compiled language that translates <code>.ms</code> source to LLVM IR.
-    This playground runs the full front end — lexer, parser, semantic
-    analyzer — and a tree-walking interpreter, entirely in your browser via
-    WebAssembly. It does not run the native LLVM/clang++ pipeline (that needs
-    a real toolchain), so interpreted output can differ in narrow, documented
-    ways — see <a href="https://github.com/nandan-varma/meadows/blob/main/docs/LANGUAGE.md" target="_blank" rel="noopener">docs/LANGUAGE.md</a>.
-    <a href="https://github.com/nandan-varma/meadows" target="_blank" rel="noopener">Source</a>
-  </p>
-</header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="description" content="Write and run Meadows programs in your browser." />
+    <title>Meadows Playground</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">m</span>
+        <h1>Meadows</h1>
+        <span id="version" class="badge" hidden></span>
+      </div>
+      <div class="actions">
+        <label class="visually-hidden" for="examples">Load an example</label>
+        <select id="examples"></select>
+        <button id="run" class="primary" type="button" title="Run (Ctrl/⌘ + Enter)">Run</button>
+        <button id="stop" type="button" disabled>Stop</button>
+        <button id="share" type="button">Share</button>
+        <a class="link" href="https://github.com/nandan-varma/meadows/blob/main/docs/LANGUAGE.md" target="_blank" rel="noopener">Language guide</a>
+        <a class="link" href="https://github.com/nandan-varma/meadows" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </header>
 
-<main>
-  <section class="editor-pane">
-    <div class="pane-header">
-      <span>source.ms</span>
-      <button id="run-btn" title="Run (Ctrl/Cmd+Enter)">Run</button>
-    </div>
-    <div id="editor"></div>
-  </section>
+    <main>
+      <section class="pane" aria-label="Editor">
+        <div class="tabbar">
+          <div id="files" class="tabs" role="tablist" aria-label="Project files"></div>
+          <form id="new-file-form" class="new-file" autocomplete="off">
+            <label class="visually-hidden" for="new-file">New file name</label>
+            <input id="new-file" type="text" placeholder="name.ms" maxlength="40" spellcheck="false" hidden />
+            <button id="add-file" type="button" title="Add a file" aria-label="Add a file">+</button>
+          </form>
+        </div>
+        <div id="editor" class="editor"></div>
+      </section>
 
-  <section class="result-pane">
-    <div class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="output" role="tab" aria-selected="true">Output</button>
-      <button class="tab-btn" data-tab="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
-      <button class="tab-btn" data-tab="tokens" role="tab" aria-selected="false">Tokens</button>
-      <button class="tab-btn" data-tab="ast" role="tab" aria-selected="false">AST</button>
-    </div>
-    <pre id="output" class="tab-panel active" role="tabpanel"></pre>
-    <pre id="diagnostics" class="tab-panel" role="tabpanel"></pre>
-    <pre id="tokens" class="tab-panel" role="tabpanel"></pre>
-    <pre id="ast" class="tab-panel" role="tabpanel"></pre>
-  </section>
-</main>
+      <section class="pane" aria-label="Results">
+        <div class="tabbar">
+          <div id="views" class="tabs" role="tablist" aria-label="Result views">
+            <button type="button" role="tab" data-view="output" aria-selected="true">Output</button>
+            <button type="button" role="tab" data-view="problems" aria-selected="false">
+              Problems <span id="problem-count" class="count" hidden></span>
+            </button>
+            <button type="button" role="tab" data-view="tokens" aria-selected="false">Tokens</button>
+            <button type="button" role="tab" data-view="ast" aria-selected="false">Syntax tree</button>
+          </div>
+        </div>
+        <pre id="output" class="view" role="log" aria-live="polite" tabindex="0"></pre>
+        <pre id="problems" class="view" tabindex="0" hidden></pre>
+        <pre id="tokens" class="view" tabindex="0" hidden></pre>
+        <pre id="ast" class="view" tabindex="0" hidden></pre>
+      </section>
+    </main>
 
-<footer id="status">Loading compiler…</footer>
+    <footer class="statusbar">
+      <span id="status" role="status">Loading…</span>
+      <span id="cursor"></span>
+    </footer>
 
-<script type="module" src="app.js"></script>
-</body>
+    <script type="module" src="main.js"></script>
+  </body>
 </html>

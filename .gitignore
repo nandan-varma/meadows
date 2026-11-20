@@ -231,10 +231,13 @@ lsp/**/*.vsix
 lsp/**/dist/
 lsp/**/node_modules/
 lsp/**/out/
-lsp/**/package-lock.json
 
 #==============================================================================
 # Keep these files (negation patterns)
 #==============================================================================
 !tests/*.ms
 !tests/*.expected
+
+# Playground build output
+web/dist/
+web/node_modules/
