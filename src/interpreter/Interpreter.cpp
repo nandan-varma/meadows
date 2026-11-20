@@ -1,10 +1,8 @@
 #include "Interpreter.h"
 
 #include <cmath>
-#include <limits>
 
 #include "../runtime/Limits.h"
-#include "LargeStack.h"
 
 namespace meadows {
 
@@ -22,6 +20,20 @@ std::string arguments(size_t count) {
   return std::to_string(count) + (count == 1 ? " argument" : " arguments");
 }
 
+BinaryOp binaryOpFor(Op op) {
+  switch (op) {
+  case Op::Add: return BinaryOp::Add;
+  case Op::Sub: return BinaryOp::Sub;
+  case Op::Mul: return BinaryOp::Mul;
+  case Op::Div: return BinaryOp::Div;
+  case Op::Mod: return BinaryOp::Mod;
+  case Op::Lt: return BinaryOp::Lt;
+  case Op::Le: return BinaryOp::Le;
+  case Op::Gt: return BinaryOp::Gt;
+  default: return BinaryOp::Ge;
+  }
+}
+
 } // namespace
 
 std::string formatRuntimeError(const RuntimeError& error,
@@ -30,166 +42,253 @@ std::string formatRuntimeError(const RuntimeError& error,
          formatLocation(sources, error.location) + "\n";
 }
 
-void Interpreter::fail(std::string message, Location site) {
-  throw Abort{RuntimeError{std::move(message), site}};
+Location Interpreter::where(const Instruction& instruction) const {
+  return program_->sites[instruction.site];
+}
+
+void Interpreter::fail(std::string message, const Instruction& at) {
+  throw Abort{RuntimeError{std::move(message), where(at)}};
 }
 
 void Interpreter::unsupported(const char* op, const std::string& operands,
-                              Location site) {
+                              const Instruction& at) {
   fail(std::string("Operator '") + op + "' cannot be applied to " + operands,
-       site);
+       at);
 }
 
 std::optional<RuntimeError> Interpreter::run(StmtList& program) {
-  functions_.clear();
-  bindings_.clear();
-  frameBase_ = 0;
-  depth_ = 0;
-  flow_ = Flow::Next;
-  for (StmtPtr& stmt : program) {
-    if (auto* func = dynamic_cast<FuncStmt*>(stmt.get())) {
-      functions_[func->name] = func;
-    }
-  }
+  BytecodeProgram bytecode = compileProgram(program);
+  program_ = &bytecode;
+  stack_.clear();
+  frames_.clear();
   std::optional<RuntimeError> failure;
-  runOnLargeStack([&]() {
-    try {
-      execute(program);
-    } catch (const Abort& abort) {
-      failure = abort.error;
-    }
-  });
+  try {
+    execute();
+  } catch (const Abort& abort) {
+    failure = abort.error;
+  }
+  stack_.clear();
+  frames_.clear();
+  program_ = nullptr;
   return failure;
 }
 
-Value Interpreter::eval(Expr& expr) {
-  expr.accept(*this);
-  return std::move(result_);
+Value Interpreter::pop() {
+  Value value = std::move(stack_.back());
+  stack_.pop_back();
+  return value;
 }
 
-void Interpreter::execute(StmtList& body) {
-  for (StmtPtr& stmt : body) {
-    stmt->accept(*this);
-    if (flow_ != Flow::Next) {
+void Interpreter::execute() {
+  stack_.resize(program_->main->slots);
+  frames_.push_back({program_->main, 0, 0});
+
+  while (true) {
+    Frame& frame = frames_.back();
+    const Instruction& at = frame.code->code[frame.pc++];
+    switch (at.op) {
+    case Op::Constant:
+      push(program_->constants[static_cast<size_t>(at.a)]);
+      break;
+    case Op::Load:
+      push(stack_[frame.base + static_cast<size_t>(at.a)]);
+      break;
+    case Op::Store:
+      stack_[frame.base + static_cast<size_t>(at.a)] = pop();
+      break;
+    case Op::Assign:
+      stack_[frame.base + static_cast<size_t>(at.a)] = stack_.back();
+      break;
+    case Op::LoadFunction:
+      push(Value::function(
+          program_->functions[static_cast<size_t>(at.a)].get()));
+      break;
+    case Op::Pop:
+      stack_.pop_back();
+      break;
+    case Op::Add:
+    case Op::Sub:
+    case Op::Mul:
+    case Op::Div:
+    case Op::Mod:
+      binary(at);
+      break;
+    case Op::Eq:
+    case Op::Ne: {
+      Value right = pop();
+      Value left = pop();
+      bool same = Value::equals(left, right);
+      push(Value::integer(at.op == Op::Eq ? same : !same));
+      break;
+    }
+    case Op::Lt:
+    case Op::Le:
+    case Op::Gt:
+    case Op::Ge:
+      compare(at);
+      break;
+    case Op::Negate: {
+      Value operand = pop();
+      if (operand.isFloat()) {
+        push(Value::real(-operand.asFloat()));
+      } else if (operand.isInt()) {
+        push(Value::integer(static_cast<int32_t>(
+            0u - static_cast<uint32_t>(operand.asInt()))));
+      } else {
+        unsupported("-", operand.typeName(), at);
+      }
+      break;
+    }
+    case Op::Not: {
+      Value operand = pop();
+      if (!operand.isInt()) {
+        unsupported("!", operand.typeName(), at);
+      }
+      push(Value::integer(operand.asInt() == 0));
+      break;
+    }
+    case Op::Jump:
+      frame.pc = static_cast<size_t>(at.a);
+      break;
+    case Op::JumpIfFalse: {
+      Value test = pop();
+      if (!test.isInt()) {
+        fail(std::string("Condition must be an integer, got ") +
+                 test.typeName(),
+             at);
+      }
+      if (test.asInt() == 0) {
+        frame.pc = static_cast<size_t>(at.a);
+      }
+      break;
+    }
+    case Op::AndShort:
+    case Op::OrShort: {
+      bool isAnd = at.op == Op::AndShort;
+      Value left = pop();
+      if (!left.isInt()) {
+        unsupported(isAnd ? "&&" : "||", left.typeName(), at);
+      }
+      if ((left.asInt() != 0) != isAnd) {
+        push(Value::integer(!isAnd));
+        frame.pc = static_cast<size_t>(at.a);
+      }
+      break;
+    }
+    case Op::ToBool: {
+      Value right = pop();
+      if (!right.isInt()) {
+        unsupported(at.a == 0 ? "&&" : "||", right.typeName(), at);
+      }
+      push(Value::integer(right.asInt() != 0));
+      break;
+    }
+    case Op::Index:
+      index(at);
+      break;
+    case Op::SetIndex:
+      setIndex(at);
+      break;
+    case Op::Field:
+      field(at);
+      break;
+    case Op::SetField:
+      setField(at);
+      break;
+    case Op::Call:
+      call(at);
+      break;
+    case Op::CallBuiltin:
+      callBuiltin(at);
+      break;
+    case Op::MakeArray: {
+      size_t count = static_cast<size_t>(at.a);
+      std::vector<Value> items(count);
+      for (size_t i = count; i > 0; --i) {
+        items[i - 1] = pop();
+      }
+      push(Value::array(std::move(items)));
+      break;
+    }
+    case Op::MakeObject: {
+      const std::vector<std::string>& names =
+          program_->shapes[static_cast<size_t>(at.a)];
+      std::vector<std::pair<std::string, Value>> fields(names.size());
+      for (size_t i = names.size(); i > 0; --i) {
+        fields[i - 1] = {names[i - 1], pop()};
+      }
+      push(Value::object(std::move(fields)));
+      break;
+    }
+    case Op::Return: {
+      Value result = pop();
+      size_t base = frame.base;
+      frames_.pop_back();
+      stack_.resize(base - 1);
+      push(std::move(result));
+      break;
+    }
+    case Op::Clear:
+      for (int32_t i = 0; i < at.b; ++i) {
+        stack_[frame.base + static_cast<size_t>(at.a + i)] = Value();
+      }
+      break;
+    case Op::ForInit:
+      forInit(at);
+      break;
+    case Op::ForNext: {
+      size_t counter = frame.base + static_cast<size_t>(at.b);
+      int32_t current = stack_[counter].asInt();
+      if (current >= stack_[counter + 1].asInt()) {
+        frame.pc = static_cast<size_t>(at.a);
+      } else {
+        stack_[counter + 2] = Value::integer(current);
+      }
+      break;
+    }
+    case Op::ForStep: {
+      size_t counter = frame.base + static_cast<size_t>(at.a);
+      stack_[counter] = Value::integer(stack_[counter].asInt() + 1);
+      break;
+    }
+    case Op::Halt:
       return;
     }
   }
 }
 
-void Interpreter::executeScoped(StmtList& body) {
-  size_t mark = bindings_.size();
-  execute(body);
-  bindings_.resize(mark);
-}
-
-Value* Interpreter::findVariable(const std::string& name) {
-  for (size_t i = bindings_.size(); i > frameBase_; --i) {
-    Binding& binding = bindings_[i - 1];
-    if (*binding.name == name) {
-      return &binding.value;
-    }
+void Interpreter::forInit(const Instruction& at) {
+  Value end = pop();
+  Value start = pop();
+  if (!start.isInt() || !end.isInt()) {
+    const Value& bad = start.isInt() ? end : start;
+    fail(std::string("Range bounds must be integers, got ") + bad.typeName(),
+         at);
   }
-  return nullptr;
-}
-
-bool Interpreter::condition(const Value& value, Location site) {
-  if (!value.isInt()) {
-    fail(std::string("Condition must be an integer, got ") + value.typeName(),
-         site);
-  }
-  return value.asInt() != 0;
-}
-
-void Interpreter::visitLiteralExpr(LiteralExpr& expr) {
-  switch (expr.kind) {
-  case LiteralKind::Int:
-    result_ = Value::integer(expr.intValue);
-    break;
-  case LiteralKind::Float:
-    result_ = Value::real(expr.floatValue);
-    break;
-  case LiteralKind::String:
-    result_ = Value::string(expr.stringValue);
-    break;
-  }
-}
-
-void Interpreter::visitVarExpr(VarExpr& expr) {
-  if (Value* variable = findVariable(expr.name)) {
-    result_ = *variable;
-  } else {
-    result_ = Value::function(functions_.at(expr.name));
-  }
-}
-
-void Interpreter::visitAssignExpr(AssignExpr& expr) {
-  if (auto* target = dynamic_cast<VarExpr*>(expr.target.get())) {
-    Value value = eval(*expr.value);
-    *findVariable(target->name) = value;
-    result_ = std::move(value);
-    return;
-  }
-
-  if (auto* target = dynamic_cast<IndexExpr*>(expr.target.get())) {
-    Value object = eval(*target->object);
-    Value index = eval(*target->index);
-    Value value = eval(*expr.value);
-    if (!object.isArray()) {
-      fail("Cannot index " + object.describe(), target->location);
-    }
-    if (!index.isInt()) {
-      fail(std::string("Array index must be an integer, got ") +
-               index.typeName(),
-           target->location);
-    }
-    std::vector<Value>& items = object.asArray().items;
-    int32_t i = index.asInt();
-    if (i < 0 || static_cast<size_t>(i) >= items.size()) {
-      fail("Array index " + std::to_string(i) + " out of bounds for length " +
-               std::to_string(items.size()),
-           target->location);
-    }
-    items[static_cast<size_t>(i)] = value;
-    result_ = std::move(value);
-    return;
-  }
-
-  auto& target = static_cast<FieldExpr&>(*expr.target);
-  Value object = eval(*target.object);
-  Value value = eval(*expr.value);
-  if (!object.isObject()) {
-    fail("Cannot access field '" + target.name + "' on " + object.describe(),
-         target.location);
-  }
-  for (auto& field : object.asObject().fields) {
-    if (field.first == target.name) {
-      field.second = value;
-      result_ = std::move(value);
-      return;
-    }
-  }
-  fail("Object has no field '" + target.name + "'", target.location);
+  size_t counter = frames_.back().base + static_cast<size_t>(at.a);
+  stack_[counter] = std::move(start);
+  stack_[counter + 1] = std::move(end);
 }
 
 Value Interpreter::arithmetic(BinaryOp op, const Value& left,
-                              const Value& right, Location site) {
+                              const Value& right, const Instruction& at) {
   const char* symbol = binaryOpSymbol(op);
 
   if (op == BinaryOp::Add && (left.isString() || right.isString())) {
     bool printable = (left.isString() || left.isNumber()) &&
                      (right.isString() || right.isNumber());
     if (!printable) {
-      unsupported(symbol, typeNames(left, right), site);
+      unsupported(symbol, typeNames(left, right), at);
     }
     std::string joined = left.display() + right.display();
     if (joined.size() > MEADOWS_MAX_STRING_LENGTH) {
-      fail("String exceeds the maximum length", site);
+      fail("String exceeds the maximum length", at);
     }
     return Value::string(std::move(joined));
   }
 
   if (!left.isNumber() || !right.isNumber()) {
-    unsupported(symbol, typeNames(left, right), site);
+    unsupported(symbol, typeNames(left, right), at);
   }
 
   if (left.isFloat() || right.isFloat()) {
@@ -199,13 +298,11 @@ Value Interpreter::arithmetic(BinaryOp op, const Value& left,
     case BinaryOp::Add: return Value::real(a + b);
     case BinaryOp::Sub: return Value::real(a - b);
     case BinaryOp::Mul: return Value::real(a * b);
-    case BinaryOp::Div:
-    case BinaryOp::Mod:
+    default:
       if (b == 0.0) {
-        fail("Division by zero", site);
+        fail("Division by zero", at);
       }
       return Value::real(op == BinaryOp::Div ? a / b : std::fmod(a, b));
-    default: unsupported(symbol, typeNames(left, right), site);
     }
   }
 
@@ -218,310 +315,184 @@ Value Interpreter::arithmetic(BinaryOp op, const Value& left,
   case BinaryOp::Add: return wrap(int64_t{a} + b);
   case BinaryOp::Sub: return wrap(int64_t{a} - b);
   case BinaryOp::Mul: return wrap(int64_t{a} * b);
-  case BinaryOp::Div:
-  case BinaryOp::Mod:
+  default:
     if (b == 0) {
-      fail("Division by zero", site);
+      fail("Division by zero", at);
     }
     if (op == BinaryOp::Div) {
       return wrap(int64_t{a} / b);
     }
     return Value::integer(b == -1 ? 0 : a % b);
-  default: unsupported(symbol, typeNames(left, right), site);
   }
 }
 
-void Interpreter::visitBinaryExpr(BinaryExpr& expr) {
-  Value left = eval(*expr.left);
-  Value right = eval(*expr.right);
-
-  switch (expr.op) {
-  case BinaryOp::Eq:
-    result_ = Value::integer(Value::equals(left, right));
-    return;
-  case BinaryOp::Ne:
-    result_ = Value::integer(!Value::equals(left, right));
-    return;
-  case BinaryOp::Lt:
-  case BinaryOp::Le:
-  case BinaryOp::Gt:
-  case BinaryOp::Ge: {
-    if (!left.isNumber() || !right.isNumber()) {
-      unsupported(binaryOpSymbol(expr.op), typeNames(left, right),
-                  expr.location);
-    }
-    double a = left.asDouble();
-    double b = right.asDouble();
-    bool holds = expr.op == BinaryOp::Lt   ? a < b
-                 : expr.op == BinaryOp::Le ? a <= b
-                 : expr.op == BinaryOp::Gt ? a > b
-                                           : a >= b;
-    result_ = Value::integer(holds);
-    return;
-  }
-  default:
-    result_ = arithmetic(expr.op, left, right, expr.location);
-  }
+void Interpreter::binary(const Instruction& at) {
+  Value right = pop();
+  Value left = pop();
+  push(arithmetic(binaryOpFor(at.op), left, right, at));
 }
 
-void Interpreter::visitUnaryExpr(UnaryExpr& expr) {
-  Value operand = eval(*expr.operand);
-  const char* symbol = unaryOpSymbol(expr.op);
-  if (expr.op == UnaryOp::Negate) {
-    if (operand.isFloat()) {
-      result_ = Value::real(-operand.asFloat());
-    } else if (operand.isInt()) {
-      result_ = Value::integer(
-          static_cast<int32_t>(0u - static_cast<uint32_t>(operand.asInt())));
-    } else {
-      unsupported(symbol, operand.typeName(), expr.location);
-    }
-  } else {
-    if (!operand.isInt()) {
-      unsupported(symbol, operand.typeName(), expr.location);
-    }
-    result_ = Value::integer(operand.asInt() == 0);
+void Interpreter::compare(const Instruction& at) {
+  Value right = pop();
+  Value left = pop();
+  if (!left.isNumber() || !right.isNumber()) {
+    unsupported(binaryOpSymbol(binaryOpFor(at.op)), typeNames(left, right),
+                at);
   }
+  double a = left.asDouble();
+  double b = right.asDouble();
+  bool holds = at.op == Op::Lt   ? a < b
+               : at.op == Op::Le ? a <= b
+               : at.op == Op::Gt ? a > b
+                                 : a >= b;
+  push(Value::integer(holds));
 }
 
-void Interpreter::visitLogicalExpr(LogicalExpr& expr) {
-  auto truthy = [&](Expr& operand) {
-    Value value = eval(operand);
-    if (!value.isInt()) {
-      unsupported(logicalOpSymbol(expr.op), value.typeName(), expr.location);
-    }
-    return value.asInt() != 0;
-  };
-  bool isAnd = expr.op == LogicalOp::And;
-  bool left = truthy(*expr.left);
-  if (left != isAnd) {
-    result_ = Value::integer(left);
-    return;
-  }
-  result_ = Value::integer(truthy(*expr.right));
-}
-
-void Interpreter::visitIndexExpr(IndexExpr& expr) {
-  Value object = eval(*expr.object);
-  Value index = eval(*expr.index);
+void Interpreter::index(const Instruction& at) {
+  Value position = pop();
+  Value object = pop();
   if (!object.isArray()) {
-    fail("Cannot index " + object.describe(), expr.location);
+    fail("Cannot index " + object.describe(), at);
   }
-  if (!index.isInt()) {
-    fail(std::string("Array index must be an integer, got ") + index.typeName(),
-         expr.location);
+  if (!position.isInt()) {
+    fail(std::string("Array index must be an integer, got ") +
+             position.typeName(),
+         at);
   }
   const std::vector<Value>& items = object.asArray().items;
-  int32_t i = index.asInt();
+  int32_t i = position.asInt();
   if (i < 0 || static_cast<size_t>(i) >= items.size()) {
     fail("Array index " + std::to_string(i) + " out of bounds for length " +
              std::to_string(items.size()),
-         expr.location);
+         at);
   }
-  result_ = items[static_cast<size_t>(i)];
+  push(items[static_cast<size_t>(i)]);
 }
 
-void Interpreter::visitFieldExpr(FieldExpr& expr) {
-  Value object = eval(*expr.object);
-  if (!object.isObject()) {
-    fail("Cannot access field '" + expr.name + "' on " + object.describe(),
-         expr.location);
+void Interpreter::setIndex(const Instruction& at) {
+  Value value = pop();
+  Value position = pop();
+  Value object = pop();
+  if (!object.isArray()) {
+    fail("Cannot index " + object.describe(), at);
   }
-  for (const auto& field : object.asObject().fields) {
-    if (field.first == expr.name) {
-      result_ = field.second;
+  if (!position.isInt()) {
+    fail(std::string("Array index must be an integer, got ") +
+             position.typeName(),
+         at);
+  }
+  std::vector<Value>& items = object.asArray().items;
+  int32_t i = position.asInt();
+  if (i < 0 || static_cast<size_t>(i) >= items.size()) {
+    fail("Array index " + std::to_string(i) + " out of bounds for length " +
+             std::to_string(items.size()),
+         at);
+  }
+  items[static_cast<size_t>(i)] = value;
+  push(std::move(value));
+}
+
+void Interpreter::field(const Instruction& at) {
+  const std::string& name = program_->names[static_cast<size_t>(at.a)];
+  Value object = pop();
+  if (!object.isObject()) {
+    fail("Cannot access field '" + name + "' on " + object.describe(), at);
+  }
+  for (const auto& entry : object.asObject().fields) {
+    if (entry.first == name) {
+      push(entry.second);
       return;
     }
   }
-  fail("Object has no field '" + expr.name + "'", expr.location);
+  fail("Object has no field '" + name + "'", at);
 }
 
-void Interpreter::visitCallExpr(CallExpr& expr) {
-  const BuiltinInfo* builtin = nullptr;
-  Value callee;
-  auto* name = dynamic_cast<VarExpr*>(expr.callee.get());
-  if (name && !findVariable(name->name)) {
-    builtin = findBuiltin(name->name);
+void Interpreter::setField(const Instruction& at) {
+  const std::string& name = program_->names[static_cast<size_t>(at.a)];
+  Value value = pop();
+  Value object = pop();
+  if (!object.isObject()) {
+    fail("Cannot access field '" + name + "' on " + object.describe(), at);
   }
-  if (!builtin) {
-    callee = eval(*expr.callee);
+  for (auto& entry : object.asObject().fields) {
+    if (entry.first == name) {
+      entry.second = value;
+      push(std::move(value));
+      return;
+    }
   }
-
-  std::vector<Value> args;
-  args.reserve(expr.args.size());
-  for (ExprPtr& arg : expr.args) {
-    args.push_back(eval(*arg));
-  }
-
-  result_ = builtin ? callBuiltin(builtin->builtin, args, expr.location)
-                    : call(callee, std::move(args), expr.location);
+  fail("Object has no field '" + name + "'", at);
 }
 
-Value Interpreter::call(const Value& callee, std::vector<Value> args,
-                        Location site) {
+void Interpreter::call(const Instruction& at) {
+  size_t argc = static_cast<size_t>(at.a);
+  size_t calleeIndex = stack_.size() - argc - 1;
+  const Value& callee = stack_[calleeIndex];
   if (!callee.isFunction()) {
-    fail("Cannot call " + callee.describe(), site);
+    fail("Cannot call " + callee.describe(), at);
   }
-  FuncStmt& function = *callee.asFunction();
-  if (args.size() != function.params.size()) {
-    fail("Function '" + function.name + "' takes " +
-             arguments(function.params.size()) + ", got " +
-             std::to_string(args.size()),
-         site);
+  const FunctionCode* function = callee.asFunction();
+  if (function->arity != argc) {
+    fail("Function '" + function->name + "' takes " +
+             arguments(function->arity) + ", got " + std::to_string(argc),
+         at);
   }
-  if (depth_ >= MEADOWS_MAX_CALL_DEPTH || stackNearlyExhausted()) {
-    fail("Maximum call depth exceeded", site);
+  if (frames_.size() > MEADOWS_MAX_CALL_DEPTH) {
+    fail("Maximum call depth exceeded", at);
   }
-
-  ++depth_;
-  size_t savedBase = frameBase_;
-  size_t mark = bindings_.size();
-  frameBase_ = mark;
-  for (size_t i = 0; i < args.size(); ++i) {
-    bindings_.push_back({&function.params[i].name, std::move(args[i])});
-  }
-
-  returned_ = Value();
-  execute(function.body);
-  Value result = flow_ == Flow::Return ? std::move(returned_) : Value();
-  flow_ = Flow::Next;
-
-  bindings_.resize(mark);
-  frameBase_ = savedBase;
-  --depth_;
-  return result;
+  size_t base = calleeIndex + 1;
+  stack_.resize(base + function->slots);
+  frames_.push_back({function, 0, base});
 }
 
-Value Interpreter::callBuiltin(Builtin builtin, std::vector<Value>& args,
-                               Location site) {
+void Interpreter::callBuiltin(const Instruction& at) {
+  size_t argc = static_cast<size_t>(at.b);
+  std::vector<Value> args(argc);
+  for (size_t i = argc; i > 0; --i) {
+    args[i - 1] = pop();
+  }
   const Value& first = args[0];
-  switch (builtin) {
+
+  switch (static_cast<Builtin>(at.a)) {
   case Builtin::Print:
     if (!first.isNumber() && !first.isString()) {
-      fail("print() cannot print " + first.describe(), site);
+      fail("print() cannot print " + first.describe(), at);
     }
     output_(first.display() + "\n");
-    return Value();
+    push(Value());
+    break;
   case Builtin::Len:
     if (first.isString()) {
-      return Value::integer(static_cast<int32_t>(first.asString().size()));
+      push(Value::integer(static_cast<int32_t>(first.asString().size())));
+    } else if (first.isArray()) {
+      push(Value::integer(static_cast<int32_t>(first.asArray().items.size())));
+    } else {
+      fail(std::string("len() requires a string or an array, got ") +
+               first.typeName(),
+           at);
     }
-    if (first.isArray()) {
-      return Value::integer(static_cast<int32_t>(first.asArray().items.size()));
-    }
-    fail(std::string("len() requires a string or an array, got ") +
-             first.typeName(),
-         site);
+    break;
   case Builtin::Str:
     if (!first.isNumber()) {
-      fail(std::string("str() requires a number, got ") + first.typeName(),
-           site);
+      fail(std::string("str() requires a number, got ") + first.typeName(), at);
     }
-    return Value::string(first.display());
+    push(Value::string(first.display()));
+    break;
   case Builtin::Push: {
     if (!first.isArray()) {
       fail(std::string("push() requires an array as its first argument, got ") +
                first.typeName(),
-           site);
+           at);
     }
     std::vector<Value>& items = first.asArray().items;
     if (items.size() >= MEADOWS_MAX_ARRAY_LENGTH) {
-      fail("Array exceeds the maximum length", site);
+      fail("Array exceeds the maximum length", at);
     }
     items.push_back(args[1]);
-    return first;
+    push(first);
+    break;
   }
   }
-  return Value();
 }
-
-void Interpreter::visitArrayExpr(ArrayExpr& expr) {
-  std::vector<Value> items;
-  items.reserve(expr.elements.size());
-  for (ExprPtr& element : expr.elements) {
-    items.push_back(eval(*element));
-  }
-  result_ = Value::array(std::move(items));
-}
-
-void Interpreter::visitObjectExpr(ObjectExpr& expr) {
-  std::vector<std::pair<std::string, Value>> fields;
-  fields.reserve(expr.fields.size());
-  for (ObjectField& field : expr.fields) {
-    fields.emplace_back(field.name, eval(*field.value));
-  }
-  result_ = Value::object(std::move(fields));
-}
-
-void Interpreter::visitExprStmt(ExprStmt& stmt) { eval(*stmt.expr); }
-
-void Interpreter::visitLetStmt(LetStmt& stmt) {
-  Value value = eval(*stmt.initializer);
-  bindings_.push_back({&stmt.name, std::move(value)});
-}
-
-void Interpreter::visitFuncStmt(FuncStmt&) {}
-
-void Interpreter::visitIfStmt(IfStmt& stmt) {
-  Value test = eval(*stmt.condition);
-  executeScoped(condition(test, stmt.condition->location) ? stmt.thenBody
-                                                          : stmt.elseBody);
-}
-
-void Interpreter::visitForStmt(ForStmt& stmt) {
-  Value start = eval(*stmt.start);
-  Value end = eval(*stmt.end);
-  if (!start.isInt() || !end.isInt()) {
-    const Value& bad = start.isInt() ? end : start;
-    fail(std::string("Range bounds must be integers, got ") + bad.typeName(),
-         stmt.location);
-  }
-  int32_t limit = end.asInt();
-  size_t mark = bindings_.size();
-  for (int32_t i = start.asInt(); i < limit; ++i) {
-    bindings_.push_back({&stmt.var, Value::integer(i)});
-    execute(stmt.body);
-    bindings_.resize(mark);
-    if (flow_ == Flow::Break) {
-      flow_ = Flow::Next;
-      break;
-    }
-    if (flow_ == Flow::Continue) {
-      flow_ = Flow::Next;
-    } else if (flow_ == Flow::Return) {
-      return;
-    }
-  }
-}
-
-void Interpreter::visitWhileStmt(WhileStmt& stmt) {
-  while (true) {
-    Value test = eval(*stmt.condition);
-    if (!condition(test, stmt.condition->location)) {
-      return;
-    }
-    executeScoped(stmt.body);
-    if (flow_ == Flow::Break) {
-      flow_ = Flow::Next;
-      return;
-    }
-    if (flow_ == Flow::Continue) {
-      flow_ = Flow::Next;
-    } else if (flow_ == Flow::Return) {
-      return;
-    }
-  }
-}
-
-void Interpreter::visitReturnStmt(ReturnStmt& stmt) {
-  returned_ = stmt.value ? eval(*stmt.value) : Value();
-  flow_ = Flow::Return;
-}
-
-void Interpreter::visitBreakStmt(BreakStmt&) { flow_ = Flow::Break; }
-
-void Interpreter::visitContinueStmt(ContinueStmt&) { flow_ = Flow::Continue; }
-
-void Interpreter::visitBlockStmt(BlockStmt& stmt) { executeScoped(stmt.body); }
 
 } // namespace meadows

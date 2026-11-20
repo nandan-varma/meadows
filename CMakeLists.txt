@@ -37,8 +37,8 @@ add_library(meadows_core STATIC
   src/ast/AST.cpp
   src/ast/AstPrinter.cpp
   src/driver/Frontend.cpp
+  src/interpreter/BytecodeCompiler.cpp
   src/interpreter/Interpreter.cpp
-  src/interpreter/LargeStack.cpp
   src/interpreter/Value.cpp
   src/lexer/Lexer.cpp
   src/loader/ModuleLoader.cpp
@@ -51,10 +51,16 @@ add_library(meadows_core STATIC
   src/utils/SourceMap.cpp
 )
 target_include_directories(meadows_core PUBLIC src)
-find_package(Threads REQUIRED)
-target_link_libraries(meadows_core PUBLIC Threads::Threads)
+if(EMSCRIPTEN)
+  target_compile_options(meadows_core PUBLIC -fwasm-exceptions)
+else()
+  find_package(Threads REQUIRED)
+  target_link_libraries(meadows_core PUBLIC Threads::Threads)
+endif()
+
 
 if(BUILD_WASM)
+  enable_testing()
   add_subdirectory(src/wasm)
 else()
   add_subdirectory(src/codegen)

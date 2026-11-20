@@ -10,7 +10,7 @@
 
 namespace meadows {
 
-class FuncStmt;
+struct FunctionCode;
 class Value;
 
 struct ArrayData {
@@ -45,9 +45,7 @@ public:
   static Value string(std::string value);
   static Value array(std::vector<Value> items);
   static Value object(std::vector<std::pair<std::string, Value>> fields);
-  static Value function(FuncStmt* declaration) {
-    return Value(declaration);
-  }
+  static Value function(const FunctionCode* code) { return Value(code); }
 
   Type type() const { return static_cast<Type>(data_.index()); }
   const char* typeName() const;
@@ -66,8 +64,8 @@ public:
   const std::string& asString() const { return *std::get<StringPtr>(data_); }
   ArrayData& asArray() const { return *std::get<ArrayPtr>(data_); }
   ObjectData& asObject() const { return *std::get<ObjectPtr>(data_); }
-  FuncStmt* asFunction() const {
-    return std::get<FuncStmt*>(data_);
+  const FunctionCode* asFunction() const {
+    return std::get<const FunctionCode*>(data_);
   }
 
   std::string display() const;
@@ -75,12 +73,12 @@ public:
 
 private:
   std::variant<int32_t, double, StringPtr, ArrayPtr, ObjectPtr,
-               FuncStmt*>
+               const FunctionCode*>
       data_;
 
   explicit Value(int32_t v) : data_(v) {}
   explicit Value(double v) : data_(v) {}
-  explicit Value(FuncStmt* v) : data_(v) {}
+  explicit Value(const FunctionCode* v) : data_(v) {}
   template <typename T> Value(std::in_place_type_t<T> tag, T v)
       : data_(tag, std::move(v)) {}
 };
