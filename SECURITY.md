@@ -1,16 +1,33 @@
-# Security Policy
+# Security policy
 
 ## Supported versions
 
 | Version | Supported |
 |---------|-----------|
-| 1.x     | Yes       |
+| 2.x     | Yes       |
+
+## Scope
+
+Meadows runs untrusted programs in two ways, and both are designed to contain
+them:
+
+- **Browser.** Programs run in a Web Worker on a WebAssembly interpreter with no
+  access to the page, the network or the host file system.
+- **Compiler and `--run`.** Programs have no built-ins for files, processes or
+  the network. Resource use is bounded: call depth, string and array length,
+  source size (10 MB), nesting depth and import depth are all limited. Import
+  paths must be relative, end in `.ms` and avoid `..`.
+
+A compiled program is a normal native executable and runs with the privileges of
+the user who starts it.
+
+Reports of crashes, hangs, memory-safety bugs, escapes from these limits and
+disagreements between back ends are all welcome.
 
 ## Reporting a vulnerability
 
-Please **do not** open a public issue for security vulnerabilities.
+Do not open a public issue. Report through GitHub's private advisory form:
+<https://github.com/nandan-varma/meadows/security/advisories/new>.
 
-Report via GitHub's private advisory feature:
-<https://github.com/nandan-varma/meadows/security/advisories/new>
-
-We will acknowledge within 72 hours and aim to release a fix within 14 days for confirmed issues.
+We acknowledge reports within 72 hours and aim to fix confirmed issues within
+14 days.

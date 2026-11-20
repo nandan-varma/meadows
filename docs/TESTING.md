@@ -1,127 +1,65 @@
-# Meadows Compiler Testing Guide
-
-This document describes the testing infrastructure for the Meadows compiler.
-
-## Test Structure
-
-```
-tests/
-├── unit/              # Unit tests by module
-│   ├── lexer/
-│   ├── parser/
-│   ├── codegen/
-│   ├── ast/
-│   └── utils/
-├── integration/       # Full program tests (.ms files)
-│   ├── factorial.ms
-│   ├── hello.ms
-│   ├── loop.ms
-│   ├── variables.ms
-│   ├── errors/        # Programs expected to fail compilation
-│   └── expected/      # Expected output files (<stem>.expected)
-└── security/          # Security and fuzz tests
-```
-
-## Running Tests
-
-### All Tests
-```bash
-./test.sh              # Full test suite
-./test.sh unit         # Unit tests only
-./test.sh integration # Integration tests only
-./test.sh security     # Security tests only
-```
-
-### Specific Unit Tests
-```bash
-./build/tests/meadows_tests "[lexer]"       # Run lexer tests
-./build/tests/meadows_tests "[parser]"      # Run parser tests
-./build/tests/meadows_tests "[exceptions]"  # Run exception tests
-./build/tests/meadows_tests "[diagnostics]" # Run diagnostics tests
-./build/tests/meadows_tests "[warnings]"    # Run warning tests
-./build/tests/meadows_tests "[timer]"      # Run timer tests
-./build/tests/meadows_tests "Test Name"    # Run specific test case
-```
-
-## Adding Unit Tests
-
-### Test File Structure
-Create a new file in `tests/unit/<module>/`:
-
-```cpp
-#include "<module>/Module.h"
-#include <catch2/catch_all.hpp>
-
-TEST_CASE("ModuleName operation", "[module]") {
-    SECTION("Specific scenario") {
-        // Test code
-        REQUIRE(condition);
-    }
-}
-
-TEST_CASE("Another operation", "[module][other-tag]") {
-    // Test code
-}
-```
-
-Add the new file to `TEST_SOURCES` in `tests/CMakeLists.txt`.
-
-### Test Tags
-- Module tags: `[lexer]`, `[parser]`, `[ast]`, `[sema]`, `[codegen]`,
-  `[interpreter]`, `[utils]`
-- Feature tags: `[exceptions]`, `[diagnostics]`, `[warnings]`, `[security]`
-- Property tags: `[property]` for property-based tests
-
-### Example
-```cpp
-TEST_CASE("Lexer tokenizes identifiers", "[lexer]") {
-    Lexer lexer("let x = 5;");
-    auto tokens = lexer.tokenize();
-
-    REQUIRE(tokens.size() == 5);
-    REQUIRE(tokens[0].type == TokenType::LET);
-    REQUIRE(tokens[1].value == "x");
-}
-```
-
-## Integration Tests
-
-Add `.ms` files to `tests/integration/`:
-
-```meadows
-// Example: factorial.ms
-func factorial(n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
-}
-
-let result = factorial(5);
-print(result);
-```
-
-## Security Tests
-
-Security tests are in `scripts/test/run_security_tests.sh` and test:
-- Command injection prevention
-- Path traversal prevention
-- File extension validation
-- File size limits
-- Error handling for unterminated strings
-- Undefined variable/function detection
-
-## Build with Tests
+# Testing
 
 ```bash
-./build.sh tests          # Build with tests
-cmake -B build -DBUILD_TESTS=ON && cd build && make -j4
+cmake -B build -DLLVM_DIR=<llvm-17>/lib/cmake/llvm
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
 
-## Code Coverage
+Set `MEADOWS_CLANG` to the `clang` that should build compiled programs if the
+default lookup (`clang-17`, `clang`) does not find the right one.
+
+## Suites
+
+| Suite                      | What it checks                                                      |
+|----------------------------|---------------------------------------------------------------------|
+| `meadows_tests`            | Unit tests (Catch2) for each stage: lexer, parser, loader, semantic analysis, interpreter, diagnostics, code generation |
+| `conformance-interpreter`  | Every program in `tests/conformance` under `Meadows --run`          |
+| `conformance-native`       | The same programs, compiled and executed                            |
+| `conformance-diagnostics`  | Exact compile-time diagnostics                                       |
+| `conformance-wasm`         | The same suite on the WebAssembly build (`BUILD_WASM`, needs Node)   |
+| `examples-*`               | The programs in `examples/`, interpreted and compiled               |
+| `differential-fuzz`        | Random programs must behave identically on both back ends           |
+
+Run one unit test with `./build/tests/meadows_tests "<name>"` or by tag, for
+example `"[parser]"`.
+
+## Conformance programs
+
+Each `tests/conformance/<name>.ms` has `<name>.expected` (standard output) and,
+for programs that fail at run time, `<name>.expected_error` (standard error; exit
+status is then `1`). Programs under `errors/` end in a runtime error, and
+`diagnostics/` holds programs whose compile-time output is compared.
+
+To record new expectations, run
+`tests/run_conformance.sh build/bin/Meadows interpret --update`, then read every
+changed file: the expected output is the specification, so check it by hand.
+Because the suite also runs natively, a divergence between back ends fails one
+of the two runs.
+
+## WebAssembly and the playground
 
 ```bash
-./scripts/test/run_coverage.sh
+emcmake cmake -B build-wasm -DBUILD_WASM=ON
+cmake --build build-wasm
+ctest --test-dir build-wasm
+cd web && npm ci && MEADOWS_WASM=../build-wasm/bin/meadows.js npm test && npm run build
+npm run serve        # http://localhost:8080
 ```
 
-Requires: `ENABLE_COVERAGE=ON` in CMake configuration.
+## Sanitizers
+
+```bash
+cmake -B build-san -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+cmake --build build-san
+MEADOWS_CFLAGS="-fsanitize=address,undefined -g" ctest --test-dir build-san
+```
+
+`MEADOWS_CFLAGS` adds flags to the `clang` step that builds compiled programs.
+
+## Formatting
+
+`scripts/format.sh` formats and `scripts/format.sh --check` verifies, using
+clang-format 17 (`CLANG_FORMAT=<path>` selects the binary).

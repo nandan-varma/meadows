@@ -1,360 +1,245 @@
-# Meadows Language Reference
+# Meadows language reference
 
-## Overview
+Meadows is a small, dynamically typed, imperative language with C-like syntax.
+The native compiler, the interpreter and the browser playground implement
+exactly the same language: every program in `tests/conformance` must produce
+identical output, error messages and exit status on all of them.
 
-Meadows is a small, imperative programming language with C-like syntax. It
-compiles to native executables via LLVM 17.
+## Source files
 
-## File Extension
+Source files use the `.ms` extension and are UTF-8. Strings are byte strings:
+`len("é")` is `2`. Comments start with `#` or `//` and run to the end of the
+line. Whitespace is insignificant. Identifiers match `[A-Za-z_][A-Za-z0-9_]*`.
 
-Source files must have the `.ms` extension.
+Keywords: `let func if else for while return in range break continue import true
+false`. `true` and `false` are the integers `1` and `0`.
 
-## Comments
+## Values
 
-```meadows
-# Hash-style single-line comment
-// Slash-style single-line comment
-```
+| Type       | Notes                                                                 |
+|------------|-----------------------------------------------------------------------|
+| `integer`  | 32-bit signed. Arithmetic wraps on overflow.                           |
+| `float`    | 64-bit IEEE 754. Literals need digits on both sides of the point.      |
+| `string`   | Immutable byte string, at most 1 MiB. May contain `\0`.                |
+| `array`    | Ordered, mutable, heterogeneous. At most 4,194,304 elements.           |
+| `object`   | Mutable record with a fixed set of named fields, kept in source order. |
+| `function` | A reference to a top-level function.                                   |
 
-## Types
+Arrays, objects and functions are references: `let b = a;` makes both names
+refer to the same value. Reference cycles are never reclaimed before the program
+exits.
 
-Meadows is dynamically resolved at the AST level — variables don't carry
-explicit type annotations. The five kinds of values are:
+Integer literals range from `-2147483648` to `2147483647`; larger literals are
+a compile error. String escapes are `\n \t \r \0 \b \f \\ \"`; any other escape
+is a compile error. A string literal cannot span lines.
 
-### Integer (i32)
-
-- 32-bit signed integer
-- Range: -2,147,483,648 to 2,147,483,647
-- Literals: `0`, `42`, `-17`
-- Wraps on overflow (two's complement), doesn't trap
-
-### Float (f64)
-
-- 64-bit IEEE 754 double
-- Literals: `3.14`, `10.0` (a digit is required on both sides of the `.`)
-- Arithmetic and comparisons between an Int and a Float promote the Int to
-  Float — `1 + 2.5` is `3.5`, and `1 == 1.0` is true
-- `!`, `&&`, `||`, and conditions (`if`/`while`) stay Int-only; write a
-  comparison (`x > 0.0`) rather than relying on a raw float's truthiness
-- `print()`, `str()`, and string concatenation format floats with `%g`
-
-### String
-
-- Pointer to a null-terminated byte array
-- Literals: `"hello"`, `"line\n"`
-- Escape sequences: `\n`, `\t`, `\\`, `\"`, `\r`, `\0`, `\b`, `\f`
-
-### Array
-
-- Fixed-size once created, allocated at the declaration site
-- Element type: i32 only
-- Literals: `[1, 2, 3]`
-- `push(arr, value)` returns a *new* array one element longer — it doesn't
-  grow `arr` in place (arrays are fixed-size; growing means allocating a new
-  one). Reassign to keep using the same name: `arr = push(arr, value);`.
-  `push()`'s argument must itself be an array literal or a variable
-  declared (directly, or through a chain of `let`/`push` reassignment) from
-  one — `push(push(arr, 1), 2)` isn't resolvable without an intermediate
-  `let`, since the compiler tracks each array's length at compile time
-  rather than carrying one at runtime.
-
-### Object
-
-- Struct-like composite with named fields
-- Literals: `{name: "test", value: 42}`
-- Field access: `obj.fieldName`
-
-## Variables
+## Variables and scope
 
 ```meadows
-let x = 42;
-let message = "hello";
-let numbers = [1, 2, 3];
-let person = {name: "Alice", age: 30};
-
-x = 100;             # Reassignment
-message = "updated";
-numbers[0] = 99;     # Array element assignment
-person.age = 31;     # Object field assignment
+let x = 1;
+x = x + 1;
 ```
 
-A variable must be declared before use. Re-declaring the same name in the same
-scope is an error (`E3003`). Declaring the same name in an inner scope is a
-warning (`W6004`, shadowing).
+A variable must be declared before use and cannot be declared twice in one
+scope (`E3003`). Blocks, `if`/`else` branches and loop bodies have their own
+scope. Shadowing an outer variable is allowed and produces warning `W6004`.
 
-A valid assignment target is a plain variable, an array element (`arr[i] =
-...`), or an object field (`obj.field = ...`) — anything else is a compile-time
-error (`E2010 PARSE_INVALID_ASSIGNMENT_TARGET`). All three evaluate to the
-assigned value, so `print(arr[0] = 5);` is valid.
+Functions are closed: a function body sees only its parameters, its own locals
+and other functions. It cannot read or write top-level variables. Pass values in
+as arguments and return results.
 
-## Operators
+A name has one meaning. A variable cannot share a name with a function or a
+built-in (`E3013`), and a function name cannot be assigned to (`E3015`).
+
+## Expressions
+
+Operators from lowest to highest precedence:
+
+| Operators                  | Notes                                  |
+|----------------------------|----------------------------------------|
+| `=`                        | Assignment, right-associative          |
+| `\|\|`                     | Short-circuit or                       |
+| `&&`                       | Short-circuit and                      |
+| `==` `!=`                  | Equality                               |
+| `<` `<=` `>` `>=`          | Ordering, numbers only                 |
+| `+` `-`                    | Addition, subtraction, concatenation   |
+| `*` `/` `%`                | Multiplication, division, remainder    |
+| `-` `!`                    | Unary                                  |
+| `()` `[]` `.`              | Call, index, field; chain freely       |
+
+Operands are evaluated left to right. The operation itself, and any error it
+raises, happens after its operands are evaluated.
 
 ### Arithmetic
 
-| Op | Meaning                                |
-|----|----------------------------------------|
-| `+` | Addition (Int/Float) / concatenation (strings) |
-| `-` | Subtraction (Int/Float)               |
-| `*` | Multiplication (Int/Float)            |
-| `/` | Division (Int/Float; runtime div-by-zero check) |
-| `%` | Modulo (Int/Float; runtime div-by-zero check) |
+Two integers give an integer, using truncating division. `INT_MIN / -1` is
+`INT_MIN` and `INT_MIN % -1` is `0`. If either operand is a float the other is
+promoted and the result is a float; `%` on floats is `fmod`. Dividing by zero,
+integer or float, is a runtime error.
 
-`/` and `%` are integer division/remainder when both operands are Int (`7 /
-2` is `3`); if either operand is Float, the Int operand promotes and the
-result is Float (`7.0 / 2` is `3.5`).
+`+` concatenates when either operand is a string and the other is a string or a
+number. Numbers are formatted as `%d` (integers) and `%g` (floats).
 
-### Comparison
+### Comparison and equality
 
-`==`, `!=`, `>`, `<`, `>=`, `<=`
+`==` and `!=` accept any operands and never fail. Numbers compare by value
+(`1 == 1.0`), strings by content, and arrays, objects and functions by
+identity. Different types are never equal. `<`, `<=`, `>`, `>=` accept numbers
+only.
 
-### Logical
+### Logic
 
-`&&` (and), `||` (or), `!` (not)
+`&&`, `||` and `!` require integer operands, short-circuit, and produce `0` or
+`1`. Conditions of `if` and `while` must be integers. Comparisons already
+produce integers; write `x > 0.0` rather than testing a float directly.
 
-### Unary
+### Indexing and fields
 
-`-x` (negate), `!x` (logical not)
+`a[i]` requires an array and an integer index within bounds. `o.name` requires
+an object that has the field. Both can be assigned, and an assignment evaluates
+to the assigned value: `print(a[0] = 5);`. A field cannot be added to an
+existing object. Accessing an unknown field of an object literal written in
+place is a compile error (`E3012`); otherwise it is a runtime error.
 
-### String concatenation
-
-```meadows
-"hello" + " " + "world"   # "hello world"
-```
-
-Concatenation with a compile-time-constant number (Int or Float) is permitted;
-a non-constant one (a variable, or any other expression) must be converted
-with `str()` first.
-
-## Control flow
-
-### If
+## Statements
 
 ```meadows
-if (condition) {
-  ...
-} else {
-  ...
-}
+let name = expression;
+if (condition) { ... } else if (condition) { ... } else { ... }
+while (condition) { ... }
+for (i in range(start, end)) { ... }
+break;
+continue;
+return expression;
+{ ... }
 ```
 
-The `else` branch is optional.
-
-### While
-
-```meadows
-while (condition) {
-  ...
-}
-```
-
-### For (range-based)
-
-`range` is **syntax**, not a callable function. It is only valid in `for`:
-
-```meadows
-for (i in range(0, 10)) {
-  print(i);
-}
-```
-
-The loop variable `i` takes values `start`, `start+1`, …, `end-1`.
-
-### Break and continue
-
-```meadows
-while (1 == 1) {
-  if (done) { break; }
-  if (skip) { continue; }
-  ...
-}
-```
-
-`break` and `continue` outside a loop are errors (`E3009`, `E3010`).
+`for` runs `i` from `start` up to but excluding `end`; both bounds are evaluated
+once and must be integers, and assigning to `i` inside the body does not affect
+iteration. Braces are required. Every simple statement ends with `;`.
 
 ## Functions
 
 ```meadows
-func greet(name) {
-  print("Hello, " + name);
-}
-
-func square(x) {
-  return x * x;
+func add(a, b) {
+  return a + b;
 }
 ```
 
-- All parameters are i32 currently. Passing a string to a user-defined function
-  is **not** supported (LLVM IR verification will fail).
-- Return type is i32. `return;` (no expression) is allowed; it returns 0.
-- Functions can call other functions defined later in the same file (mutual /
-  forward calls are resolved in a pre-pass).
-- Recursion is supported.
-- Re-defining a function is an error (`E3004`).
+Functions are declared at the top level of a file and may be called before their
+declaration. Parameters and results can be any value. A function without
+`return`, or with a bare `return;`, returns `0`.
 
-### Functions as values (interpreter only)
+A function name used as a value is a function reference, and any expression can
+be called:
 
 ```meadows
-func add(a, b) { return a + b; }
-let f = add;
-print(f(3, 4));           # 7
-
-func apply(fn, x, y) { return fn(x, y); }
-print(apply(add, 5, 6));  # 11
+func apply(f, x) { return f(x); }
+let g = add;
+print(apply(g, 1));
+print(table[0](2));
 ```
 
-A bare function name is a value that can be bound to a variable, reassigned,
-passed as an argument, and called through the variable it's bound to. This
-is **interpreter-only** — the native backend has no function-pointer type (every
-parameter is a fixed i32) and rejects it at CodeGen time with a compile
-error, not a silent miscompile. Argument-count validation for a call through
-a variable is deferred to a runtime check, since the variable's target
-function isn't known until the call executes.
-
-This is function *references*, not closures: a function can't capture a
-variable from an enclosing scope. Meadows functions are flat/global — a
-function's body only sees its own locals and parameters, never a caller's —
-so there's no enclosing scope to capture in the first place.
-
-## Imports (CLI only)
-
-```meadows
-import "math_utils.ms";
-
-print(square(5));
-```
-
-`import "path.ms";` textually splices the imported file's contents in place
-before parsing — there's no namespacing or per-file scoping. An imported
-file's functions and top-level `let`s land directly in the importing file's
-global scope, so a name collision across files is the same
-`E3004`/`E3003` redefinition error as within one file. Import paths are
-relative to the importing file's directory; the same path-validation rules
-as the entry file apply (`.ms` extension, no `..`, size limit).
-
-If the same file is imported more than once — directly, or transitively
-through a diamond dependency (`a.ms` and `b.ms` both import `shared.ms`) —
-it's only spliced in the first time; later imports of it are silently
-skipped, which is also what makes a circular import (`a.ms` imports `b.ms`
-imports `a.ms`) terminate instead of looping forever.
-
-This is CLI-only. The browser playground compiles a single in-memory source
-string with no filesystem to import from — `import` there is a plain parse
-error (`import` isn't a valid expression or statement start once the parser
-sees it, since only the CLI's `ModuleResolver` strips import statements out
-before parsing reaches them).
+Calls to a named function are checked at compile time (`E3006`). Calls through
+values are checked at run time. Calls may nest at most 10,000 deep.
 
 ## Built-in functions
 
-| Function       | Description                                              |
-|----------------|----------------------------------------------------------|
-| `print(value)` | Print an integer or string, followed by a newline        |
-| `len(s)`       | Length of a string, or of an array (i32)                 |
-| `str(n)`       | Format an Int or Float as a string (heap-allocated), `%g` for Float |
-| `push(arr, v)` | Returns a new array with `v` appended (doesn't mutate `arr`) |
+| Call           | Result                                                          |
+|----------------|-----------------------------------------------------------------|
+| `print(v)`     | Writes an integer, float or string and a newline. Returns `0`.  |
+| `len(v)`       | Length in bytes of a string, or elements of an array.           |
+| `str(n)`       | Formats an integer or float as a string.                        |
+| `push(a, v)`   | Appends `v` to array `a` in place and returns `a`.              |
 
-Built-ins are validated by the semantic analyzer; calling them with the wrong
-arg count is an error (`E3006`).
+Built-ins cannot be used as values, shadowed or redefined.
 
-## Statements
-
-Every statement ends with `;`:
+## Modules
 
 ```meadows
-let x = 5;
-print(x);
-return x;
+import "geometry.ms";
 ```
 
-A block (`{ ... }`) is a sequence of statements with its own scope.
+`import` appears at the top level and is replaced by the contents of the named
+file. The path is relative to the importing file, must end in `.ms`, and must be
+relative and free of `..`. All files share one global namespace, so a name
+defined twice is the same error as a redefinition within one file. A file is
+included only the first time it is imported, which also makes circular imports
+terminate.
 
-## Expressions
+## Diagnostics
 
-### Primary
+Compile-time diagnostics are printed with the offending source line:
 
-```meadows
-42              # Integer literal
-"hello"         # String literal
-[1, 2, 3]       # Array literal
-{a: 1, b: 2}    # Object literal
-identifier      # Variable reference
-(expr)          # Parenthesized
+```
+error[E3001]: Undefined variable 'x'
+ --> main.ms:3:7
+  |
+3 | print(x);
+  |       ^
 ```
 
-### Index and field access
+| Code  | Meaning                                              |
+|-------|------------------------------------------------------|
+| E1001 | Unterminated string literal                           |
+| E1002 | Unexpected character                                  |
+| E1003 | Invalid escape sequence                               |
+| E1004 | Number literal out of range                           |
+| E1005 | String literal too long                               |
+| E2001–E2017 | Syntax errors: a specific token or construct was expected |
+| E2010 | Invalid assignment target                             |
+| E2014 | Nesting too deep (limit 256)                          |
+| E2015 | `func` or `import` not at the top level               |
+| E3001 | Undefined variable                                    |
+| E3002 | Undefined function                                    |
+| E3003 | Variable already declared in this scope               |
+| E3004 | Function already defined                              |
+| E3006 | Wrong number of arguments                             |
+| E3009 | `break` outside a loop                                |
+| E3010 | `continue` outside a loop                             |
+| E3011 | `return` outside a function                           |
+| E3012 | Unknown field on an object literal                    |
+| E3013 | Name already used by a function or built-in          |
+| E3014 | Duplicate field in an object literal                  |
+| E3015 | Assignment to a function                              |
+| E3016 | Built-in used as a value                              |
+| E5001–E5004 | Import problems: missing, too large, invalid path, unreadable |
+| W6001 | Variable declared but never used (silence with a `_` prefix) |
+| W6003 | Unreachable statement                                 |
+| W6004 | Variable shadows an outer declaration                 |
 
-```meadows
-arr[0]
-obj.field
-```
-
-Indexing an array out of bounds is a **runtime** error that prints a message
-and exits with code -1. Accessing an unknown field is a compile-time error —
-`E3012` when the object is an inline literal at the access site, or a
-CodeGen error when it's a variable declared directly from an object literal
-(`let o = {a: 1}; let p = o;` — `p` carries `o`'s shape too). Field access
-through anything else (a chained access like `a.b.c`, or a variable whose
-initializer isn't traceable to a literal) is not supported and is a
-compile-time error, not silently wrong output.
-
-### Function call
-
-```meadows
-func_name(arg1, arg2)
-```
-
-## Compile-time diagnostics
-
-| Code  | Name                        |
-|-------|-----------------------------|
-| E1001 | LEX_UNTERMINATED_STRING     |
-| E1002 | LEX_INVALID_CHARACTER       |
-| E2001 | PARSE_EXPECTED_SEMICOLON    |
-| E2002 | PARSE_EXPECTED_EXPRESSION   |
-| E2010 | PARSE_INVALID_ASSIGNMENT_TARGET |
-| E3001 | SEM_UNDEFINED_VARIABLE      |
-| E3002 | SEM_UNDEFINED_FUNCTION      |
-| E3003 | SEM_REDEFINED_VARIABLE      |
-| E3004 | SEM_REDEFINED_FUNCTION      |
-| E3006 | SEM_INVALID_ARGUMENT_COUNT  |
-| E3009 | SEM_BREAK_OUTSIDE_LOOP      |
-| E3010 | SEM_CONTINUE_OUTSIDE_LOOP   |
-| E3011 | SEM_RETURN_OUTSIDE_FUNCTION |
-| E3012 | SEM_UNKNOWN_FIELD           |
-| W6001 | WARN_UNUSED_VARIABLE        |
-| W6003 | WARN_UNREACHABLE_CODE       |
-| W6004 | WARN_SHADOWING_VARIABLE     |
-
-Warnings can be controlled with `-Wall`, `-Wextra`, `-Werror`, or `-Wno-<name>`
-(e.g. `-Wno-unused-variable`).
+Warnings can be silenced with `-Wno-unused-variable`, `-Wno-unreachable-code` and
+`-Wno-shadowing`, or promoted to errors with `-Werror`.
 
 ## Runtime errors
 
-These are checked at runtime; on failure the program prints a message and
-exits with code -1:
+A runtime error stops the program, flushes standard output, prints a message to
+standard error and exits with status `1`:
 
-- Division by zero (`/`, `%`)
-- Array index out of bounds
+```
+RuntimeError: Division by zero
+  at main.ms:3:9
+```
 
-## Current limitations
+| Message                                                   | Cause                                  |
+|-----------------------------------------------------------|----------------------------------------|
+| `Division by zero`                                        | `/` or `%` by integer or float zero    |
+| `Array index N out of bounds for length L`                | Index outside the array                |
+| `Array index must be an integer, got T`                   | Non-integer index                      |
+| `Cannot index <type>`                                     | Indexing a non-array                   |
+| `Cannot access field 'f' on <type>`                       | Field access on a non-object           |
+| `Object has no field 'f'`                                 | Unknown field                          |
+| `Operator 'op' cannot be applied to T1 and T2`            | Operand types the operator rejects     |
+| `Condition must be an integer, got T`                     | `if` or `while` condition              |
+| `Range bounds must be integers, got T`                    | `for` bounds                           |
+| `Cannot call <type>`                                      | Calling a non-function                 |
+| `Function 'f' takes N arguments, got M`                   | Wrong argument count through a value   |
+| `Maximum call depth exceeded`                             | More than 10,000 nested calls          |
+| `String exceeds the maximum length`                       | Concatenation beyond 1 MiB             |
+| `Array exceeds the maximum length`                        | `push` beyond 4,194,304 elements       |
+| `print() cannot print <type>`                             | Printing an array, object or function  |
+| `len() requires a string or an array, got T`              | Bad `len` argument                     |
+| `str() requires a number, got T`                          | Bad `str` argument                     |
+| `push() requires an array as its first argument, got T`   | Bad `push` argument                    |
 
-These apply to the **native LLVM backend** (`meadows` CLI → `.ll` → `clang++`):
-
-- Array and string elements are i32-only at the value level (no Float arrays)
-- Function parameters are i32-only — strings, floats, and arrays cannot be
-  passed to user functions
-- Arrays can only grow via `push()`, which returns a new array rather than
-  growing in place, and only when the source array's length is statically
-  resolvable — see the Array section above
-- No standard library beyond `print`, `len`, `str`, `push`
-- `import` is CLI-only (textual splicing, no namespacing) — see Imports above
-- Field access requires the object be an inline literal, or a variable
-  declared directly from one (including through a chain of `let b = a;`
-  aliases) — chained access (`a.b.c`) and anything else isn't supported
-
-The [browser playground](https://meadows.nandanvarma.com) runs a separate
-interpreter backend (`src/interpreter/`) that does not carry the i32-only
-restrictions above, since none of them are inherent to the language as
-parsed and semantically analyzed — they're specific to generating i32-typed
-LLVM IR. A program that only compiles with the interpreter (e.g. one that
-passes a string to a user function) will not yet build with the native
-`meadows` compiler.
+`T` is `integer`, `float`, `string`, `array`, `object` or `function`.
